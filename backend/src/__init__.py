@@ -1,0 +1,1 @@
+"""BattleGraf Backend — Clean Architecture."""

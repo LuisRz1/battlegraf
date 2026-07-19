@@ -1,0 +1,1 @@
+"""Infraestructura — Adaptadores concretos."""

@@ -1,0 +1,68 @@
+# .gitignore — BattleGraf monorepo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+*.so
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Alembic
+backend/src/infrastructure/database/migrations/versions/*.pyc
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/*.iml
+mobile/.idea/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.podspec
+mobile/.pub-cache/
+mobile/.pub/
+mobile/coverage/
+
+# MinIO data
+data/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# OS
+*.log
+*.tmp
