@@ -61,7 +61,7 @@ class LobbyView extends ConsumerWidget {
                     _MenuCard(
                       icon: Icons.sports_kabaddi,
                       title: 'BATALLA',
-                      onTap: () {},
+                      onTap: () => context.go('/battle-lobby'),
                     ),
                     _MenuCard(
                       icon: Icons.school,

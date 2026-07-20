@@ -5,17 +5,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.entities import Section
+from src.domain.entities import Section, User
 from src.domain.enums import Role
-from src.infrastructure.auth.dependencies import require_role
+from src.infrastructure.auth.password import hash_password
+from src.infrastructure.auth.permissions import require_role
 from src.infrastructure.database.session import get_db
 from src.presentation.api.dependencies import get_school_repo, get_section_repo, get_user_repo
 from src.presentation.schemas.requests.school_requests import (
     BulkCreateStudentsRequest,
     CreateSchoolRequest,
     CreateSectionsRequest,
-    CreateSectionRequest,
-    StudentImportRequest,
 )
 from src.presentation.schemas.responses.school_responses import SchoolResponse, SectionResponse
 
@@ -84,7 +83,7 @@ async def create_sections(
     body: CreateSectionsRequest,
     repo=Depends(get_section_repo),
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
 ):
     created = []
     for section_data in body.sections:
@@ -107,11 +106,8 @@ async def bulk_create_students(
     session: AsyncSession = Depends(get_db),
     _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
 ):
-    from src.domain.entities import User
-    from src.domain.enums import Role
-    from src.infrastructure.auth.password import hash_password
-    from src.infrastructure.database.repositories import SQLAlchemyUserRepository
-    from src.infrastructure.database.repositories import SQLAlchemySectionRepository
+    """Create multiple students in one section."""
+    from src.infrastructure.database.repositories import SQLAlchemySectionRepository, SQLAlchemyUserRepository
 
     user_repo = SQLAlchemyUserRepository(session)
     section_repo = SQLAlchemySectionRepository(session)

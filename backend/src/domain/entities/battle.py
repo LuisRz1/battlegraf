@@ -1,5 +1,7 @@
 """Entidades de dominio para batallas y grafos."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -79,6 +81,7 @@ class Battle:
     node_states: dict[UUID, BattleNodeState] = field(default_factory=dict)
     player_positions: dict[int, UUID] = field(default_factory=dict)
     turn_timeout_seconds: int = 30
+    moves: list[BattleMove] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     finished_at: Optional[datetime] = None
 

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/views/battle/battle_view.dart';
+import '../../presentation/views/battle_lobby/battle_lobby_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
@@ -43,6 +45,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/lobby',
         builder: (context, state) => const LobbyView(),
       ),
+      GoRoute(
+        path: '/battle-lobby',
+        builder: (context, state) => const BattleLobbyView(),
+      ),
+      GoRoute(
+        path: '/battle/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
+          if (id == null) return const _NotFoundView();
+          return BattleView(battleId: id);
+        },
+      ),
     ],
   );
 });
@@ -50,5 +64,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<AuthState> stream) {
     stream.listen((_) => notifyListeners());
+  }
+}
+
+class _NotFoundView extends StatelessWidget {
+  const _NotFoundView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('NO ENCONTRADO')),
+      body: const Center(child: Text('Ruta invalida')),
+    );
   }
 }

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import School, User
 from src.domain.enums import Role
-from src.infrastructure.auth.dependencies import get_current_user
+from src.infrastructure.auth.permissions import get_current_user
 from src.infrastructure.auth.jwt_handler import create_access_token
 from src.infrastructure.auth.password import hash_password, verify_password
 from src.infrastructure.database.repositories import SQLAlchemySchoolRepository, SQLAlchemyUserRepository
@@ -29,7 +29,7 @@ async def login(
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas")
 
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, user.school_id, user.section_id)
     return TokenResponse(access_token=token, token_type="bearer")
 
 

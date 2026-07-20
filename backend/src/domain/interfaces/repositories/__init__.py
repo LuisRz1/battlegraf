@@ -7,6 +7,21 @@ from uuid import UUID
 from src.domain.entities import School, Section, User
 from src.domain.enums import Role, Subject
 
+from .battle_repo import BattleMoveRepository, BattleRepository, GraphRepository
+from .question_repo import QuestionBankRepository, QuestionRepository
+
+__all__ = [
+    "BattleMoveRepository",
+    "BattleRepository",
+    "GraphRepository",
+    "QuestionAgent",
+    "QuestionBankRepository",
+    "QuestionRepository",
+    "SchoolRepository",
+    "SectionRepository",
+    "UserRepository",
+]
+
 
 class SchoolRepository(ABC):
     """Puerto para persistencia de colegios."""
