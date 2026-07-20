@@ -1,10 +1,11 @@
 """Interfaces abstractas del dominio — puertos que infraestructura debe implementar."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from uuid import UUID
 
-from ..entities import School, Section, User
-from ..enums import Role, Subject
+from src.domain.entities import School, Section, User
+from src.domain.enums import Role, Subject
 
 
 class SchoolRepository(ABC):
@@ -19,7 +20,7 @@ class SchoolRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_all(self) -> list[School]:
+    async def list_all(self) -> Sequence[School]:
         ...
 
 
@@ -39,11 +40,15 @@ class UserRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_by_school(self, school_id: UUID, role: Role | None = None) -> list[User]:
+    async def list_by_school(self, school_id: UUID) -> Sequence[User]:
         ...
 
     @abstractmethod
-    async def list_by_section(self, section_id: UUID) -> list[User]:
+    async def list_by_section(self, section_id: UUID) -> Sequence[User]:
+        ...
+
+    @abstractmethod
+    async def update(self, user: User) -> User:
         ...
 
 
@@ -51,7 +56,7 @@ class SectionRepository(ABC):
     """Puerto para persistencia de secciones."""
 
     @abstractmethod
-    async def create(self, section: Section) -> School:
+    async def create(self, section: Section) -> Section:
         ...
 
     @abstractmethod
@@ -59,7 +64,7 @@ class SectionRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_by_school(self, school_id: UUID) -> list[Section]:
+    async def list_by_school(self, school_id: UUID) -> Sequence[Section]:
         ...
 
 

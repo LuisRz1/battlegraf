@@ -59,8 +59,15 @@ data/
 
 # Testing
 .coverage
-.pytest_cache/
 htmlcov/
+.pytest_cache/
+
+# Local development
+.local/
+
+# SQLite
+*.db
+*.sqlite3
 .tox/
 
 # OS
