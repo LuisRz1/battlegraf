@@ -137,11 +137,70 @@ class _BattleLobbyViewState extends ConsumerState<BattleLobbyView> {
                     ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateBattleDialog(context),
+        backgroundColor: AppColors.crimsonRed,
+        foregroundColor: AppColors.offWhite,
+        icon: const Icon(Icons.add),
+        label: const Text('NUEVA'),
+      ),
     );
   }
 
-  void _enterBattle(int battleId) {
+  void _enterBattle(String battleId) {
     context.go('/battle/$battleId');
+  }
+
+  void _showCreateBattleDialog(BuildContext context) {
+    final player1Controller = TextEditingController();
+    final player2Controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.darkCard,
+          title: const Text('Nueva batalla'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: player1Controller,
+                decoration: const InputDecoration(
+                  labelText: 'ID jugador 1',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: player2Controller,
+                decoration: const InputDecoration(
+                  labelText: 'ID jugador 2',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('CANCELAR'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final notifier = ref.read(battleProvider.notifier);
+                final battle = await notifier.createBattle(
+                  player1Controller.text.trim(),
+                  player2Controller.text.trim(),
+                );
+                if (battle != null && context.mounted) {
+                  Navigator.of(context).pop();
+                  context.go('/battle/${battle.id}');
+                }
+              },
+              child: const Text('CREAR'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

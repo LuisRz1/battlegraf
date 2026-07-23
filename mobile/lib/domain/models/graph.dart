@@ -9,19 +9,20 @@ class Graph {
   const Graph({
     required this.nodes,
     required this.edges,
-    this.layerCount = 3,
+    this.layerCount = 4,
   });
 
   factory Graph.fromJson(Map<String, dynamic> json) {
     return Graph(
-      nodes: (json['nodes'] as List<dynamic>)
-          .map((e) => Node.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      nodes: (json['nodes'] as List<dynamic>?)
+              ?.map((e) => Node.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       edges: (json['edges'] as List<dynamic>?)
               ?.map((e) => GraphEdge.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      layerCount: json['layer_count'] as int? ?? 3,
+      layerCount: json['layer_count'] as int? ?? 4,
     );
   }
 
@@ -48,15 +49,15 @@ class Graph {
 
 /// A connection between two nodes.
 class GraphEdge {
-  final int source;
-  final int target;
+  final String source;
+  final String target;
 
   const GraphEdge({required this.source, required this.target});
 
   factory GraphEdge.fromJson(Map<String, dynamic> json) {
     return GraphEdge(
-      source: json['source'] as int,
-      target: json['target'] as int,
+      source: json['source'].toString(),
+      target: json['target'].toString(),
     );
   }
 

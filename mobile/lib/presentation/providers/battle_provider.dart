@@ -14,11 +14,12 @@ class BattleState {
   final Battle? battle;
   final bool isLoading;
   final String? error;
-  final int? activeNodeId;
+  final String? activeNodeId;
   final String? feedback;
   final bool feedbackSuccess;
   final int timeRemaining;
   final List<Battle> activeBattles;
+  final String? currentUserId;
 
   const BattleState({
     this.battle,
@@ -29,17 +30,19 @@ class BattleState {
     this.feedbackSuccess = false,
     this.timeRemaining = 0,
     this.activeBattles = const [],
+    this.currentUserId,
   });
 
   BattleState copyWith({
     Battle? battle,
     bool? isLoading,
     String? error,
-    int? activeNodeId,
+    String? activeNodeId,
     String? feedback,
     bool? feedbackSuccess,
     int? timeRemaining,
     List<Battle>? activeBattles,
+    String? currentUserId,
   }) {
     return BattleState(
       battle: battle ?? this.battle,
@@ -50,17 +53,19 @@ class BattleState {
       feedbackSuccess: feedbackSuccess ?? this.feedbackSuccess,
       timeRemaining: timeRemaining ?? this.timeRemaining,
       activeBattles: activeBattles ?? this.activeBattles,
+      currentUserId: currentUserId ?? this.currentUserId,
     );
   }
 }
 
 /// Notifier that manages a battle lifecycle: polling, timer and WebSocket updates.
 class BattleNotifier extends StateNotifier<BattleState> {
-  BattleNotifier({required this.apiClient}) : super(const BattleState()) {
+  BattleNotifier({required this.apiClient, this.userId}) : super(const BattleState()) {
     _controller = StreamController<BattleState>.broadcast();
   }
 
   final ApiClient apiClient;
+  final String? userId;
   late final StreamController<BattleState> _controller;
   WebSocketChannel? _channel;
   Timer? _refreshTimer;
@@ -72,7 +77,7 @@ class BattleNotifier extends StateNotifier<BattleState> {
   Future<void> loadActiveBattles() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final response = await apiClient.dio.get('/battles');
+      final response = await apiClient.dio.get('/battles/me');
       final data = response.data as List<dynamic>;
       final battles = data
           .map((json) => Battle.fromJson(json as Map<String, dynamic>))
@@ -85,7 +90,7 @@ class BattleNotifier extends StateNotifier<BattleState> {
     }
   }
 
-  Future<void> loadBattle(int battleId) async {
+  Future<void> loadBattle(String battleId) async {
     state = state.copyWith(isLoading: true, error: null);
     _stopTimers();
     try {
@@ -94,7 +99,7 @@ class BattleNotifier extends StateNotifier<BattleState> {
       state = state.copyWith(
         isLoading: false,
         battle: battle,
-        timeRemaining: battle.timeRemaining ?? battle.turnDuration,
+        timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
       );
       _connectWebSocket(battleId);
       _startTimers(battleId);
@@ -105,35 +110,60 @@ class BattleNotifier extends StateNotifier<BattleState> {
     }
   }
 
-  Future<void> joinBattle(int battleId) async {
+  Future<Battle?> createBattle(String player1Id, String player2Id) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      await apiClient.dio.post('/battles/$battleId/join');
-      await loadBattle(battleId);
+      final response = await apiClient.dio.post(
+        '/battles',
+        data: {'player_1_id': player1Id, 'player_2_id': player2Id},
+      );
+      final battle = Battle.fromJson(response.data as Map<String, dynamic>);
+      state = state.copyWith(isLoading: false, battle: battle);
+      _controller.add(state);
+      return battle;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _formatError(e));
       _controller.add(state);
+      return null;
     }
   }
 
-  Future<void> answerNode(int nodeId, String answer) async {
+  Future<bool> startBattle(String battleId) async {
+    try {
+      await apiClient.dio.post('/battles/$battleId/start', data: {});
+      await loadBattle(battleId);
+      return true;
+    } catch (e) {
+      _showFeedback(_formatError(e), false);
+      return false;
+    }
+  }
+
+  Future<void> answerNode(String nodeId, String questionId, String answer) async {
     state = state.copyWith(activeNodeId: nodeId);
     try {
       final response = await apiClient.dio.post(
         '/battles/${state.battle?.id}/answer',
-        data: {'node_id': nodeId, 'answer': answer},
+        data: {
+          'node_id': nodeId,
+          'question_id': questionId,
+          'chosen_answer': answer,
+          'response_time_ms': 1500,
+        },
       );
-      final success = (response.data as Map<String, dynamic>)['correct'] == true;
+      final data = response.data as Map<String, dynamic>;
+      final success = data['is_correct'] == true;
       _showFeedback(
-        success ? 'Nodo conquistado!' : 'Respuesta incorrecta',
+        data['message'] as String? ?? (success ? 'Nodo conquistado!' : 'Respuesta incorrecta'),
         success,
       );
+      await loadBattle(state.battle!.id);
     } catch (e) {
       _showFeedback(_formatError(e), false);
     }
   }
 
-  void selectNode(int nodeId) {
+  void selectNode(String nodeId) {
     state = state.copyWith(activeNodeId: nodeId);
   }
 
@@ -147,14 +177,14 @@ class BattleNotifier extends StateNotifier<BattleState> {
     Future.delayed(const Duration(seconds: 2), clearFeedback);
   }
 
-  void _startTimers(int battleId) {
+  void _startTimers(String battleId) {
     _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       try {
         final response = await apiClient.dio.get('/battles/$battleId');
         final battle = Battle.fromJson(response.data as Map<String, dynamic>);
         state = state.copyWith(
           battle: battle,
-          timeRemaining: battle.timeRemaining ?? battle.turnDuration,
+          timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
         );
         _controller.add(state);
       } catch (_) {
@@ -169,7 +199,7 @@ class BattleNotifier extends StateNotifier<BattleState> {
     });
   }
 
-  void _connectWebSocket(int battleId) {
+  void _connectWebSocket(String battleId) {
     _channel?.sink.close();
     final baseUri = Uri.parse(apiClient.dio.options.baseUrl);
     final wsScheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
@@ -188,11 +218,11 @@ class BattleNotifier extends StateNotifier<BattleState> {
           final battle = Battle.fromJson(json['payload'] as Map<String, dynamic>);
           state = state.copyWith(
             battle: battle,
-            timeRemaining: battle.timeRemaining ?? battle.turnDuration,
+            timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
           );
           _controller.add(state);
         } else if (type == 'node_conquered') {
-          final nodeId = json['node_id'] as int?;
+          final nodeId = json['node_id']?.toString();
           _showFeedback('Nodo $nodeId conquistado!', true);
         }
       },
@@ -226,5 +256,5 @@ class BattleNotifier extends StateNotifier<BattleState> {
 final battleProvider = StateNotifierProvider<BattleNotifier, BattleState>((ref) {
   final authState = ref.watch(authProvider);
   final apiClient = ApiClient(token: authState.token);
-  return BattleNotifier(apiClient: apiClient);
+  return BattleNotifier(apiClient: apiClient, userId: authState.user?['id']?.toString());
 });

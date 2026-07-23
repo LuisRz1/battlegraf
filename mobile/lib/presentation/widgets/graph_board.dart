@@ -13,7 +13,7 @@ typedef NodeTapCallback = void Function(Node node);
 /// Interactive graph renderer that draws layered nodes and edges.
 class GraphBoard extends StatefulWidget {
   final Graph graph;
-  final int? activeNodeId;
+  final String? activeNodeId;
   final NodeTapCallback onNodeTap;
 
   const GraphBoard({
@@ -151,7 +151,7 @@ class _GraphPainter extends CustomPainter {
   });
 
   final _GraphLayout layout;
-  final int? activeNodeId;
+  final String? activeNodeId;
   final double pulseValue;
 
   @override
@@ -168,25 +168,27 @@ class _GraphPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
+    final nodeById = {for (final n in layout.nodes.keys) n.id: n};
+
     for (final node in layout.nodes.keys) {
       final sourceRect = layout.nodes[node];
       if (sourceRect == null) continue;
       final sourceCenter = sourceRect.center;
 
-      for (final target in layout.nodes.keys) {
-        if (target.layer == node.layer + 1) {
-          final targetRect = layout.nodes[target];
-          if (targetRect == null) continue;
-          final path = Path();
-          path.moveTo(sourceCenter.dx, sourceCenter.dy);
-          path.quadraticBezierTo(
-            (sourceCenter.dx + targetRect.center.dx) / 2,
-            sourceCenter.dy,
-            targetRect.center.dx,
-            targetRect.center.dy,
-          );
-          canvas.drawPath(path, paint);
-        }
+      for (final targetId in node.connectedTo) {
+        final target = nodeById[targetId];
+        if (target == null) continue;
+        final targetRect = layout.nodes[target];
+        if (targetRect == null) continue;
+        final path = Path();
+        path.moveTo(sourceCenter.dx, sourceCenter.dy);
+        path.quadraticBezierTo(
+          (sourceCenter.dx + targetRect.center.dx) / 2,
+          sourceCenter.dy,
+          targetRect.center.dx,
+          targetRect.center.dy,
+        );
+        canvas.drawPath(path, paint);
       }
     }
   }
@@ -223,9 +225,7 @@ class _GraphPainter extends CustomPainter {
 
   void _drawLabel(Canvas canvas, Node node, Rect rect) {
     final textStyle = TextStyle(
-      color: node.owner == NodeOwner.neutral
-          ? AppColors.offWhite
-          : AppColors.offWhite,
+      color: AppColors.offWhite,
       fontFamily: AppTheme.bodyFont,
       fontSize: rect.height * 0.22,
       fontWeight: FontWeight.bold,
@@ -347,7 +347,7 @@ class HexagonShape implements NodeShape {
 /// Animated overlay that wraps the graph board for retro feedback.
 class GraphBoardWithEffects extends StatelessWidget {
   final Graph graph;
-  final int? activeNodeId;
+  final String? activeNodeId;
   final NodeTapCallback onNodeTap;
   final bool animateConquest;
 

@@ -15,7 +15,7 @@ void main() {
   group('Battle models', () {
     test('Node serializes and parses owners', () {
       const node = Node(
-        id: 1,
+        id: '1',
         label: 'M1',
         subject: 'math',
         layer: 0,
@@ -24,7 +24,7 @@ void main() {
       );
       final json = node.toJson();
       final parsed = Node.fromJson(json);
-      expect(parsed.id, 1);
+      expect(parsed.id, '1');
       expect(parsed.owner, NodeOwner.player);
     });
 
@@ -32,14 +32,14 @@ void main() {
       final graph = Graph.fromJson({
         'nodes': [
           {
-            'id': 1,
+            'id': '1',
             'label': 'M1',
             'subject': 'math',
             'layer': 0,
             'position': 0,
           },
           {
-            'id': 2,
+            'id': '2',
             'label': 'L1',
             'subject': 'language',
             'layer': 1,
@@ -47,7 +47,7 @@ void main() {
           },
         ],
         'edges': [
-          {'source': 1, 'target': 2},
+          {'source': '1', 'target': '2'},
         ],
         'layer_count': 2,
       });
@@ -58,16 +58,16 @@ void main() {
 
     test('Battle parses nested graph', () {
       final battle = Battle.fromJson({
-        'id': 1,
+        'id': '1',
         'title': 'Demo',
         'status': 'active',
         'current_turn': 1,
-        'turn_duration': 30,
+        'turn_timeout_seconds': 30,
         'time_remaining': 25,
         'graph': {
           'nodes': [
             {
-              'id': 1,
+              'id': '1',
               'label': 'M1',
               'subject': 'math',
               'layer': 0,
@@ -78,10 +78,10 @@ void main() {
           'layer_count': 1,
         },
         'players': [
-          {'id': 1, 'name': 'Alumno'},
+          {'id': '1', 'name': 'Alumno'},
         ],
       });
-      expect(battle.id, 1);
+      expect(battle.id, '1');
       expect(battle.graph?.nodes.length, 1);
       expect(battle.players.length, 1);
     });

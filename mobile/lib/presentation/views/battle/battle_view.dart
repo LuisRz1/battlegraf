@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../domain/models/battle.dart';
 import '../../../domain/models/node.dart';
 import '../../providers/battle_provider.dart';
 import '../../widgets/graph_board.dart';
 
 /// Main battle screen with header, graph and question panel.
 class BattleView extends ConsumerStatefulWidget {
-  final int battleId;
+  final String battleId;
 
   const BattleView({super.key, required this.battleId});
 
@@ -63,6 +64,7 @@ class _BattleViewState extends ConsumerState<BattleView> {
                           currentPlayer: battle.currentPlayer ?? 'Turno',
                           timeRemaining: battleState.timeRemaining,
                           turnNumber: battle.currentTurn ?? 1,
+                          isMyTurn: _isMyTurn(battle, battleState.currentUserId),
                         ),
                         Expanded(
                           child: battle.graph == null
@@ -91,6 +93,18 @@ class _BattleViewState extends ConsumerState<BattleView> {
     );
   }
 
+  bool _isMyTurn(Battle battle, String? userId) {
+    if (userId == null || battle.currentTurn == null) return false;
+    final me = battle.players.firstWhere(
+      (p) => p.id == userId,
+      orElse: () => const Player(id: '', name: ''),
+    );
+    if (me.id.isEmpty) {
+      return userId == battle.currentPlayerId;
+    }
+    return battle.players.indexWhere((p) => p.id == me.id) == battle.currentTurn;
+  }
+
   Node? _activeNode(BattleState state) {
     final battle = state.battle;
     if (battle?.graph == null) return null;
@@ -106,9 +120,15 @@ class _BattleViewState extends ConsumerState<BattleView> {
   }
 
   void _submitAnswer() {
-    final activeNodeId = ref.read(battleProvider).activeNodeId;
-    if (activeNodeId == null || _answer.isEmpty) return;
-    ref.read(battleProvider.notifier).answerNode(activeNodeId, _answer);
+    final notifier = ref.read(battleProvider.notifier);
+    final currentState = ref.read(battleProvider);
+    final activeNodeId = currentState.activeNodeId;
+    final activeNode = _activeNode(currentState);
+    if (activeNodeId == null || activeNode == null || _answer.isEmpty) return;
+    final questionId = activeNode.questionIds.isNotEmpty
+        ? activeNode.questionIds.first
+        : '';
+    notifier.answerNode(activeNodeId, questionId, _answer);
     setState(() => _answer = '');
   }
 }
@@ -117,11 +137,13 @@ class _TurnHeader extends StatelessWidget {
   final String currentPlayer;
   final int timeRemaining;
   final int turnNumber;
+  final bool isMyTurn;
 
   const _TurnHeader({
     required this.currentPlayer,
     required this.timeRemaining,
     required this.turnNumber,
+    required this.isMyTurn,
   });
 
   @override
@@ -144,8 +166,10 @@ class _TurnHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      currentPlayer,
-                      style: Theme.of(context).textTheme.bodyLarge,
+                      isMyTurn ? 'TU TURNO' : currentPlayer,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: isMyTurn ? AppColors.brightRed : AppColors.offWhite,
+                          ),
                     ),
                   ],
                 ),

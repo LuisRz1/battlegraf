@@ -5,7 +5,7 @@ enum NodeOwner { neutral, player, opponent }
 
 /// A playable node in a BattleGraf graph.
 class Node {
-  final int id;
+  final String id;
   final String label;
   final String subject;
   final int layer;
@@ -14,7 +14,9 @@ class Node {
   final bool locked;
   final String? question;
   final List<String> options;
-  final int? conqueredBy;
+  final String? conqueredBy;
+  final List<String> connectedTo;
+  final List<String> questionIds;
 
   const Node({
     required this.id,
@@ -27,15 +29,17 @@ class Node {
     this.question,
     this.options = const [],
     this.conqueredBy,
+    this.connectedTo = const [],
+    this.questionIds = const [],
   });
 
   factory Node.fromJson(Map<String, dynamic> json) {
     return Node(
-      id: json['id'] as int,
-      label: json['label'] as String,
+      id: json['id'] as String,
+      label: (json['label'] as String?) ?? json['subject'] as String,
       subject: json['subject'] as String,
       layer: json['layer'] as int,
-      position: json['position'] as int,
+      position: json['position'] as int? ?? 0,
       owner: _parseOwner(json['owner'] as String?),
       locked: json['locked'] as bool? ?? false,
       question: json['question'] as String?,
@@ -43,7 +47,15 @@ class Node {
               ?.map((e) => e as String)
               .toList() ??
           const [],
-      conqueredBy: json['conquered_by'] as int?,
+      conqueredBy: json['conquered_by']?.toString(),
+      connectedTo: (json['connected_to'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      questionIds: (json['question_ids'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
@@ -59,11 +71,13 @@ class Node {
       'question': question,
       'options': options,
       'conquered_by': conqueredBy,
+      'connected_to': connectedTo,
+      'question_ids': questionIds,
     };
   }
 
   Node copyWith({
-    int? id,
+    String? id,
     String? label,
     String? subject,
     int? layer,
@@ -72,7 +86,9 @@ class Node {
     bool? locked,
     String? question,
     List<String>? options,
-    int? conqueredBy,
+    String? conqueredBy,
+    List<String>? connectedTo,
+    List<String>? questionIds,
   }) {
     return Node(
       id: id ?? this.id,
@@ -85,18 +101,16 @@ class Node {
       question: question ?? this.question,
       options: options ?? this.options,
       conqueredBy: conqueredBy ?? this.conqueredBy,
+      connectedTo: connectedTo ?? this.connectedTo,
+      questionIds: questionIds ?? this.questionIds,
     );
   }
 
   static NodeOwner _parseOwner(String? value) {
-    switch (value) {
-      case 'player':
-        return NodeOwner.player;
-      case 'opponent':
-        return NodeOwner.opponent;
-      default:
-        return NodeOwner.neutral;
-    }
+    if (value == null || value == 'neutral') return NodeOwner.neutral;
+    if (value == '0' || value == 'player') return NodeOwner.player;
+    if (value == '1' || value == 'opponent') return NodeOwner.opponent;
+    return NodeOwner.neutral;
   }
 
   static String _ownerToString(NodeOwner owner) {
@@ -116,6 +130,7 @@ class Node {
 
   static final Map<String, Color> _subjectColors = {
     'math': const Color(0xFFE63946),
+    'mathematics': const Color(0xFFE63946),
     'language': const Color(0xFFF4A261),
     'science': const Color(0xFF2A9D8F),
     'physics': const Color(0xFF264653),

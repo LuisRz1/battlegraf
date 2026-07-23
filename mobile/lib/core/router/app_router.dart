@@ -52,8 +52,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/battle/:id',
         builder: (context, state) {
-          final id = int.tryParse(state.pathParameters['id'] ?? '');
-          if (id == null) return const _NotFoundView();
+          final id = state.pathParameters['id'];
+          if (id == null || id.isEmpty) return const _NotFoundView();
           return BattleView(battleId: id);
         },
       ),
