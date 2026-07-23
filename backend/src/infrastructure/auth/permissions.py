@@ -62,3 +62,18 @@ require_student = require_role(Role.STUDENT)
 require_director_or_subdirector = require_role(Role.DIRECTOR, Role.SUBDIRECTOR)
 require_school_admin = require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)
 require_teacher = require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+
+
+def require_same_school_or_admin(payload: dict, school_id: UUID | str | None) -> None:
+    """Verify that a non-admin user only accesses their own school data."""
+    if school_id is None:
+        return
+    user_school = payload.get("school_id")
+    user_role = payload.get("role")
+    if user_role in {Role.DIRECTOR.value, Role.SUBDIRECTOR.value}:
+        return
+    if user_school is None or str(user_school) != str(school_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No puedes acceder a datos de otro colegio",
+        )

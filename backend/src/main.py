@@ -5,7 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.presentation.api.routes import auth, health, schools, users
+from src.presentation.api.routes import auth, battles, health, questions, schools, users
+from src.presentation.api.websocket import battle_ws
 
 
 @asynccontextmanager
@@ -22,7 +23,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="BattleGraf API",
         description="Plataforma escolar multiplayer de aprendizaje gamificado por grafos",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
 
@@ -40,6 +41,9 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
     app.include_router(schools.router, prefix="/api/v1", tags=["Schools"])
     app.include_router(users.router, prefix="/api/v1", tags=["Users"])
+    app.include_router(questions.router, prefix="/api/v1", tags=["Questions"])
+    app.include_router(battles.router, prefix="/api/v1", tags=["Battles"])
+    app.include_router(battle_ws.router, tags=["WebSocket"])
 
     return app
 

@@ -82,6 +82,10 @@ class SectionRepository(ABC):
     async def list_by_school(self, school_id: UUID) -> Sequence[Section]:
         ...
 
+    @abstractmethod
+    async def assign_tutor(self, section_id: UUID, tutor_id: UUID) -> Section | None:
+        ...
+
 
 class QuestionAgent(ABC):
     """Puerto para el agente de IA que genera preguntas."""

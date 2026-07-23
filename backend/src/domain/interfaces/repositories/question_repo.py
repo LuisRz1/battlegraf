@@ -55,5 +55,9 @@ class QuestionRepository(ABC):
         ...
 
     @abstractmethod
+    async def list_by_ids(self, question_ids: list[UUID]) -> Sequence[Question]:
+        ...
+
+    @abstractmethod
     async def update(self, question: Question) -> Question:
         ...

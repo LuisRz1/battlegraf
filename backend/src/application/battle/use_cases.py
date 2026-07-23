@@ -1,8 +1,9 @@
 """Use cases for battle management."""
 
+from collections import defaultdict
 from uuid import UUID
 
-from src.domain.entities import Battle, BattleNodeState, Question
+from src.domain.entities import Battle, BattleNodeState
 from src.domain.enums import BattleStatus, Role, Subject
 from src.domain.interfaces.repositories import (
     BattleMoveRepository,
@@ -36,6 +37,7 @@ class CreateBattle:
         player_2_id: UUID,
         graph_id: UUID | None = None,
         subjects: list[Subject] | None = None,
+        school_id: UUID | None = None,
     ) -> Battle:
         for user_id in (player_1_id, player_2_id):
             user = await self.user_repo.get_by_id(user_id)
@@ -52,6 +54,24 @@ class CreateBattle:
             builder = GraphBuilder(GraphConfig(subjects=subjects or [Subject.MATH]))
             graph = builder.build()
             graph = await self.graph_repo.create(graph)
+
+        # Attach questions to graph nodes from school bank
+        if school_id:
+            questions = await self.question_repo.list_by_school(school_id)
+            approved = [q for q in questions if q.is_approved]
+            if not approved:
+                approved = list(questions)
+            if approved:
+                by_subject = defaultdict(list)
+                for q in approved:
+                    by_subject[q.subject.value].append(q)
+                for node in graph.nodes:
+                    pool = by_subject.get(node.subject.value, approved)
+                    assigned = pool[: min(3, len(pool))]
+                    node.question_ids = [q.id for q in assigned]
+                # Persist the assigned questions to the graph nodes
+                for node in graph.nodes:
+                    await self.graph_repo.update_node_questions(node.id, node.question_ids)
 
         battle = Battle(
             player_1_id=player_1_id,
@@ -94,14 +114,14 @@ class StartBattle:
         engine.start_battle()
         return await self.battle_repo.update(battle)
 
-    async def _load_questions(self, graph) -> dict[UUID, Question]:
+    async def _load_questions(self, graph) -> dict[UUID, object]:
         question_ids: set[UUID] = set()
         for node in graph.nodes:
             question_ids.update(node.question_ids)
         if not question_ids:
             return {}
-        questions = await self.question_repo.list_by_school(graph.id)
-        return {q.id: q for q in questions if q.id in question_ids}
+        questions = await self.question_repo.list_by_ids(list(question_ids))
+        return {q.id: q for q in questions}
 
 
 class SubmitAnswer:
@@ -165,14 +185,14 @@ class SubmitAnswer:
             return 1
         raise ValueError("Player is not part of this battle")
 
-    async def _load_questions(self, graph) -> dict[UUID, Question]:
+    async def _load_questions(self, graph) -> dict[UUID, object]:
         question_ids: set[UUID] = set()
         for node in graph.nodes:
             question_ids.update(node.question_ids)
         if not question_ids:
             return {}
-        questions = await self.question_repo.list_by_school(graph.id)
-        return {q.id: q for q in questions if q.id in question_ids}
+        questions = await self.question_repo.list_by_ids(list(question_ids))
+        return {q.id: q for q in questions}
 
 
 class GetBattle:

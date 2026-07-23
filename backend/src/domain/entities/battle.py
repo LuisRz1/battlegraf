@@ -68,6 +68,23 @@ class BattleNodeState:
 
 
 @dataclass
+class BattleMove:
+    """Un movimiento dentro de una batalla."""
+
+    id: UUID = field(default_factory=uuid4)
+    battle_id: UUID = field(default_factory=uuid4)
+    player_index: int = 0
+    node_id: UUID = field(default_factory=uuid4)
+    question_id: UUID = field(default_factory=uuid4)
+    chosen_answer: str = ""
+    is_correct: bool = False
+    response_time_ms: int = 0
+    is_steal_attempt: bool = False
+    steal_successful: Optional[bool] = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
 class Battle:
     """Batalla entre dos jugadores."""
 
@@ -84,20 +101,3 @@ class Battle:
     moves: list[BattleMove] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     finished_at: Optional[datetime] = None
-
-
-@dataclass
-class BattleMove:
-    """Un movimiento dentro de una batalla."""
-
-    id: UUID = field(default_factory=uuid4)
-    battle_id: UUID = field(default_factory=uuid4)
-    player_index: int = 0
-    node_id: UUID = field(default_factory=uuid4)
-    question_id: UUID = field(default_factory=uuid4)
-    chosen_answer: str = ""
-    is_correct: bool = False
-    response_time_ms: int = 0
-    is_steal_attempt: bool = False
-    steal_successful: Optional[bool] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)

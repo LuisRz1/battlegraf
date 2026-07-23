@@ -52,7 +52,7 @@ async def list_school_users(
     school_id: str,
     role: str | None = Query(None, description="Filter by role label"),
     repo=Depends(get_user_repo),
-    payload=Depends(require_teacher),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR, Role.STUDENT)),
 ):
     _require_school_match(payload, UUID(school_id))
     users = await repo.list_by_school(UUID(school_id))
@@ -174,6 +174,7 @@ async def bulk_create_students_csv(
         username = (row.get("username") or "").strip()
         full_name = (row.get("full_name") or "").strip()
         password = (row.get("password") or "").strip()
+        email = (row.get("email") or f"{username}@battlegraf.local").strip()
 
         if not username or not full_name or not password:
             errors.append({"row": index, "detail": "Campos vacios"})
@@ -186,7 +187,7 @@ async def bulk_create_students_csv(
 
         user = User(
             username=username,
-            email=f"{username}@battlegraf.local",
+            email=email,
             hashed_password=hash_password(password),
             full_name=full_name,
             role=Role.STUDENT,

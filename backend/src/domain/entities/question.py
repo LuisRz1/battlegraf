@@ -15,6 +15,7 @@ class Question:
     id: UUID = field(default_factory=uuid4)
     subject: Subject = Subject.MATH
     school_id: UUID = field(default_factory=uuid4)
+    bank_id: UUID = field(default_factory=uuid4)
     creator_id: UUID = field(default_factory=uuid4)
     text: str = ""
     option_a: str = ""

@@ -2,16 +2,15 @@
 
 from pydantic import BaseModel, Field
 
-from src.domain.enums import Subject
-
 
 class CreateQuestionBankRequest(BaseModel):
     school_id: str
-    subject: Subject
+    subject: str
 
 
 class GenerateQuestionsRequest(BaseModel):
     count: int = Field(default=10, ge=1, le=100)
+    file_path: str = ""
 
 
 class ApproveQuestionRequest(BaseModel):

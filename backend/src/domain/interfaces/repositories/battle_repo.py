@@ -21,6 +21,9 @@ class GraphRepository(ABC):
     @abstractmethod
     async def list_all(self) -> Sequence[Graph]:
         ...
+    @abstractmethod
+    async def update_node_questions(self, node_id: UUID, question_ids: list[UUID]) -> None:
+        ...
 
 
 class BattleRepository(ABC):

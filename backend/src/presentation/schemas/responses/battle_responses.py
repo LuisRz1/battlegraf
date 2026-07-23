@@ -10,6 +10,11 @@ from src.presentation.schemas.responses.graph_responses import GraphNodeResponse
 
 class BattleNodeStateResponse(BaseModel):
     node_id: str
+    layer: int
+    subject: str
+    color: str
+    connected_to: list[str]
+    question_ids: list[str]
     owner: int | None
     attempt_count: int
     best_time_ms: int | None

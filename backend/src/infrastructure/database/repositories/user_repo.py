@@ -73,6 +73,7 @@ class SQLAlchemyUserRepository(UserRepository):
             select(UserModel)
             .where(UserModel.school_id == school_id)
             .where(UserModel.is_active.is_(True))
+            .order_by(UserModel.role.asc(), UserModel.username.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 

@@ -1,6 +1,7 @@
 """Response schemas for schools and sections."""
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -20,6 +21,6 @@ class SectionResponse(BaseModel):
     name: str
     grade: int
     level: str
-    tutor_id: str | None
+    tutor_id: Optional[str]
     is_active: bool
     created_at: datetime

@@ -93,9 +93,22 @@ class SQLAlchemySectionRepository(SectionRepository):
         return self._to_entity(model) if model else None
 
     async def list_by_school(self, school_id: uuid.UUID) -> Sequence[Section]:
+        from sqlalchemy.orm import selectinload
         result = await self._session.execute(
             select(SectionModel)
             .where(SectionModel.school_id == school_id)
             .where(SectionModel.is_active.is_(True))
+            .options(selectinload(SectionModel.users))
         )
         return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def assign_tutor(self, section_id: uuid.UUID, tutor_id: uuid.UUID) -> Section | None:
+        result = await self._session.execute(
+            select(SectionModel).where(SectionModel.id == section_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            return None
+        model.tutor_id = tutor_id
+        await self._session.flush()
+        return self._to_entity(model)

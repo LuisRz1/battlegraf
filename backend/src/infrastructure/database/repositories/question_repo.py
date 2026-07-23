@@ -165,6 +165,14 @@ class SQLAlchemyQuestionRepository(QuestionRepository):
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
+    async def list_by_ids(self, question_ids: list[uuid.UUID]) -> Sequence[Question]:
+        if not question_ids:
+            return []
+        result = await self._session.execute(
+            select(QuestionModel).where(QuestionModel.id.in_(question_ids))
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def update(self, question: Question) -> Question:
         result = await self._session.execute(
             select(QuestionModel).where(QuestionModel.id == question.id)

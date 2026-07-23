@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.domain.entities import Battle, BattleMove, BattleNodeState, Graph, GraphNode
 from src.domain.enums import BattleStatus, Subject
@@ -72,18 +73,41 @@ class SQLAlchemyGraphRepository(GraphRepository):
             )
             self._session.add(node_model)
         await self._session.flush()
+
+        # Eagerly load nodes to avoid lazy loading in async context
+        result = await self._session.execute(
+            select(GraphModel)
+            .where(GraphModel.id == model.id)
+            .options(selectinload(GraphModel.nodes))
+        )
+        model = result.scalar_one()
         return self._to_entity(model)
 
     async def get_by_id(self, graph_id: uuid.UUID) -> Graph | None:
+        from sqlalchemy.orm import selectinload
         result = await self._session.execute(
-            select(GraphModel).where(GraphModel.id == graph_id)
+            select(GraphModel)
+            .where(GraphModel.id == graph_id)
+            .options(selectinload(GraphModel.nodes))
         )
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def list_all(self) -> Sequence[Graph]:
-        result = await self._session.execute(select(GraphModel))
+        from sqlalchemy.orm import selectinload
+        result = await self._session.execute(
+            select(GraphModel).options(selectinload(GraphModel.nodes))
+        )
         return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def update_node_questions(self, node_id: uuid.UUID, question_ids: list[uuid.UUID]) -> None:
+        result = await self._session.execute(
+            select(GraphNodeModel).where(GraphNodeModel.id == node_id)
+        )
+        model = result.scalar_one_or_none()
+        if model:
+            model.question_ids = [str(q) for q in question_ids]
+            await self._session.flush()
 
 
 class SQLAlchemyBattleRepository(BattleRepository):
@@ -141,18 +165,42 @@ class SQLAlchemyBattleRepository(BattleRepository):
             )
             self._session.add(state_model)
         await self._session.flush()
+
+        # Eagerly load node states to avoid lazy loading
+        result = await self._session.execute(
+            select(BattleModel)
+            .where(BattleModel.id == model.id)
+            .options(selectinload(BattleModel.node_states))
+        )
+        model = result.scalar_one()
         return self._to_entity(model)
 
     async def get_by_id(self, battle_id: uuid.UUID) -> Battle | None:
         result = await self._session.execute(
-            select(BattleModel).where(BattleModel.id == battle_id)
+            select(BattleModel)
+            .where(BattleModel.id == battle_id)
+            .options(selectinload(BattleModel.node_states))
         )
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
+    async def list_by_player(self, player_id: uuid.UUID) -> Sequence[Battle]:
+        result = await self._session.execute(
+            select(BattleModel)
+            .where(
+                (BattleModel.player_1_id == player_id)
+                | (BattleModel.player_2_id == player_id)
+            )
+            .order_by(BattleModel.created_at.desc())
+            .options(selectinload(BattleModel.node_states))
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def update(self, battle: Battle) -> Battle:
         result = await self._session.execute(
-            select(BattleModel).where(BattleModel.id == battle.id)
+            select(BattleModel)
+            .where(BattleModel.id == battle.id)
+            .options(selectinload(BattleModel.node_states))
         )
         model = result.scalar_one_or_none()
         if not model:
@@ -180,17 +228,6 @@ class SQLAlchemyBattleRepository(BattleRepository):
                 self._session.add(new_state)
         await self._session.flush()
         return self._to_entity(model)
-
-    async def list_by_player(self, player_id: uuid.UUID) -> Sequence[Battle]:
-        result = await self._session.execute(
-            select(BattleModel)
-            .where(
-                (BattleModel.player_1_id == player_id)
-                | (BattleModel.player_2_id == player_id)
-            )
-            .order_by(BattleModel.created_at.desc())
-        )
-        return [self._to_entity(m) for m in result.scalars().all()]
 
 
 class SQLAlchemyBattleMoveRepository(BattleMoveRepository):

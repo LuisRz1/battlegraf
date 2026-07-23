@@ -29,3 +29,19 @@ class LocalStorageService:
 
     def get_path(self, relative_path: str) -> Path:
         return self.base_path / relative_path
+
+    def get_default_material(self) -> str:
+        """Return the absolute path of the default mock material file."""
+        target_dir = self.base_path / "materials"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        default_path = target_dir / "mock.txt"
+        if not default_path.exists():
+            default_path.write_text(
+                "Material de ejemplo para generar preguntas de matematicas.\n"
+                "La suma es una operacion basica. 2 + 3 = 5.\n"
+                "La resta es la operacion inversa. 10 - 4 = 6.\n"
+                "La multiplicacion es una suma repetida. 3 x 4 = 12.\n"
+                "La division reparte en partes iguales. 12 / 4 = 3.\n",
+                encoding="utf-8",
+            )
+        return str(default_path)
