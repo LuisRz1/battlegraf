@@ -24,8 +24,14 @@ class BattleConnectionManager:
             self._connections.pop(battle_id, None)
 
     async def broadcast(self, battle_id: UUID, message: dict[str, Any]) -> None:
-        for ws in self._connections.get(battle_id, []):
-            await ws.send_json(message)
+        stale: list[WebSocket] = []
+        for ws in list(self._connections.get(battle_id, [])):
+            try:
+                await ws.send_json(message)
+            except RuntimeError:
+                stale.append(ws)
+        for ws in stale:
+            self.disconnect(battle_id, ws)
 
 
 battle_manager = BattleConnectionManager()

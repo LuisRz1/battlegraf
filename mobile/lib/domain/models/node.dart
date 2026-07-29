@@ -40,19 +40,22 @@ class Node {
       subject: json['subject'] as String,
       layer: json['layer'] as int,
       position: json['position'] as int? ?? 0,
-      owner: _parseOwner(json['owner'] as String?),
+      owner: _parseOwner(json['owner']),
       locked: json['locked'] as bool? ?? false,
       question: json['question'] as String?,
-      options: (json['options'] as List<dynamic>?)
+      options:
+          (json['options'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           const [],
       conqueredBy: json['conquered_by']?.toString(),
-      connectedTo: (json['connected_to'] as List<dynamic>?)
+      connectedTo:
+          (json['connected_to'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           const [],
-      questionIds: (json['question_ids'] as List<dynamic>?)
+      questionIds:
+          (json['question_ids'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           const [],
@@ -106,10 +109,14 @@ class Node {
     );
   }
 
-  static NodeOwner _parseOwner(String? value) {
+  static NodeOwner _parseOwner(Object? value) {
     if (value == null || value == 'neutral') return NodeOwner.neutral;
-    if (value == '0' || value == 'player') return NodeOwner.player;
-    if (value == '1' || value == 'opponent') return NodeOwner.opponent;
+    if (value == 0 || value == '0' || value == 'player') {
+      return NodeOwner.player;
+    }
+    if (value == 1 || value == '1' || value == 'opponent') {
+      return NodeOwner.opponent;
+    }
     return NodeOwner.neutral;
   }
 

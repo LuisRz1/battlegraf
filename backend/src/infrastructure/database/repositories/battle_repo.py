@@ -2,7 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,11 @@ from sqlalchemy.orm import selectinload
 
 from src.domain.entities import Battle, BattleMove, BattleNodeState, Graph, GraphNode
 from src.domain.enums import BattleStatus, Subject
-from src.domain.interfaces.repositories import BattleMoveRepository, BattleRepository, GraphRepository
+from src.domain.interfaces.repositories import (
+    BattleMoveRepository,
+    BattleRepository,
+    GraphRepository,
+)
 from src.infrastructure.database.models import (
     BattleModel,
     BattleMoveModel,
@@ -18,6 +22,14 @@ from src.infrastructure.database.models import (
     GraphModel,
     GraphNodeModel,
 )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class SQLAlchemyGraphRepository(GraphRepository):
@@ -85,6 +97,7 @@ class SQLAlchemyGraphRepository(GraphRepository):
 
     async def get_by_id(self, graph_id: uuid.UUID) -> Graph | None:
         from sqlalchemy.orm import selectinload
+
         result = await self._session.execute(
             select(GraphModel)
             .where(GraphModel.id == graph_id)
@@ -95,12 +108,15 @@ class SQLAlchemyGraphRepository(GraphRepository):
 
     async def list_all(self) -> Sequence[Graph]:
         from sqlalchemy.orm import selectinload
+
         result = await self._session.execute(
             select(GraphModel).options(selectinload(GraphModel.nodes))
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
-    async def update_node_questions(self, node_id: uuid.UUID, question_ids: list[uuid.UUID]) -> None:
+    async def update_node_questions(
+        self, node_id: uuid.UUID, question_ids: list[uuid.UUID]
+    ) -> None:
         result = await self._session.execute(
             select(GraphNodeModel).where(GraphNodeModel.id == node_id)
         )
@@ -124,9 +140,21 @@ class SQLAlchemyBattleRepository(BattleRepository):
             graph_id=model.graph_id,
             status=BattleStatus(model.status),
             current_turn=model.current_turn,
+            turn_number=model.turn_number,
             winner_id=model.winner_id,
-            node_states={s.node_id: self._node_state_to_entity(s) for s in model.node_states},
+            node_states={
+                s.node_id: self._node_state_to_entity(s) for s in model.node_states
+            },
+            player_positions={
+                int(player_index): uuid.UUID(node_id)
+                for player_index, node_id in (model.player_positions or {}).items()
+            },
             turn_timeout_seconds=model.turn_timeout_seconds,
+            turn_started_at=_as_utc(model.turn_started_at),
+            turn_deadline_at=_as_utc(model.turn_deadline_at),
+            active_node_id=model.active_node_id,
+            active_question_id=model.active_question_id,
+            question_started_at=_as_utc(model.question_started_at),
             created_at=model.created_at,
             finished_at=model.finished_at,
         )
@@ -147,8 +175,18 @@ class SQLAlchemyBattleRepository(BattleRepository):
             graph_id=battle.graph_id,
             status=battle.status.value,
             current_turn=battle.current_turn,
+            turn_number=battle.turn_number,
             winner_id=battle.winner_id,
             turn_timeout_seconds=battle.turn_timeout_seconds,
+            turn_started_at=battle.turn_started_at,
+            turn_deadline_at=battle.turn_deadline_at,
+            player_positions={
+                str(player_index): str(node_id)
+                for player_index, node_id in battle.player_positions.items()
+            },
+            active_node_id=battle.active_node_id,
+            active_question_id=battle.active_question_id,
+            question_started_at=battle.question_started_at,
             created_at=battle.created_at,
             finished_at=battle.finished_at,
         )
@@ -184,6 +222,16 @@ class SQLAlchemyBattleRepository(BattleRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
+    async def get_by_id_for_update(self, battle_id: uuid.UUID) -> Battle | None:
+        result = await self._session.execute(
+            select(BattleModel)
+            .where(BattleModel.id == battle_id)
+            .options(selectinload(BattleModel.node_states))
+            .with_for_update()
+        )
+        model = result.scalar_one_or_none()
+        return self._to_entity(model) if model else None
+
     async def list_by_player(self, player_id: uuid.UUID) -> Sequence[Battle]:
         result = await self._session.execute(
             select(BattleModel)
@@ -207,12 +255,24 @@ class SQLAlchemyBattleRepository(BattleRepository):
             raise ValueError("Battle not found")
         model.status = battle.status.value
         model.current_turn = battle.current_turn
+        model.turn_number = battle.turn_number
         model.winner_id = battle.winner_id
+        model.turn_started_at = battle.turn_started_at
+        model.turn_deadline_at = battle.turn_deadline_at
+        model.player_positions = {
+            str(player_index): str(node_id)
+            for player_index, node_id in battle.player_positions.items()
+        }
+        model.active_node_id = battle.active_node_id
+        model.active_question_id = battle.active_question_id
+        model.question_started_at = battle.question_started_at
         model.finished_at = battle.finished_at
         await self._session.flush()
 
         for node_state in battle.node_states.values():
-            existing = await self._session.get(BattleNodeStateModel, (model.id, node_state.node_id))
+            existing = await self._session.get(
+                BattleNodeStateModel, (model.id, node_state.node_id)
+            )
             if existing:
                 existing.owner = node_state.owner
                 existing.attempt_count = node_state.attempt_count

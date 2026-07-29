@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from src.domain.entities import School, Section, User
-from src.domain.enums import Role, Subject
+from src.domain.enums import Subject
 
 from .battle_repo import BattleMoveRepository, BattleRepository, GraphRepository
 from .question_repo import QuestionBankRepository, QuestionRepository
@@ -27,64 +27,53 @@ class SchoolRepository(ABC):
     """Puerto para persistencia de colegios."""
 
     @abstractmethod
-    async def create(self, school: School) -> School:
-        ...
+    async def create(self, school: School) -> School: ...
 
     @abstractmethod
-    async def get_by_id(self, school_id: UUID) -> School | None:
-        ...
+    async def get_by_id(self, school_id: UUID) -> School | None: ...
 
     @abstractmethod
-    async def list_all(self) -> Sequence[School]:
-        ...
+    async def list_all(self) -> Sequence[School]: ...
 
 
 class UserRepository(ABC):
     """Puerto para persistencia de usuarios."""
 
     @abstractmethod
-    async def create(self, user: User) -> User:
-        ...
+    async def create(self, user: User) -> User: ...
 
     @abstractmethod
-    async def get_by_id(self, user_id: UUID) -> User | None:
-        ...
+    async def get_by_id(self, user_id: UUID) -> User | None: ...
 
     @abstractmethod
-    async def get_by_username(self, username: str) -> User | None:
-        ...
+    async def get_by_username(self, username: str) -> User | None: ...
 
     @abstractmethod
-    async def list_by_school(self, school_id: UUID) -> Sequence[User]:
-        ...
+    async def list_by_school(self, school_id: UUID) -> Sequence[User]: ...
 
     @abstractmethod
-    async def list_by_section(self, section_id: UUID) -> Sequence[User]:
-        ...
+    async def list_by_section(self, section_id: UUID) -> Sequence[User]: ...
 
     @abstractmethod
-    async def update(self, user: User) -> User:
-        ...
+    async def update(self, user: User) -> User: ...
 
 
 class SectionRepository(ABC):
     """Puerto para persistencia de secciones."""
 
     @abstractmethod
-    async def create(self, section: Section) -> Section:
-        ...
+    async def create(self, section: Section) -> Section: ...
 
     @abstractmethod
-    async def get_by_id(self, section_id: UUID) -> Section | None:
-        ...
+    async def get_by_id(self, section_id: UUID) -> Section | None: ...
 
     @abstractmethod
-    async def list_by_school(self, school_id: UUID) -> Sequence[Section]:
-        ...
+    async def list_by_school(self, school_id: UUID) -> Sequence[Section]: ...
 
     @abstractmethod
-    async def assign_tutor(self, section_id: UUID, tutor_id: UUID) -> Section | None:
-        ...
+    async def assign_tutor(
+        self, section_id: UUID, tutor_id: UUID
+    ) -> Section | None: ...
 
 
 class QuestionAgent(ABC):

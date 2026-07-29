@@ -1,6 +1,6 @@
 """Aplicacion — Casos de Uso."""
 
-from .school import CreateSchoolUseCase, ConfigureSectionsUseCase
+from .school import ConfigureSectionsUseCase, CreateSchoolUseCase
 
 __all__ = [
     "CreateSchoolUseCase",

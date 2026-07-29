@@ -30,7 +30,9 @@ class ConfigureSectionsUseCase:
     def __init__(self, section_repo: SectionRepository):
         self._section_repo = section_repo
 
-    async def execute(self, request: ConfigureSectionsRequest) -> ConfigureSectionsResponse:
+    async def execute(
+        self, request: ConfigureSectionsRequest
+    ) -> ConfigureSectionsResponse:
         import uuid
 
         school_id = uuid.UUID(request.school_id)

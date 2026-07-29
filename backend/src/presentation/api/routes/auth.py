@@ -8,13 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import School, User
 from src.domain.enums import Role
-from src.infrastructure.auth.permissions import get_current_user
 from src.infrastructure.auth.jwt_handler import create_access_token
 from src.infrastructure.auth.password import hash_password, verify_password
-from src.infrastructure.database.repositories import SQLAlchemySchoolRepository, SQLAlchemyUserRepository
+from src.infrastructure.auth.permissions import get_current_user
+from src.infrastructure.database.repositories import (
+    SQLAlchemySchoolRepository,
+    SQLAlchemyUserRepository,
+)
 from src.infrastructure.database.session import get_db
 from src.presentation.schemas.requests.auth_requests import CreateDirectorRequest
-from src.presentation.schemas.responses.auth_responses import TokenResponse, UserResponse
+from src.presentation.schemas.responses.auth_responses import (
+    TokenResponse,
+    UserResponse,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -27,13 +33,24 @@ async def login(
     repo = SQLAlchemyUserRepository(session)
     user = await repo.get_by_username(form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas"
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La cuenta se encuentra desactivada",
+        )
 
     token = create_access_token(user.id, user.role, user.school_id, user.section_id)
     return TokenResponse(access_token=token, token_type="bearer")
 
 
-@router.post("/register/director", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register/director",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def register_director(
     body: CreateDirectorRequest,
     session: AsyncSession = Depends(get_db),
@@ -78,7 +95,9 @@ async def me(
     user_repo = SQLAlchemyUserRepository(session)
     user = await user_repo.get_by_id(UUID(payload["sub"]))
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado"
+        )
 
     return UserResponse(
         id=str(user.id),

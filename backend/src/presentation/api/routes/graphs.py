@@ -3,13 +3,16 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.application.graph.use_cases import GenerateGraph
 from src.domain.enums import Role
 from src.infrastructure.auth.dependencies import require_role
 from src.infrastructure.database.repositories import SQLAlchemyGraphRepository
 from src.infrastructure.database.session import get_db
-from src.application.graph.use_cases import GenerateGraph
 from src.presentation.schemas.requests.graph_requests import GenerateGraphRequest
-from src.presentation.schemas.responses.graph_responses import GraphNodeResponse, GraphResponse
+from src.presentation.schemas.responses.graph_responses import (
+    GraphNodeResponse,
+    GraphResponse,
+)
 
 router = APIRouter(prefix="/graphs", tags=["Graphs"])
 
@@ -41,7 +44,9 @@ def _graph_response(graph) -> GraphResponse:
 async def generate_graph(
     body: GenerateGraphRequest,
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)),
+    _=Depends(
+        require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)
+    ),
 ):
     graph_repo = SQLAlchemyGraphRepository(session)
     use_case = GenerateGraph(graph_repo)

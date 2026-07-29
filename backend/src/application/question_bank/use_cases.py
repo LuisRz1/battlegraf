@@ -21,7 +21,9 @@ class CreateQuestionBank:
         self.bank_repo = bank_repo
 
     async def execute(self, school_id: UUID, subject: Subject) -> QuestionBank:
-        existing = await self.bank_repo.get_by_school_and_subject(school_id, subject.value)
+        existing = await self.bank_repo.get_by_school_and_subject(
+            school_id, subject.value
+        )
         if existing:
             return existing
         bank = QuestionBank(school_id=school_id, subject=subject)
@@ -63,7 +65,9 @@ class GenerateQuestions:
             raise ValueError("Question bank not found")
 
         material_text = await self.agent.extract_text_from_file(file_path)
-        generated = await self.agent.generate_questions(material_text, bank.subject, count)
+        generated = await self.agent.generate_questions(
+            material_text, bank.subject, count
+        )
 
         questions = []
         for item in generated:
@@ -114,6 +118,8 @@ class ApproveQuestion:
         question = await self.question_repo.get_by_id(question_id)
         if not question:
             raise ValueError("Question not found")
+        if question.is_approved:
+            return question
         question.is_approved = True
         updated = await self.question_repo.update(question)
 

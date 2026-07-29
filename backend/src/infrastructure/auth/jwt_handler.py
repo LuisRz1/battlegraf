@@ -11,7 +11,12 @@ from src.infrastructure.config import get_settings
 settings = get_settings()
 
 
-def create_access_token(user_id: UUID, role: Role, school_id: UUID | None = None, section_id: UUID | None = None) -> str:
+def create_access_token(
+    user_id: UUID,
+    role: Role,
+    school_id: UUID | None = None,
+    section_id: UUID | None = None,
+) -> str:
     """Create a JWT access token for a user."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {
@@ -24,13 +29,17 @@ def create_access_token(user_id: UUID, role: Role, school_id: UUID | None = None
         payload["school_id"] = str(school_id)
     if section_id:
         payload["section_id"] = str(section_id)
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
 
 
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT token."""
     try:
-        return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        return jwt.decode(
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+        )
     except JWTError:
         return None
 

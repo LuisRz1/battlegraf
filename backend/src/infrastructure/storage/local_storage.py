@@ -11,6 +11,18 @@ from src.infrastructure.config import get_settings
 class LocalStorageService:
     """Service to save uploaded files to local disk."""
 
+    allowed_material_extensions = {".pdf", ".docx", ".pptx", ".txt"}
+    allowed_submission_extensions = {
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".txt",
+        ".png",
+        ".jpg",
+        ".jpeg",
+    }
+    max_material_size = 20 * 1024 * 1024
+
     def __init__(self, base_path: str | None = None) -> None:
         settings = get_settings()
         self.base_path = Path(base_path or settings.storage_path)
@@ -20,15 +32,40 @@ class LocalStorageService:
         """Save an uploaded file and return its absolute path."""
         target_dir = self.base_path / folder
         target_dir.mkdir(parents=True, exist_ok=True)
-        ext = Path(file.filename or "unknown.txt").suffix
+        ext = Path(file.filename or "").suffix.lower()
+        allowed_extensions = (
+            self.allowed_material_extensions
+            if folder == "materials"
+            else self.allowed_submission_extensions
+        )
+        if ext not in allowed_extensions:
+            allowed = ", ".join(sorted(allowed_extensions))
+            raise ValueError(f"Unsupported material type. Allowed: {allowed}")
         unique_name = f"{uuid.uuid4()}{ext}"
         file_path = target_dir / unique_name
         contents = await file.read()
+        if not contents:
+            raise ValueError("The uploaded material is empty")
+        if len(contents) > self.max_material_size:
+            raise ValueError("The uploaded material exceeds the 20 MB limit")
         file_path.write_bytes(contents)
         return str(file_path)
 
     def get_path(self, relative_path: str) -> Path:
         return self.base_path / relative_path
+
+    def resolve_material_path(self, file_path: str) -> str:
+        """Resolve an uploaded path while preventing reads outside storage."""
+        materials_dir = (self.base_path / "materials").resolve()
+        candidate = Path(file_path)
+        candidate = (
+            (Path.cwd() / candidate).resolve()
+            if not candidate.is_absolute()
+            else candidate.resolve()
+        )
+        if candidate.parent != materials_dir or not candidate.is_file():
+            raise ValueError("Material file is invalid or outside managed storage")
+        return str(candidate)
 
     def get_default_material(self) -> str:
         """Return the absolute path of the default mock material file."""

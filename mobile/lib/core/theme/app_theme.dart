@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 
-/// Retro Balatro-like color palette for BattleGraf.
+/// Pixel-fantasy palette shared by the BattleGraf game and landing.
 class AppColors {
-  static const Color deepPurple = Color(0xFF1A0A2E);
-  static const Color royalPurple = Color(0xFF2D1B4E);
-  static const Color crimsonRed = Color(0xFF8B0000);
-  static const Color brightRed = Color(0xFFC41E3A);
-  static const Color gold = Color(0xFFC9A84C);
-  static const Color offWhite = Color(0xFFF5F0E8);
-  static const Color darkCard = Color(0xFF241435);
-  static const Color shadowPurple = Color(0xFF3A1F5E);
+  static const Color voidBlack = Color(0xFF07030E);
+  static const Color deepPurple = Color(0xFF10061F);
+  static const Color royalPurple = Color(0xFF24103F);
+  static const Color crimsonRed = Color(0xFFB40F35);
+  static const Color brightRed = Color(0xFFFF315D);
+  static const Color magenta = Color(0xFFFF2BD6);
+  static const Color neonPurple = Color(0xFFA855F7);
+  static const Color cyan = Color(0xFF38E8F5);
+  static const Color gold = Color(0xFFFFC857);
+  static const Color offWhite = Color(0xFFFFF4D6);
+  static const Color darkCard = Color(0xFF160B27);
+  static const Color shadowPurple = Color(0xFF4D1C78);
+  static const Color mutedInk = Color(0xFFBCA8CF);
 
   // Subject colors for graph nodes
   static const Color math = Color(0xFFE63946);
@@ -40,74 +45,114 @@ class AppTheme {
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.deepPurple,
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.crimsonRed,
+        primary: AppColors.brightRed,
         onPrimary: AppColors.offWhite,
         secondary: AppColors.gold,
         onSecondary: AppColors.deepPurple,
-        surface: AppColors.royalPurple,
+        surface: AppColors.darkCard,
         onSurface: AppColors.offWhite,
         error: AppColors.brightRed,
         onError: AppColors.offWhite,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.royalPurple,
-        foregroundColor: AppColors.gold,
+        backgroundColor: AppColors.voidBlack,
+        foregroundColor: AppColors.offWhite,
         elevation: 0,
         centerTitle: true,
+        titleTextStyle: TextStyle(
+          fontFamily: displayFont,
+          color: AppColors.offWhite,
+          fontSize: 14,
+          letterSpacing: 1.5,
+        ),
       ),
       cardTheme: const CardThemeData(
-        color: AppColors.darkCard,
-        elevation: 8,
+        color: Color(0xEE160B27),
+        elevation: 12,
+        shadowColor: AppColors.voidBlack,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-          side: BorderSide(color: AppColors.gold, width: 1),
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+          side: BorderSide(color: AppColors.shadowPurple, width: 2),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.crimsonRed,
+          backgroundColor: AppColors.brightRed,
           foregroundColor: AppColors.offWhite,
-          elevation: 4,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          disabledBackgroundColor: AppColors.shadowPurple,
+          disabledForegroundColor: AppColors.mutedInk,
+          elevation: 8,
+          shadowColor: AppColors.crimsonRed,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           textStyle: const TextStyle(
-            fontFamily: bodyFont,
+            fontFamily: displayFont,
+            fontSize: 10,
             fontWeight: FontWeight.bold,
             letterSpacing: 1,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: AppColors.gold, width: 1),
+            borderRadius: BorderRadius.circular(2),
+            side: const BorderSide(color: AppColors.offWhite, width: 2),
           ),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.brightRed,
+        foregroundColor: AppColors.offWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+          side: BorderSide(color: AppColors.offWhite, width: 2),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.darkCard,
+        fillColor: AppColors.voidBlack.withAlpha(190),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.gold),
+          borderRadius: BorderRadius.circular(2),
+          borderSide: const BorderSide(color: AppColors.neonPurple, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.shadowPurple),
+          borderRadius: BorderRadius.circular(2),
+          borderSide: const BorderSide(color: AppColors.shadowPurple, width: 2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.gold, width: 2),
+          borderRadius: BorderRadius.circular(2),
+          borderSide: const BorderSide(color: AppColors.cyan, width: 2),
         ),
-        labelStyle: const TextStyle(color: AppColors.offWhite),
+        labelStyle: const TextStyle(color: AppColors.mutedInk),
+        prefixIconColor: AppColors.gold,
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.darkCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+          side: BorderSide(color: AppColors.neonPurple, width: 2),
+        ),
+      ),
+      chipTheme: const ChipThemeData(
+        backgroundColor: AppColors.voidBlack,
+        selectedColor: AppColors.crimsonRed,
+        side: BorderSide(color: AppColors.shadowPurple, width: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+        ),
+        labelStyle: TextStyle(fontFamily: bodyFont, color: AppColors.offWhite),
       ),
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.gold,
+          color: AppColors.offWhite,
           fontSize: 28,
           height: 1.2,
+          shadows: [Shadow(color: AppColors.crimsonRed, offset: Offset(3, 3))],
         ),
         displayMedium: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.gold,
+          color: AppColors.offWhite,
           fontSize: 20,
+          shadows: [
+            Shadow(color: AppColors.shadowPurple, offset: Offset(2, 2)),
+          ],
         ),
         headlineMedium: TextStyle(
           fontFamily: displayFont,
@@ -121,7 +166,7 @@ class AppTheme {
         ),
         bodyMedium: TextStyle(
           fontFamily: bodyFont,
-          color: AppColors.offWhite,
+          color: AppColors.mutedInk,
           fontSize: 14,
         ),
         labelLarge: TextStyle(

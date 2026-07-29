@@ -1,53 +1,55 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/views/battle/battle_view.dart';
+import '../../presentation/views/battle/bot_battle_demo_view.dart';
 import '../../presentation/views/battle_lobby/battle_lobby_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
+import '../../presentation/views/progression/progression_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
+import '../../presentation/views/tasks/task_list_view.dart';
+import '../../presentation/widgets/retro_ui.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final authRefresh = GoRouterRefreshStream(
+    ref.read(authProvider.notifier).stream,
+  );
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/splash',
-    refreshListenable: GoRouterRefreshStream(ref.read(authProvider.notifier).stream),
+    refreshListenable: authRefresh,
     redirect: (context, state) {
-      final isAuthenticated = authState.isAuthenticated;
-      final isLoginRoute = state.matchedLocation == '/login';
-      final isSplashRoute = state.matchedLocation == '/splash';
-
-      if (isSplashRoute) return null;
-
-      if (!isAuthenticated && !isLoginRoute) {
-        return '/login';
-      }
-
-      if (isAuthenticated && (isLoginRoute || isSplashRoute)) {
-        return '/lobby';
-      }
-
-      return null;
+      final authState = ref.read(authProvider);
+      return resolveAppRedirect(
+        isLoading: authState.isLoading,
+        isAuthenticated: authState.isAuthenticated,
+        location: state.uri.path,
+      );
     },
     routes: [
+      GoRoute(path: '/splash', builder: (context, state) => const SplashView()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginView()),
+      GoRoute(path: '/lobby', builder: (context, state) => const LobbyView()),
       GoRoute(
-        path: '/splash',
-        builder: (context, state) => const SplashView(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginView(),
-      ),
-      GoRoute(
-        path: '/lobby',
-        builder: (context, state) => const LobbyView(),
+        path: '/battle/demo-bot',
+        builder: (context, state) => const BotBattleDemoView(),
       ),
       GoRoute(
         path: '/battle-lobby',
         builder: (context, state) => const BattleLobbyView(),
+      ),
+      GoRoute(
+        path: '/tasks',
+        builder: (context, state) => const TaskListView(),
+      ),
+      GoRoute(
+        path: '/progression',
+        builder: (context, state) => const ProgressionView(),
       ),
       GoRoute(
         path: '/battle/:id',
@@ -59,11 +61,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  ref.onDispose(() {
+    router.dispose();
+    authRefresh.dispose();
+  });
+  return router;
 });
+
+/// Pure redirect policy kept separate so offline access can be regression-tested.
+String? resolveAppRedirect({
+  required bool isLoading,
+  required bool isAuthenticated,
+  required String location,
+}) {
+  final isLoginRoute = location == '/login';
+  final isSplashRoute = location == '/splash';
+  final isPrototypeRoute = location == '/battle/demo-bot';
+
+  if (isPrototypeRoute) return null;
+  if (isLoading) return isSplashRoute ? null : '/splash';
+  if (isSplashRoute) return isAuthenticated ? '/lobby' : '/login';
+  if (!isAuthenticated && !isLoginRoute) return '/login';
+  if (isAuthenticated && isLoginRoute) return '/lobby';
+  return null;
+}
 
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<AuthState> stream) {
-    stream.listen((_) => notifyListeners());
+    _subscription = stream.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<AuthState> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }
 
@@ -74,7 +108,9 @@ class _NotFoundView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('NO ENCONTRADO')),
-      body: const Center(child: Text('Ruta invalida')),
+      body: const BattleBackdrop(
+        child: Center(child: HudLabel('RUTA INVÁLIDA')),
+      ),
     );
   }
 }

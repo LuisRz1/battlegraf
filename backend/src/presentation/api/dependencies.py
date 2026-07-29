@@ -3,7 +3,11 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.interfaces.repositories import SchoolRepository, SectionRepository, UserRepository
+from src.domain.interfaces.repositories import (
+    SchoolRepository,
+    SectionRepository,
+    UserRepository,
+)
 from src.infrastructure.database.repositories import (
     SQLAlchemySchoolRepository,
     SQLAlchemySectionRepository,

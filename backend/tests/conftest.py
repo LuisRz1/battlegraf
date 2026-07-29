@@ -1,9 +1,6 @@
 """Shared test fixtures for the BattleGraf backend."""
 
-import asyncio
-import os
 from collections.abc import AsyncGenerator
-from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,20 +11,16 @@ from src.domain.enums import Role
 from src.infrastructure.auth.jwt_handler import create_access_token
 from src.infrastructure.auth.password import hash_password
 from src.infrastructure.database.models import Base
-from src.infrastructure.database.repositories import SQLAlchemySchoolRepository, SQLAlchemySectionRepository, SQLAlchemyUserRepository
+from src.infrastructure.database.repositories import (
+    SQLAlchemySchoolRepository,
+    SQLAlchemySectionRepository,
+    SQLAlchemyUserRepository,
+)
 from src.infrastructure.database.session import get_db
-from src.main import app, create_app
+from src.main import create_app
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Provide a shared event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def db_engine():
     """Create an in-memory async SQLite engine for testing."""
     database_url = "sqlite+aiosqlite:///:memory:"
@@ -41,14 +34,14 @@ async def db_engine():
 @pytest.fixture
 async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
     """Yield a fresh database session for each test."""
-    AsyncSessionLocal = async_sessionmaker(
+    session_factory = async_sessionmaker(
         db_engine,
         class_=AsyncSession,
         expire_on_commit=False,
         autocommit=False,
         autoflush=False,
     )
-    async with AsyncSessionLocal() as session:
+    async with session_factory() as session:
         yield session
         await session.rollback()
 
@@ -115,7 +108,7 @@ async def director(db_session, sample_school):
 
 @pytest.fixture
 def director_token(director):
-    return create_access_token(director.id, director.role)
+    return create_access_token(director.id, director.role, director.school_id)
 
 
 @pytest.fixture
@@ -136,7 +129,7 @@ async def professor(db_session, sample_school):
 
 @pytest.fixture
 def professor_token(professor):
-    return create_access_token(professor.id, professor.role)
+    return create_access_token(professor.id, professor.role, professor.school_id)
 
 
 @pytest.fixture
@@ -157,4 +150,48 @@ async def tutor(db_session, sample_school):
 
 @pytest.fixture
 def tutor_token(tutor):
-    return create_access_token(tutor.id, tutor.role)
+    return create_access_token(tutor.id, tutor.role, tutor.school_id)
+
+
+@pytest.fixture
+async def student(db_session, sample_school, sample_section):
+    repo = SQLAlchemyUserRepository(db_session)
+    user = User(
+        username="student_test",
+        email="student@example.com",
+        hashed_password=hash_password("password123"),
+        full_name="Student Test",
+        role=Role.STUDENT,
+        school_id=sample_school.id,
+        section_id=sample_section.id,
+    )
+    created = await repo.create(user)
+    await db_session.commit()
+    return created
+
+
+@pytest.fixture
+def student_token(student):
+    return create_access_token(
+        student.id,
+        student.role,
+        student.school_id,
+        student.section_id,
+    )
+
+
+@pytest.fixture
+async def student_2(db_session, sample_school, sample_section):
+    repo = SQLAlchemyUserRepository(db_session)
+    user = User(
+        username="student_two",
+        email="student2@example.com",
+        hashed_password=hash_password("password123"),
+        full_name="Student Two",
+        role=Role.STUDENT,
+        school_id=sample_school.id,
+        section_id=sample_section.id,
+    )
+    created = await repo.create(user)
+    await db_session.commit()
+    return created

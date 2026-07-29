@@ -1,11 +1,10 @@
 """Response schemas for battle endpoints."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
-from src.presentation.schemas.responses.graph_responses import GraphNodeResponse, GraphResponse
+from src.presentation.schemas.responses.graph_responses import GraphResponse
 
 
 class BattleNodeStateResponse(BaseModel):
@@ -39,8 +38,17 @@ class BattleResponse(BaseModel):
     graph_id: str
     status: str
     current_turn: int
+    turn_number: int
+    current_player_id: str
     winner_id: str | None
     turn_timeout_seconds: int
+    time_remaining: int
+    server_time: datetime
+    turn_started_at: datetime | None
+    turn_deadline_at: datetime | None
+    player_positions: dict[int, str]
+    active_node_id: str | None
+    graph: GraphResponse | None
     node_states: list[BattleNodeStateResponse]
     moves: list[BattleMoveResponse]
     created_at: datetime
@@ -54,4 +62,16 @@ class AnswerResultResponse(BaseModel):
     battle_finished: bool
     winner_id: str | None
     current_turn: int
+    turn_number: int
+    response_time_ms: int
+    turn_deadline_at: datetime | None
     message: str
+
+
+class BattleQuestionResponse(BaseModel):
+    node_id: str
+    question_id: str
+    text: str
+    options: dict[str, str]
+    server_time: datetime
+    turn_deadline_at: datetime

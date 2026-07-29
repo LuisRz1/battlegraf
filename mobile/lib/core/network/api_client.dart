@@ -6,7 +6,8 @@ class ApiClient {
   final Dio _dio;
 
   ApiClient({String? token})
-      : _dio = Dio(BaseOptions(
+    : _dio = Dio(
+        BaseOptions(
           baseUrl: ApiConstants.baseUrl,
           connectTimeout: ApiConstants.connectTimeout,
           receiveTimeout: ApiConstants.receiveTimeout,
@@ -14,15 +15,18 @@ class ApiClient {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-        )) {
+        ),
+      ) {
     if (token != null && token.isNotEmpty) {
       _dio.options.headers['Authorization'] = 'Bearer $token';
     }
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (o) => debugPrint('$o'),
-    ));
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (o) => debugPrint('$o'),
+      ),
+    );
   }
 
   Dio get dio => _dio;

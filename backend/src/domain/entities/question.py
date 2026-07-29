@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 from uuid import UUID, uuid4
 
 from ..enums import Subject, TaskType
@@ -64,9 +63,29 @@ class Task:
     title: str = ""
     description: str = ""
     task_type: TaskType = TaskType.MULTIPLE_CHOICE
-    due_date: Optional[datetime] = None
+    due_date: datetime | None = None
     xp_reward: int = 10
+    status: str = "draft"
+    options: dict[str, str] = field(default_factory=dict)
+    correct_option: str | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class TaskSubmission:
+    """A student's current submission for a task."""
+
+    id: UUID = field(default_factory=uuid4)
+    task_id: UUID = field(default_factory=uuid4)
+    student_id: UUID = field(default_factory=uuid4)
+    answer: str = ""
+    file_url: str | None = None
+    is_graded: bool = False
+    score: int = 0
+    feedback: str = ""
+    xp_awarded: int = 0
+    submitted_at: datetime = field(default_factory=datetime.utcnow)
+    graded_at: datetime | None = None
 
 
 @dataclass
@@ -78,7 +97,7 @@ class Rank:
     name: str = ""
     level: int = 1
     xp_required: int = 0
-    icon_url: Optional[str] = None
+    icon_url: str | None = None
 
 
 @dataclass
@@ -89,4 +108,17 @@ class Clan:
     section_id: UUID = field(default_factory=uuid4)
     name: str = ""
     total_score: int = 0
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class XPTransaction:
+    """An idempotent, traceable XP movement."""
+
+    id: UUID = field(default_factory=uuid4)
+    user_id: UUID = field(default_factory=uuid4)
+    amount: int = 0
+    source_type: str = ""
+    source_id: UUID = field(default_factory=uuid4)
+    description: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)

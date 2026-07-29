@@ -2,14 +2,16 @@
 
 import uuid
 from collections.abc import Sequence
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import Question, QuestionBank
 from src.domain.enums import Subject
-from src.domain.interfaces.repositories import QuestionBankRepository, QuestionRepository
+from src.domain.interfaces.repositories import (
+    QuestionBankRepository,
+    QuestionRepository,
+)
 from src.infrastructure.database.models import QuestionBankModel, QuestionModel
 
 
@@ -48,7 +50,9 @@ class SQLAlchemyQuestionBankRepository(QuestionBankRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def get_by_school_and_subject(self, school_id: uuid.UUID, subject: str) -> QuestionBank | None:
+    async def get_by_school_and_subject(
+        self, school_id: uuid.UUID, subject: str
+    ) -> QuestionBank | None:
         result = await self._session.execute(
             select(QuestionBankModel)
             .where(QuestionBankModel.school_id == school_id)

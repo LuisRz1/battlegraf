@@ -1,14 +1,6 @@
 """ORM models package."""
 
 from .base import Base
-from .school import SchoolModel, SectionModel, UserModel
-from .progression import ClanModel, RankModel
-from .question import (
-    QuestionBankModel,
-    QuestionModel,
-    TaskModel,
-    TaskSubmissionModel,
-)
 from .battle import (
     BattleModel,
     BattleMoveModel,
@@ -16,6 +8,14 @@ from .battle import (
     GraphModel,
     GraphNodeModel,
 )
+from .progression import ClanModel, RankModel, XPTransactionModel
+from .question import (
+    QuestionBankModel,
+    QuestionModel,
+    TaskModel,
+    TaskSubmissionModel,
+)
+from .school import SchoolModel, SectionModel, UserModel
 
 __all__ = [
     "Base",
@@ -24,6 +24,7 @@ __all__ = [
     "UserModel",
     "ClanModel",
     "RankModel",
+    "XPTransactionModel",
     "QuestionBankModel",
     "QuestionModel",
     "TaskModel",

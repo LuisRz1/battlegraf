@@ -10,13 +10,16 @@ from src.domain.enums import Role
 from src.infrastructure.auth.password import hash_password
 from src.infrastructure.auth.permissions import require_role
 from src.infrastructure.database.session import get_db
-from src.presentation.api.dependencies import get_school_repo, get_section_repo, get_user_repo
+from src.presentation.api.dependencies import get_school_repo, get_section_repo
 from src.presentation.schemas.requests.school_requests import (
     BulkCreateStudentsRequest,
     CreateSchoolRequest,
     CreateSectionsRequest,
 )
-from src.presentation.schemas.responses.school_responses import SchoolResponse, SectionResponse
+from src.presentation.schemas.responses.school_responses import (
+    SchoolResponse,
+    SectionResponse,
+)
 
 router = APIRouter(prefix="/schools", tags=["Schools"])
 
@@ -48,22 +51,32 @@ def _section_response(model) -> SectionResponse:
 @router.get("", response_model=list[SchoolResponse])
 async def list_schools(
     repo=Depends(get_school_repo),
-    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
 ):
-    schools = await repo.list_all()
-    return [_school_response(s) for s in schools]
+    school_id = payload.get("school_id")
+    if school_id is None:
+        return []
+    school = await repo.get_by_id(UUID(school_id))
+    return [_school_response(school)] if school else []
 
 
 @router.post("", response_model=SchoolResponse, status_code=status.HTTP_201_CREATED)
 async def create_school(
     body: CreateSchoolRequest,
     repo=Depends(get_school_repo),
-    _=Depends(require_role(Role.DIRECTOR)),
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR)),
 ):
     from src.domain.entities import School
 
+    if payload.get("school_id"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Director already belongs to a school",
+        )
     school = School(name=body.name, region=body.region, level=body.level)
     created = await repo.create(school)
+    await session.commit()
     return _school_response(created)
 
 
@@ -71,20 +84,30 @@ async def create_school(
 async def list_sections(
     school_id: str,
     repo=Depends(get_section_repo),
-    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)),
+    payload=Depends(
+        require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+    ),
 ):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
     sections = await repo.list_by_school(UUID(school_id))
     return [_section_response(s) for s in sections]
 
 
-@router.post("/{school_id}/sections", response_model=list[SectionResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{school_id}/sections",
+    response_model=list[SectionResponse],
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_sections(
     school_id: str,
     body: CreateSectionsRequest,
     repo=Depends(get_section_repo),
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
 ):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
     created = []
     for section_data in body.sections:
         section = Section(
@@ -104,11 +127,16 @@ async def bulk_create_students(
     school_id: str,
     body: BulkCreateStudentsRequest,
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
 ):
     """Create multiple students in one section."""
-    from src.infrastructure.database.repositories import SQLAlchemySectionRepository, SQLAlchemyUserRepository
+    from src.infrastructure.database.repositories import (
+        SQLAlchemySectionRepository,
+        SQLAlchemyUserRepository,
+    )
 
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
     user_repo = SQLAlchemyUserRepository(session)
     section_repo = SQLAlchemySectionRepository(session)
     section = await section_repo.get_by_id(UUID(body.section_id))

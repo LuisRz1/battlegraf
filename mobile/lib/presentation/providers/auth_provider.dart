@@ -12,12 +12,7 @@ class AuthState {
   final String? error;
   final Map<String, dynamic>? user;
 
-  const AuthState({
-    this.isLoading = false,
-    this.token,
-    this.error,
-    this.user,
-  });
+  const AuthState({this.isLoading = false, this.token, this.error, this.user});
 
   bool get isAuthenticated => token != null && token!.isNotEmpty;
 
@@ -37,7 +32,7 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState()) {
+  AuthNotifier() : super(const AuthState(isLoading: true)) {
     _loadToken();
   }
 
@@ -52,15 +47,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (token != null && token.isNotEmpty) {
       state = state.copyWith(token: token);
       await _fetchUser(token);
+      state = state.copyWith(isLoading: false);
       _controller.add(state);
+      return;
     }
+    state = state.copyWith(isLoading: false);
+    _controller.add(state);
   }
 
   Future<void> _fetchUser(String token) async {
     final client = ApiClient(token: token);
     try {
       final response = await client.dio.get('/auth/me');
-      state = state.copyWith(user: response.data as Map<String, dynamic>);
+      state = state.copyWith(
+        isLoading: false,
+        user: response.data as Map<String, dynamic>,
+      );
     } catch (_) {
       await logout();
     }

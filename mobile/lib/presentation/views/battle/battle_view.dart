@@ -8,8 +8,9 @@ import '../../../domain/models/battle.dart';
 import '../../../domain/models/node.dart';
 import '../../providers/battle_provider.dart';
 import '../../widgets/graph_board.dart';
+import '../../widgets/retro_ui.dart';
 
-/// Main battle screen with header, graph and question panel.
+/// Main red-versus-purple battle screen.
 class BattleView extends ConsumerStatefulWidget {
   final String battleId;
 
@@ -25,15 +26,15 @@ class _BattleViewState extends ConsumerState<BattleView> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(battleProvider.notifier).loadBattle(widget.battleId);
-    });
+    Future.microtask(
+      () => ref.read(battleProvider.notifier).loadBattle(widget.battleId),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final battleState = ref.watch(battleProvider);
-    final battle = battleState.battle;
+    final state = ref.watch(battleProvider);
+    final battle = state.battle;
 
     return Scaffold(
       appBar: AppBar(
@@ -43,51 +44,116 @@ class _BattleViewState extends ConsumerState<BattleView> {
           onPressed: () => context.go('/battle-lobby'),
         ),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.deepPurple, AppColors.royalPurple],
-          ),
-        ),
+      body: BattleBackdrop(
+        intense: true,
         child: SafeArea(
-          child: battleState.isLoading && battle == null
+          child: state.isLoading && battle == null
               ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.gold),
+                  child: LinearProgressIndicator(
+                    color: AppColors.brightRed,
+                    backgroundColor: AppColors.shadowPurple,
+                  ),
                 )
               : battle == null
-                  ? const _ErrorMessage()
-                  : Column(
+              ? const _ErrorMessage()
+              : Stack(
+                  children: [
+                    Column(
                       children: [
                         _TurnHeader(
-                          currentPlayer: battle.currentPlayer ?? 'Turno',
-                          timeRemaining: battleState.timeRemaining,
-                          turnNumber: battle.currentTurn ?? 1,
-                          isMyTurn: _isMyTurn(battle, battleState.currentUserId),
+                          redPlayer: battle.players.isNotEmpty
+                              ? battle.players.first.name
+                              : 'Jugador rojo',
+                          purplePlayer: battle.players.length > 1
+                              ? battle.players[1].name
+                              : 'Jugador morado',
+                          timeRemaining: state.timeRemaining,
+                          currentTurnIndex: battle.currentTurn ?? 0,
+                          isMyTurn: _isMyTurn(battle, state.currentUserId),
                         ),
                         Expanded(
-                          child: battle.graph == null
-                              ? const Center(
-                                  child: Text('Grafo no disponible'),
-                                )
-                              : GraphBoardWithEffects(
-                                  graph: battle.graph!,
-                                  activeNodeId: battleState.activeNodeId,
-                                  onNodeTap: (node) => _onNodeTap(node),
-                                  animateConquest: battleState.feedbackSuccess,
-                                ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: PixelPanel(
+                              padding: EdgeInsets.zero,
+                              accent: (battle.currentTurn ?? 0) == 0
+                                  ? AppColors.brightRed
+                                  : AppColors.neonPurple,
+                              glow: true,
+                              child: battle.graph == null
+                                  ? const Center(
+                                      child: Text('Grafo no disponible'),
+                                    )
+                                  : Stack(
+                                      children: [
+                                        GraphBoardWithEffects(
+                                          graph: battle.graph!,
+                                          activeNodeId: state.activeNodeId,
+                                          currentTurnIndex:
+                                              battle.currentTurn ?? 0,
+                                          playerPositions:
+                                              battle.playerPositions,
+                                          onNodeTap: _onNodeTap,
+                                          animateConquest:
+                                              state.feedbackSuccess,
+                                        ),
+                                        const Positioned(
+                                          top: 10,
+                                          left: 12,
+                                          child: HudLabel(
+                                            'TORRE MORADA / OBJETIVO',
+                                            color: AppColors.neonPurple,
+                                          ),
+                                        ),
+                                        const Positioned(
+                                          right: 12,
+                                          bottom: 10,
+                                          child: HudLabel(
+                                            'TORRE ROJA / RUTA CONECTADA',
+                                            color: AppColors.brightRed,
+                                          ),
+                                        ),
+                                        if (state.feedback != null &&
+                                            state.activeQuestion == null)
+                                          Positioned(
+                                            right: 12,
+                                            bottom: 32,
+                                            left: 12,
+                                            child: _BattleFeedback(
+                                              message: state.feedback!,
+                                              success: state.feedbackSuccess,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                            ),
+                          ),
                         ),
                         _QuestionPanel(
-                          node: _activeNode(battleState),
+                          question: state.activeQuestion,
                           answer: _answer,
-                          onAnswerChanged: (value) => setState(() => _answer = value),
+                          turnColor: (battle.currentTurn ?? 0) == 0
+                              ? AppColors.brightRed
+                              : AppColors.neonPurple,
+                          onAnswerChanged: (value) =>
+                              setState(() => _answer = value),
                           onSubmit: _submitAnswer,
-                          feedback: battleState.feedback,
-                          success: battleState.feedbackSuccess,
+                          feedback: state.feedback,
+                          success: state.feedbackSuccess,
                         ),
                       ],
                     ),
+                    if (battle.status.toLowerCase() == 'finished' ||
+                        battle.winnerId != null)
+                      Positioned.fill(
+                        child: _VictoryOverlay(
+                          winnerIsRed:
+                              battle.players.isNotEmpty &&
+                              battle.winnerId == battle.players.first.id,
+                        ),
+                      ),
+                  ],
+                ),
         ),
       ),
     );
@@ -96,125 +162,173 @@ class _BattleViewState extends ConsumerState<BattleView> {
   bool _isMyTurn(Battle battle, String? userId) {
     if (userId == null || battle.currentTurn == null) return false;
     final me = battle.players.firstWhere(
-      (p) => p.id == userId,
+      (player) => player.id == userId,
       orElse: () => const Player(id: '', name: ''),
     );
-    if (me.id.isEmpty) {
-      return userId == battle.currentPlayerId;
-    }
-    return battle.players.indexWhere((p) => p.id == me.id) == battle.currentTurn;
+    if (me.id.isEmpty) return userId == battle.currentPlayerId;
+    return battle.players.indexWhere((player) => player.id == me.id) ==
+        battle.currentTurn;
   }
 
-  Node? _activeNode(BattleState state) {
-    final battle = state.battle;
-    if (battle?.graph == null) return null;
-    final activeId = state.activeNodeId;
-    if (activeId == null) return null;
-    return battle!.graph!.nodes.where((n) => n.id == activeId).firstOrNull;
-  }
-
-  void _onNodeTap(Node node) {
+  Future<void> _onNodeTap(Node node) async {
     if (node.locked) return;
-    ref.read(battleProvider.notifier).selectNode(node.id);
+    final state = ref.read(battleProvider);
+    final battle = state.battle;
+    if (battle == null ||
+        state.timeRemaining <= 0 ||
+        !_isMyTurn(battle, state.currentUserId)) {
+      return;
+    }
     setState(() => _answer = '');
+    await ref.read(battleProvider.notifier).selectNode(node.id);
   }
 
   void _submitAnswer() {
     final notifier = ref.read(battleProvider.notifier);
-    final currentState = ref.read(battleProvider);
-    final activeNodeId = currentState.activeNodeId;
-    final activeNode = _activeNode(currentState);
-    if (activeNodeId == null || activeNode == null || _answer.isEmpty) return;
-    final questionId = activeNode.questionIds.isNotEmpty
-        ? activeNode.questionIds.first
-        : '';
-    notifier.answerNode(activeNodeId, questionId, _answer);
+    final state = ref.read(battleProvider);
+    if (state.activeNodeId == null ||
+        state.activeQuestion == null ||
+        _answer.isEmpty ||
+        state.timeRemaining <= 0) {
+      return;
+    }
+    notifier.answerNode(state.activeNodeId!, _answer);
     setState(() => _answer = '');
   }
 }
 
 class _TurnHeader extends StatelessWidget {
-  final String currentPlayer;
+  final String redPlayer;
+  final String purplePlayer;
   final int timeRemaining;
-  final int turnNumber;
+  final int currentTurnIndex;
   final bool isMyTurn;
 
   const _TurnHeader({
-    required this.currentPlayer,
+    required this.redPlayer,
+    required this.purplePlayer,
     required this.timeRemaining,
-    required this.turnNumber,
+    required this.currentTurnIndex,
     required this.isMyTurn,
   });
 
   @override
   Widget build(BuildContext context) {
     final isLow = timeRemaining <= 5;
+    final activeColor = currentTurnIndex == 0
+        ? AppColors.brightRed
+        : AppColors.neonPurple;
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Turno $turnNumber',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isMyTurn ? 'TU TURNO' : currentPlayer,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: isMyTurn ? AppColors.brightRed : AppColors.offWhite,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      child: PixelPanel(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        accent: activeColor,
+        glow: true,
+        child: Row(
+          children: [
+            _PlayerSide(
+              name: redPlayer,
+              label: 'ROJO',
+              color: AppColors.brightRed,
+              active: currentTurnIndex == 0,
             ),
-          ),
-          const SizedBox(width: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
+            Expanded(
               child: Column(
                 children: [
-                  Text(
-                    'TIEMPO',
-                    style: Theme.of(context).textTheme.labelLarge,
+                  HudLabel(
+                    isMyTurn ? 'TU TURNO' : 'TURNO RIVAL',
+                    color: AppColors.gold,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${timeRemaining}s',
+                    currentTurnIndex == 0 ? 'JUEGA ROJO' : 'JUEGA MORADO',
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: activeColor,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    timeRemaining.toString().padLeft(2, '0'),
                     style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                          color: isLow ? AppColors.brightRed : AppColors.gold,
-                          fontSize: 24,
-                        ),
+                      color: isLow ? AppColors.brightRed : AppColors.offWhite,
+                      fontSize: 23,
+                    ),
                   ).animate(target: isLow ? 1 : 0).shakeX(duration: 300.ms),
                 ],
               ),
             ),
-          ),
-        ],
+            _PlayerSide(
+              name: purplePlayer,
+              label: 'MORADO',
+              color: AppColors.neonPurple,
+              active: currentTurnIndex == 1,
+            ),
+          ],
+        ),
       ),
-    ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.2);
+    ).animate().fadeIn(duration: 420.ms).slideY(begin: -0.15);
+  }
+}
+
+class _PlayerSide extends StatelessWidget {
+  final String name;
+  final String label;
+  final Color color;
+  final bool active;
+
+  const _PlayerSide({
+    required this.name,
+    required this.label,
+    required this.color,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: active ? 1 : .4,
+      child: SizedBox(
+        width: 82,
+        child: Column(
+          children: [
+            SchoolTower(
+              color: color,
+              size: active ? 48 : 42,
+              flagRight: label == 'ROJO',
+            ),
+            HudLabel(label, color: color),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 9),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _QuestionPanel extends StatelessWidget {
-  final Node? node;
+  final BattleQuestion? question;
   final String answer;
+  final Color turnColor;
   final ValueChanged<String> onAnswerChanged;
   final VoidCallback onSubmit;
   final String? feedback;
   final bool success;
 
   const _QuestionPanel({
-    required this.node,
+    required this.question,
     required this.answer,
+    required this.turnColor,
     required this.onAnswerChanged,
     required this.onSubmit,
     this.feedback,
@@ -223,75 +337,162 @@ class _QuestionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (node == null) {
-      return const SizedBox.shrink();
-    }
+    if (question == null) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                node!.question ?? 'Responde para conquistar ${node!.label}',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 12),
-              if (node!.options.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: node!.options.map((option) {
-                    final isSelected = answer == option;
-                    return ChoiceChip(
-                      label: Text(option),
-                      selected: isSelected,
-                      onSelected: (_) => onAnswerChanged(option),
-                      selectedColor: AppColors.crimsonRed,
-                      backgroundColor: AppColors.darkCard,
-                      labelStyle: TextStyle(
-                        color: isSelected ? AppColors.offWhite : AppColors.gold,
-                        fontFamily: AppTheme.bodyFont,
-                      ),
-                    );
-                  }).toList(),
-                )
-              else
-                TextField(
-                  onChanged: onAnswerChanged,
-                  decoration: const InputDecoration(
-                    hintText: 'Escribe tu respuesta...',
-                  ),
-                  style: const TextStyle(fontFamily: AppTheme.bodyFont),
-                ),
-              if (feedback != null) ...[
-                const SizedBox(height: 12),
+      padding: const EdgeInsets.all(10),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .43,
+        ),
+        child: PixelPanel(
+          accent: success ? AppColors.cyan : turnColor,
+          glow: success,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HudLabel('RETO DEL HEXÁGONO', color: turnColor),
+                const SizedBox(height: 8),
                 Text(
-                  feedback!,
-                  style: TextStyle(
-                    color: success ? AppColors.gold : AppColors.brightRed,
-                    fontFamily: AppTheme.bodyFont,
+                  question!.text,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.offWhite,
                     fontWeight: FontWeight.bold,
                   ),
-                ).animate().shakeX(duration: 300.ms),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: answer.isEmpty ? null : onSubmit,
-                  child: const Text('CONQUISTAR'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                if (question!.options.isNotEmpty)
+                  ...question!.options.entries.map((option) {
+                    final selected = answer == option.key;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 7),
+                      child: InkWell(
+                        onTap: () => onAnswerChanged(option.key),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? turnColor.withAlpha(205)
+                                : AppColors.voidBlack.withAlpha(190),
+                            border: Border.all(
+                              color: selected
+                                  ? AppColors.offWhite
+                                  : AppColors.shadowPurple,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${option.key}. ${option.value}',
+                            style: TextStyle(
+                              color: selected
+                                  ? AppColors.offWhite
+                                  : AppColors.mutedInk,
+                              fontFamily: AppTheme.bodyFont,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  })
+                else
+                  TextField(
+                    onChanged: onAnswerChanged,
+                    decoration: const InputDecoration(
+                      hintText: 'Escribe tu respuesta...',
+                    ),
+                  ),
+                if (feedback != null) ...[
+                  const SizedBox(height: 8),
+                  HudLabel(
+                    feedback!,
+                    color: success ? AppColors.cyan : AppColors.brightRed,
+                  ).animate().shakeX(duration: 300.ms),
+                ],
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: answer.isEmpty ? null : onSubmit,
+                    child: const Text('CONQUISTAR NODO'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2);
+    ).animate().fadeIn(duration: 350.ms).slideY(begin: .15);
+  }
+}
+
+class _BattleFeedback extends StatelessWidget {
+  final String message;
+  final bool success;
+
+  const _BattleFeedback({required this.message, required this.success});
+
+  @override
+  Widget build(BuildContext context) {
+    return PixelPanel(
+      padding: const EdgeInsets.all(10),
+      accent: success ? AppColors.cyan : AppColors.brightRed,
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+}
+
+class _VictoryOverlay extends StatelessWidget {
+  final bool winnerIsRed;
+
+  const _VictoryOverlay({required this.winnerIsRed});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = winnerIsRed ? AppColors.brightRed : AppColors.neonPurple;
+    final label = winnerIsRed ? 'ROJO' : 'MORADO';
+    return ColoredBox(
+      color: AppColors.voidBlack.withAlpha(234),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: PixelPanel(
+            accent: color,
+            glow: true,
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SchoolTower(color: color, size: 112),
+                const SizedBox(height: 16),
+                const HudLabel('BATALLA FINALIZADA'),
+                const SizedBox(height: 10),
+                Text(
+                  'VICTORIA $label',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.displayMedium?.copyWith(color: color),
+                ),
+                const SizedBox(height: 22),
+                ElevatedButton(
+                  onPressed: () => context.go('/battle-lobby'),
+                  child: const Text('VOLVER A BATALLAS'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -301,16 +502,19 @@ class _ErrorMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error, color: AppColors.brightRed, size: 48),
-          const SizedBox(height: 16),
-          Text(
-            'No se pudo cargar la batalla',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ],
+      child: PixelPanel(
+        accent: AppColors.brightRed,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SchoolTower(color: AppColors.brightRed, size: 72),
+            const SizedBox(height: 16),
+            Text(
+              'No se pudo cargar la batalla',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ],
+        ),
       ),
     );
   }

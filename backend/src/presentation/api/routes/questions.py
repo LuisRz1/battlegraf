@@ -2,19 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from pathlib import Path
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.enums import Role, Subject
-from src.infrastructure.ai import build_question_agent
-from src.infrastructure.auth.dependencies import get_current_user, require_role
-from src.infrastructure.database.repositories import (
-    SQLAlchemyQuestionBankRepository,
-    SQLAlchemyQuestionRepository,
-)
-from src.infrastructure.database.session import get_db
-from src.infrastructure.storage import LocalStorageService
 from src.application.question_bank.use_cases import (
     ApproveQuestion,
     CreateQuestionBank,
@@ -22,6 +12,15 @@ from src.application.question_bank.use_cases import (
     ListQuestions,
     UploadMaterial,
 )
+from src.domain.enums import Role, Subject
+from src.infrastructure.ai import build_question_agent
+from src.infrastructure.auth.dependencies import require_role
+from src.infrastructure.database.repositories import (
+    SQLAlchemyQuestionBankRepository,
+    SQLAlchemyQuestionRepository,
+)
+from src.infrastructure.database.session import get_db
+from src.infrastructure.storage import LocalStorageService
 from src.presentation.schemas.requests.question_requests import (
     CreateQuestionBankRequest,
     GenerateQuestionsRequest,
@@ -32,6 +31,20 @@ from src.presentation.schemas.responses.question_responses import (
 )
 
 router = APIRouter(prefix="/questions", tags=["Question Banks"])
+teacher_access = require_role(
+    Role.PROFESSOR,
+    Role.TUTOR,
+    Role.DIRECTOR,
+    Role.SUBDIRECTOR,
+)
+
+
+def _require_bank_school(payload: dict, school_id: UUID) -> None:
+    if payload.get("school_id") != str(school_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Question bank belongs to another school",
+        )
 
 
 def _bank_response(bank) -> QuestionBankResponse:
@@ -68,7 +81,7 @@ def _question_response(question) -> QuestionResponse:
 @router.get("/banks", response_model=list[QuestionBankResponse])
 async def list_banks(
     session: AsyncSession = Depends(get_db),
-    payload: dict = Depends(get_current_user),
+    payload: dict = Depends(teacher_access),
 ):
     """List question banks for the current user's school."""
     bank_repo = SQLAlchemyQuestionBankRepository(session)
@@ -79,11 +92,13 @@ async def list_banks(
     return [_bank_response(b) for b in banks]
 
 
-@router.post("/banks", response_model=QuestionBankResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/banks", response_model=QuestionBankResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_bank(
     body: CreateQuestionBankRequest,
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)),
+    payload: dict = Depends(teacher_access),
 ):
     bank_repo = SQLAlchemyQuestionBankRepository(session)
     use_case = CreateQuestionBank(bank_repo)
@@ -91,7 +106,9 @@ async def create_bank(
         subject = Subject(body.subject)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Materia invalida") from exc
-    bank = await use_case.execute(UUID(body.school_id), subject)
+    school_id = UUID(body.school_id)
+    _require_bank_school(payload, school_id)
+    bank = await use_case.execute(school_id, subject)
     await session.commit()
     return _bank_response(bank)
 
@@ -100,18 +117,26 @@ async def create_bank(
 async def upload_material(
     bank_id: str,
     file: UploadFile = File(...),
-    _=Depends(require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)),
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
 ):
+    bank = await SQLAlchemyQuestionBankRepository(session).get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
     storage = LocalStorageService()
     use_case = UploadMaterial(storage)
-    file_path = await use_case.execute(file)
+    try:
+        file_path = await use_case.execute(file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"bank_id": bank_id, "file_path": file_path}
 
 
 def _resolve_file_path(storage: LocalStorageService, file_path: str) -> str:
-    if file_path and Path(file_path).exists():
-        return file_path
-    return storage.get_default_material()
+    if not file_path:
+        return storage.get_default_material()
+    return storage.resolve_material_path(file_path)
 
 
 @router.post("/banks/{bank_id}/generate", response_model=list[QuestionResponse])
@@ -119,19 +144,28 @@ async def generate_questions(
     bank_id: str,
     body: GenerateQuestionsRequest,
     session: AsyncSession = Depends(get_db),
-    payload: dict = Depends(get_current_user),
+    payload: dict = Depends(teacher_access),
 ):
     bank_repo = SQLAlchemyQuestionBankRepository(session)
     question_repo = SQLAlchemyQuestionRepository(session)
     storage = LocalStorageService()
-    resolved_path = _resolve_file_path(storage, body.file_path)
+    bank = await bank_repo.get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
+    try:
+        resolved_path = _resolve_file_path(storage, body.file_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     use_case = GenerateQuestions(bank_repo, question_repo, build_question_agent())
     try:
         questions = await use_case.execute(
             UUID(bank_id), UUID(payload["sub"]), resolved_path, body.count
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     await session.commit()
     return [_question_response(q) for q in questions]
 
@@ -140,8 +174,12 @@ async def generate_questions(
 async def list_questions(
     bank_id: str,
     session: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    payload: dict = Depends(teacher_access),
 ):
+    bank = await SQLAlchemyQuestionBankRepository(session).get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
     question_repo = SQLAlchemyQuestionRepository(session)
     use_case = ListQuestions(question_repo)
     questions = await use_case.execute(UUID(bank_id))
@@ -152,14 +190,20 @@ async def list_questions(
 async def approve_question(
     question_id: str,
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)),
+    payload: dict = Depends(teacher_access),
 ):
     question_repo = SQLAlchemyQuestionRepository(session)
     bank_repo = SQLAlchemyQuestionBankRepository(session)
     use_case = ApproveQuestion(question_repo, bank_repo)
+    existing = await question_repo.get_by_id(UUID(question_id))
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    _require_bank_school(payload, existing.school_id)
     try:
         question = await use_case.execute(UUID(question_id))
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     await session.commit()
     return _question_response(question)

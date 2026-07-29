@@ -1,5 +1,7 @@
 """Database session configuration."""
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,7 +23,7 @@ sync_engine = create_engine(settings.database_url_sync, echo=False)
 SyncSessionLocal = sessionmaker(sync_engine)
 
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Yield an async database session for dependency injection."""
     async with AsyncSessionLocal() as session:
         try:

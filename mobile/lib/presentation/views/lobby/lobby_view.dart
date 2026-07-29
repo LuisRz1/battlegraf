@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/retro_controls.dart';
+import '../../widgets/retro_ui.dart';
 
 class LobbyView extends ConsumerWidget {
   const LobbyView({super.key});
@@ -15,73 +17,88 @@ class LobbyView extends ConsumerWidget {
     final user = authState.user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('LOBBY'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(authProvider.notifier).logout();
-              if (context.mounted) context.go('/login');
-            },
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.deepPurple, AppColors.royalPurple],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Bienvenido, ${user?['full_name'] ?? 'Guerrero'}',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ).animate().fadeIn(duration: 500.ms).slideX(begin: -0.2),
-              const SizedBox(height: 8),
-              Text(
-                'Rol: ${user?['role']?.toString().toUpperCase() ?? 'USUARIO'}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gold,
-                    ),
-              ).animate(delay: 200.ms).fadeIn(duration: 500.ms),
-              const SizedBox(height: 32),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  children: [
-                    _MenuCard(
-                      icon: Icons.sports_kabaddi,
-                      title: 'BATALLA',
-                      onTap: () => context.go('/battle-lobby'),
-                    ),
-                    _MenuCard(
-                      icon: Icons.school,
-                      title: 'SECCIONES',
-                      onTap: () {},
-                    ),
-                    _MenuCard(
-                      icon: Icons.menu_book,
-                      title: 'TAREAS',
-                      onTap: () {},
-                    ),
-                    _MenuCard(
-                      icon: Icons.leaderboard,
-                      title: 'RANKING',
-                      onTap: () {},
-                    ),
-                  ],
+      body: BattleBackdrop(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RetroScreenHeader(
+                  title: 'LOBBY',
+                  accent: AppColors.brightRed,
+                  actionLabel: 'SALIR',
+                  onAction: () async {
+                    await ref.read(authProvider.notifier).logout();
+                    if (context.mounted) context.go('/login');
+                  },
                 ),
-              ),
-            ],
+                const SizedBox(height: 14),
+                PixelPanel(
+                  accent: AppColors.brightRed,
+                  glow: true,
+                  child: Row(
+                    children: [
+                      const SchoolTower(color: AppColors.brightRed, size: 60),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const HudLabel('CENTRO DE MANDO'),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${user?['full_name'] ?? 'Guerrero'}',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              user?['role']?.toString().toUpperCase() ??
+                                  'USUARIO',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.12),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    children: [
+                      _MenuCard(
+                        sigil: 'VS',
+                        title: 'BATALLA',
+                        accent: AppColors.brightRed,
+                        onTap: () => context.go('/battle-lobby'),
+                      ),
+                      _MenuCard(
+                        sigil: 'SEC',
+                        title: 'SECCIONES',
+                        accent: AppColors.neonPurple,
+                        onTap: () {},
+                      ),
+                      _MenuCard(
+                        sigil: 'TXT',
+                        title: 'TAREAS',
+                        accent: AppColors.cyan,
+                        onTap: () => context.go('/tasks'),
+                      ),
+                      _MenuCard(
+                        sigil: 'XP',
+                        title: 'RANKING',
+                        accent: AppColors.gold,
+                        onTap: () => context.go('/progression'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -90,38 +107,36 @@ class LobbyView extends ConsumerWidget {
 }
 
 class _MenuCard extends StatelessWidget {
-  final IconData icon;
+  final String sigil;
   final String title;
+  final Color accent;
   final VoidCallback onTap;
 
   const _MenuCard({
-    required this.icon,
+    required this.sigil,
     required this.title,
+    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 40, color: AppColors.gold),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.labelLarge,
-                textAlign: TextAlign.center,
-              ),
-            ],
+    return InkWell(
+          onTap: onTap,
+          child: PixelPanel(
+            accent: accent,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AcademicHexBadge(label: sigil, color: accent, size: 72),
+                const SizedBox(height: 12),
+                HudLabel(title, color: accent),
+              ],
+            ),
           ),
-        ),
-      ),
-    ).animate().fadeIn(duration: 500.ms).scale(delay: 100.ms);
+        )
+        .animate()
+        .fadeIn(duration: 500.ms)
+        .scale(begin: const Offset(.88, .88), curve: Curves.easeOutBack);
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -9,12 +10,38 @@ import '../../core/network/api_client.dart';
 import '../../domain/models/battle.dart';
 import 'auth_provider.dart';
 
+class BattleQuestion {
+  final String nodeId;
+  final String id;
+  final String text;
+  final Map<String, String> options;
+
+  const BattleQuestion({
+    required this.nodeId,
+    required this.id,
+    required this.text,
+    required this.options,
+  });
+
+  factory BattleQuestion.fromJson(Map<String, dynamic> json) {
+    return BattleQuestion(
+      nodeId: json['node_id'].toString(),
+      id: json['question_id'].toString(),
+      text: json['text'] as String,
+      options: (json['options'] as Map<String, dynamic>).map(
+        (key, value) => MapEntry(key, value.toString()),
+      ),
+    );
+  }
+}
+
 /// Current battle state exposed to the UI.
 class BattleState {
   final Battle? battle;
   final bool isLoading;
   final String? error;
   final String? activeNodeId;
+  final BattleQuestion? activeQuestion;
   final String? feedback;
   final bool feedbackSuccess;
   final int timeRemaining;
@@ -26,6 +53,7 @@ class BattleState {
     this.isLoading = false,
     this.error,
     this.activeNodeId,
+    this.activeQuestion,
     this.feedback,
     this.feedbackSuccess = false,
     this.timeRemaining = 0,
@@ -38,6 +66,9 @@ class BattleState {
     bool? isLoading,
     String? error,
     String? activeNodeId,
+    bool clearActiveNode = false,
+    BattleQuestion? activeQuestion,
+    bool clearActiveQuestion = false,
     String? feedback,
     bool? feedbackSuccess,
     int? timeRemaining,
@@ -48,7 +79,10 @@ class BattleState {
       battle: battle ?? this.battle,
       isLoading: isLoading ?? this.isLoading,
       error: error,
-      activeNodeId: activeNodeId ?? this.activeNodeId,
+      activeNodeId: clearActiveNode ? null : activeNodeId ?? this.activeNodeId,
+      activeQuestion: clearActiveQuestion
+          ? null
+          : activeQuestion ?? this.activeQuestion,
       feedback: feedback,
       feedbackSuccess: feedbackSuccess ?? this.feedbackSuccess,
       timeRemaining: timeRemaining ?? this.timeRemaining,
@@ -60,7 +94,8 @@ class BattleState {
 
 /// Notifier that manages a battle lifecycle: polling, timer and WebSocket updates.
 class BattleNotifier extends StateNotifier<BattleState> {
-  BattleNotifier({required this.apiClient, this.userId}) : super(const BattleState()) {
+  BattleNotifier({required this.apiClient, this.userId})
+    : super(BattleState(currentUserId: userId)) {
     _controller = StreamController<BattleState>.broadcast();
   }
 
@@ -99,7 +134,8 @@ class BattleNotifier extends StateNotifier<BattleState> {
       state = state.copyWith(
         isLoading: false,
         battle: battle,
-        timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
+        timeRemaining: _remainingFor(battle),
+        clearActiveQuestion: true,
       );
       _connectWebSocket(battleId);
       _startTimers(battleId);
@@ -110,12 +146,24 @@ class BattleNotifier extends StateNotifier<BattleState> {
     }
   }
 
-  Future<Battle?> createBattle(String player1Id, String player2Id) async {
+  Future<Battle?> createBattle(
+    String player1Id,
+    String player2Id, {
+    int numLayers = 4,
+    int minNodesPerLayer = 3,
+    int maxNodesPerLayer = 4,
+  }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final response = await apiClient.dio.post(
         '/battles',
-        data: {'player_1_id': player1Id, 'player_2_id': player2Id},
+        data: {
+          'player_1_id': player1Id,
+          'player_2_id': player2Id,
+          'num_layers': numLayers,
+          'min_nodes_per_layer': minNodesPerLayer,
+          'max_nodes_per_layer': maxNodesPerLayer,
+        },
       );
       final battle = Battle.fromJson(response.data as Map<String, dynamic>);
       state = state.copyWith(isLoading: false, battle: battle);
@@ -139,22 +187,24 @@ class BattleNotifier extends StateNotifier<BattleState> {
     }
   }
 
-  Future<void> answerNode(String nodeId, String questionId, String answer) async {
+  Future<void> answerNode(String nodeId, String answer) async {
+    final question = state.activeQuestion;
+    if (question == null || question.nodeId != nodeId) return;
     state = state.copyWith(activeNodeId: nodeId);
     try {
       final response = await apiClient.dio.post(
         '/battles/${state.battle?.id}/answer',
         data: {
           'node_id': nodeId,
-          'question_id': questionId,
+          'question_id': question.id,
           'chosen_answer': answer,
-          'response_time_ms': 1500,
         },
       );
       final data = response.data as Map<String, dynamic>;
       final success = data['is_correct'] == true;
       _showFeedback(
-        data['message'] as String? ?? (success ? 'Nodo conquistado!' : 'Respuesta incorrecta'),
+        data['message'] as String? ??
+            (success ? 'Nodo conquistado!' : 'Respuesta incorrecta'),
         success,
       );
       await loadBattle(state.battle!.id);
@@ -163,8 +213,39 @@ class BattleNotifier extends StateNotifier<BattleState> {
     }
   }
 
-  void selectNode(String nodeId) {
-    state = state.copyWith(activeNodeId: nodeId);
+  Future<bool> selectNode(String nodeId) async {
+    try {
+      final response = await apiClient.dio.post(
+        '/battles/${state.battle?.id}/select-node',
+        data: {'node_id': nodeId},
+      );
+      final question = BattleQuestion.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+      final data = response.data as Map<String, dynamic>;
+      final deadline = DateTime.tryParse(
+        data['turn_deadline_at']?.toString() ?? '',
+      );
+      final serverTime = DateTime.tryParse(
+        data['server_time']?.toString() ?? '',
+      );
+      final remaining = deadline != null && serverTime != null
+          ? max(
+              0,
+              (deadline.difference(serverTime).inMilliseconds + 999) ~/ 1000,
+            )
+          : state.timeRemaining;
+      state = state.copyWith(
+        activeNodeId: nodeId,
+        activeQuestion: question,
+        timeRemaining: remaining,
+      );
+      _controller.add(state);
+      return true;
+    } catch (error) {
+      _showFeedback(_formatError(error), false);
+      return false;
+    }
   }
 
   void clearFeedback() {
@@ -182,9 +263,12 @@ class BattleNotifier extends StateNotifier<BattleState> {
       try {
         final response = await apiClient.dio.get('/battles/$battleId');
         final battle = Battle.fromJson(response.data as Map<String, dynamic>);
+        final turnChanged = _turnChanged(state.battle, battle);
         state = state.copyWith(
           battle: battle,
-          timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
+          timeRemaining: _remainingFor(battle),
+          clearActiveNode: turnChanged,
+          clearActiveQuestion: turnChanged,
         );
         _controller.add(state);
       } catch (_) {
@@ -208,6 +292,11 @@ class BattleNotifier extends StateNotifier<BattleState> {
       host: baseUri.host,
       port: baseUri.port,
       path: '/ws/battles/$battleId',
+      queryParameters: {
+        if (apiClient.dio.options.headers['Authorization']
+            case final String auth)
+          'token': auth.replaceFirst('Bearer ', ''),
+      },
     );
     _channel = WebSocketChannel.connect(wsUrl);
     _channel?.stream.listen(
@@ -215,10 +304,15 @@ class BattleNotifier extends StateNotifier<BattleState> {
         final json = jsonDecode(message as String) as Map<String, dynamic>;
         final type = json['type'] as String?;
         if (type == 'battle_update') {
-          final battle = Battle.fromJson(json['payload'] as Map<String, dynamic>);
+          final battle = Battle.fromJson(
+            json['payload'] as Map<String, dynamic>,
+          );
+          final turnChanged = _turnChanged(state.battle, battle);
           state = state.copyWith(
             battle: battle,
-            timeRemaining: battle.timeRemaining ?? battle.turnDuration ?? 30,
+            timeRemaining: _remainingFor(battle),
+            clearActiveNode: turnChanged,
+            clearActiveQuestion: turnChanged,
           );
           _controller.add(state);
         } else if (type == 'node_conquered') {
@@ -239,8 +333,34 @@ class BattleNotifier extends StateNotifier<BattleState> {
     _countdownTimer = null;
   }
 
+  bool _turnChanged(Battle? previous, Battle next) {
+    if (previous == null) return false;
+    if (previous.turnNumber != null && next.turnNumber != null) {
+      return previous.turnNumber != next.turnNumber;
+    }
+    return previous.currentTurn != next.currentTurn;
+  }
+
+  int _remainingFor(Battle battle) {
+    final deadline = battle.turnDeadlineAt;
+    final serverTime = battle.serverTime;
+    if (deadline != null && serverTime != null) {
+      return max(
+        0,
+        (deadline.difference(serverTime).inMilliseconds + 999) ~/ 1000,
+      );
+    }
+    return battle.timeRemaining ?? battle.turnDuration ?? 30;
+  }
+
   String _formatError(Object error) {
     if (error is String) return error;
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map<String, dynamic> && data['detail'] != null) {
+        return data['detail'].toString();
+      }
+    }
     return 'Error de conexion';
   }
 
@@ -253,8 +373,13 @@ class BattleNotifier extends StateNotifier<BattleState> {
   }
 }
 
-final battleProvider = StateNotifierProvider<BattleNotifier, BattleState>((ref) {
+final battleProvider = StateNotifierProvider<BattleNotifier, BattleState>((
+  ref,
+) {
   final authState = ref.watch(authProvider);
   final apiClient = ApiClient(token: authState.token);
-  return BattleNotifier(apiClient: apiClient, userId: authState.user?['id']?.toString());
+  return BattleNotifier(
+    apiClient: apiClient,
+    userId: authState.user?['id']?.toString(),
+  );
 });

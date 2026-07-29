@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
+from pptx import Presentation
+from pydantic import SecretStr
 from pypdf import PdfReader
 
-from src.domain.entities import Question
 from src.domain.enums import Subject
 from src.domain.interfaces.repositories import QuestionAgent
 from src.infrastructure.config import get_settings
@@ -82,16 +83,18 @@ class MockQuestionAgent(QuestionAgent):
         for i in range(count):
             template = self.TEMPLATES[i % len(self.TEMPLATES)]
             formatted = self._format(template, i)
-            questions.append({
-                "subject": subject.value,
-                "text": formatted["text"],
-                "option_a": formatted["option_a"],
-                "option_b": formatted["option_b"],
-                "option_c": formatted["option_c"],
-                "option_d": formatted["option_d"],
-                "correct_option": formatted["correct"],
-                "explanation": formatted["explanation"],
-            })
+            questions.append(
+                {
+                    "subject": subject.value,
+                    "text": formatted["text"],
+                    "option_a": formatted["option_a"],
+                    "option_b": formatted["option_b"],
+                    "option_c": formatted["option_c"],
+                    "option_d": formatted["option_d"],
+                    "correct_option": formatted["correct"],
+                    "explanation": formatted["explanation"],
+                }
+            )
         return questions
 
     async def extract_text_from_file(self, file_path: str) -> str:
@@ -111,6 +114,14 @@ async def extract_text_from_file(file_path: str) -> str:
     if suffix == ".docx":
         doc = Document(str(path))
         return "\n".join(paragraph.text for paragraph in doc.paragraphs)
+    if suffix == ".pptx":
+        presentation = Presentation(str(path))
+        return "\n".join(
+            shape.text
+            for slide in presentation.slides
+            for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
     if suffix == ".txt":
         return path.read_text(encoding="utf-8")
     raise ValueError(f"Unsupported file extension: {suffix}")
@@ -121,7 +132,9 @@ class OpenAIQuestionAgent(QuestionAgent):
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         settings = get_settings()
-        self.api_key = api_key or settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
+        self.api_key = (
+            api_key or settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
+        )
         self.model = model or settings.openai_model
 
     async def extract_text_from_file(self, file_path: str) -> str:
@@ -135,17 +148,25 @@ class OpenAIQuestionAgent(QuestionAgent):
     ) -> list[dict[str, Any]]:
         """Generate questions via OpenAI or fallback to mock if no key."""
         if not self.api_key:
-            return await MockQuestionAgent().generate_questions(material_text, subject, count)
+            return await MockQuestionAgent().generate_questions(
+                material_text, subject, count
+            )
 
         try:
             from langchain_openai import ChatOpenAI
         except ImportError as exc:
             raise RuntimeError("langchain-openai is not installed") from exc
 
-        llm = ChatOpenAI(api_key=self.api_key, model=self.model, temperature=0.7)
+        llm = ChatOpenAI(
+            api_key=SecretStr(self.api_key),
+            model=self.model,
+            temperature=0.7,
+        )
         prompt = self._build_prompt(material_text, subject, count)
         # Run blocking LangChain call in a thread pool
         response = await asyncio.to_thread(llm.invoke, prompt)
+        if not isinstance(response.content, str):
+            raise ValueError("Agent response must be textual JSON")
         return self._parse_response(response.content)
 
     def _build_prompt(self, material_text: str, subject: Subject, count: int) -> str:

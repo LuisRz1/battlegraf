@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
-from ..enums import Role, Subject
+from ..enums import Role
 
 
 @dataclass
@@ -28,7 +28,12 @@ class User:
 
     @property
     def is_teacher(self) -> bool:
-        return self.role in (Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+        return self.role in (
+            Role.DIRECTOR,
+            Role.SUBDIRECTOR,
+            Role.TUTOR,
+            Role.PROFESSOR,
+        )
 
     @property
     def is_student(self) -> bool:

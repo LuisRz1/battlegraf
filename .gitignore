@@ -64,6 +64,7 @@ htmlcov/
 
 # Local development
 .local/
+landing-sites-*.tar.gz
 
 # SQLite
 *.db

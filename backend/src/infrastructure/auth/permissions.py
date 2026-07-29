@@ -61,7 +61,9 @@ require_student = require_role(Role.STUDENT)
 
 require_director_or_subdirector = require_role(Role.DIRECTOR, Role.SUBDIRECTOR)
 require_school_admin = require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)
-require_teacher = require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+require_teacher = require_role(
+    Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR
+)
 
 
 def require_same_school_or_admin(payload: dict, school_id: UUID | str | None) -> None:

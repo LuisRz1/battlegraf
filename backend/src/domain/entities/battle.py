@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 from uuid import UUID, uuid4
 
 from ..enums import BattleStatus, Subject
@@ -36,7 +35,7 @@ class Graph:
     subjects: list[Subject] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
 
-    def get_start_node(self, player_index: int) -> Optional[GraphNode]:
+    def get_start_node(self, player_index: int) -> GraphNode | None:
         """Retorna el nodo inicial de un jugador (capa 0 o capa N-1)."""
         layer = 0 if player_index == 0 else self.num_layers - 1
         for node in self.nodes:
@@ -44,17 +43,14 @@ class Graph:
                 return node
         return None
 
-    def get_accessible_nodes(self, from_node_id: UUID, conquered_node_ids: set[UUID]) -> list[GraphNode]:
-        """Nodos accesibles desde una posicion actual + nodos conquistados."""
-        reachable = set(conquered_node_ids) | {from_node_id}
-        accessible = []
-        for node in self.nodes:
-            if node.id in reachable:
-                continue
-            # El nodo debe estar conectado a algun nodo conquistado en la capa anterior
-            if any(conn_id in reachable for conn_id in node.connected_to):
-                accessible.append(node)
-        return accessible
+    def get_neighbors(self, node_id: UUID) -> set[UUID]:
+        """Return adjacent nodes regardless of the player's direction."""
+        node = next((item for item in self.nodes if item.id == node_id), None)
+        if node is None:
+            return set()
+        neighbors = set(node.connected_to)
+        neighbors.update(item.id for item in self.nodes if node_id in item.connected_to)
+        return neighbors
 
 
 @dataclass
@@ -62,9 +58,9 @@ class BattleNodeState:
     """Estado de un nodo durante una batalla."""
 
     node_id: UUID = field(default_factory=uuid4)
-    owner: Optional[int] = None  # 0 = player 1, 1 = player 2, None = libre
+    owner: int | None = None  # 0 = player 1, 1 = player 2, None = libre
     attempt_count: int = 0
-    best_time_ms: Optional[int] = None  # Tiempo mas rapido (para robo)
+    best_time_ms: int | None = None  # Tiempo del propietario actual
 
 
 @dataclass
@@ -80,7 +76,7 @@ class BattleMove:
     is_correct: bool = False
     response_time_ms: int = 0
     is_steal_attempt: bool = False
-    steal_successful: Optional[bool] = None
+    steal_successful: bool | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -94,10 +90,16 @@ class Battle:
     graph_id: UUID = field(default_factory=uuid4)
     status: BattleStatus = BattleStatus.PENDING
     current_turn: int = 0
-    winner_id: Optional[UUID] = None
+    turn_number: int = 1
+    winner_id: UUID | None = None
     node_states: dict[UUID, BattleNodeState] = field(default_factory=dict)
     player_positions: dict[int, UUID] = field(default_factory=dict)
     turn_timeout_seconds: int = 30
+    turn_started_at: datetime | None = None
+    turn_deadline_at: datetime | None = None
+    active_node_id: UUID | None = None
+    active_question_id: UUID | None = None
+    question_started_at: datetime | None = None
     moves: list[BattleMove] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
-    finished_at: Optional[datetime] = None
+    finished_at: datetime | None = None

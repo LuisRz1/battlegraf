@@ -6,23 +6,22 @@ class Graph {
   final List<GraphEdge> edges;
   final int layerCount;
 
-  const Graph({
-    required this.nodes,
-    required this.edges,
-    this.layerCount = 4,
-  });
+  const Graph({required this.nodes, required this.edges, this.layerCount = 4});
 
   factory Graph.fromJson(Map<String, dynamic> json) {
     return Graph(
-      nodes: (json['nodes'] as List<dynamic>?)
+      nodes:
+          (json['nodes'] as List<dynamic>?)
               ?.map((e) => Node.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      edges: (json['edges'] as List<dynamic>?)
+      edges:
+          (json['edges'] as List<dynamic>?)
               ?.map((e) => GraphEdge.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      layerCount: json['layer_count'] as int? ?? 4,
+      layerCount:
+          json['layer_count'] as int? ?? json['num_layers'] as int? ?? 4,
     );
   }
 
@@ -34,11 +33,7 @@ class Graph {
     };
   }
 
-  Graph copyWith({
-    List<Node>? nodes,
-    List<GraphEdge>? edges,
-    int? layerCount,
-  }) {
+  Graph copyWith({List<Node>? nodes, List<GraphEdge>? edges, int? layerCount}) {
     return Graph(
       nodes: nodes ?? this.nodes,
       edges: edges ?? this.edges,

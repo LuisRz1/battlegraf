@@ -15,7 +15,10 @@ from src.infrastructure.auth.permissions import (
     require_role,
     require_teacher,
 )
-from src.infrastructure.database.repositories import SQLAlchemySectionRepository, SQLAlchemyUserRepository
+from src.infrastructure.database.repositories import (
+    SQLAlchemySectionRepository,
+    SQLAlchemyUserRepository,
+)
 from src.infrastructure.database.session import get_db
 from src.presentation.api.dependencies import get_user_repo
 from src.presentation.schemas.requests.auth_requests import (
@@ -43,8 +46,10 @@ def _user_response(user) -> UserResponse:
 def _require_school_match(payload: dict, school_id: UUID | None) -> None:
     """Ensure the current user can only manage users within their own school."""
     user_school_id = payload.get("school_id")
-    if user_school_id is not None and str(school_id) != user_school_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="School mismatch")
+    if user_school_id is None or str(school_id) != user_school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="School mismatch"
+        )
 
 
 @router.get("/school/{school_id}", response_model=list[UserResponse])
@@ -52,7 +57,7 @@ async def list_school_users(
     school_id: str,
     role: str | None = Query(None, description="Filter by role label"),
     repo=Depends(get_user_repo),
-    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR, Role.STUDENT)),
+    payload=Depends(require_teacher),
 ):
     _require_school_match(payload, UUID(school_id))
     users = await repo.list_by_school(UUID(school_id))
@@ -64,9 +69,14 @@ async def list_school_users(
 @router.get("/section/{section_id}", response_model=list[UserResponse])
 async def list_section_users(
     section_id: str,
+    session: AsyncSession = Depends(get_db),
     repo=Depends(get_user_repo),
     payload=Depends(require_teacher),
 ):
+    section = await SQLAlchemySectionRepository(session).get_by_id(UUID(section_id))
+    if section is None:
+        raise HTTPException(status_code=404, detail="Seccion no encontrada")
+    _require_school_match(payload, section.school_id)
     users = await repo.list_by_section(UUID(section_id))
     return [_user_response(u) for u in users]
 
@@ -75,7 +85,7 @@ async def list_section_users(
 async def create_user(
     body: CreateUserRequest,
     session: AsyncSession = Depends(get_db),
-    _=Depends(require_director),
+    payload=Depends(require_director),
 ):
     repo = SQLAlchemyUserRepository(session)
     existing = await repo.get_by_username(body.username)
@@ -87,13 +97,27 @@ async def create_user(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Rol invalido") from exc
 
+    if role == Role.DIRECTOR:
+        raise HTTPException(status_code=400, detail="No se puede crear otro director")
+    director_school_id = payload.get("school_id")
+    if director_school_id is None:
+        raise HTTPException(status_code=400, detail="Director sin colegio asignado")
+    school_id = UUID(body.school_id) if body.school_id else UUID(director_school_id)
+    _require_school_match(payload, school_id)
+    if body.section_id:
+        section = await SQLAlchemySectionRepository(session).get_by_id(
+            UUID(body.section_id)
+        )
+        if section is None or section.school_id != school_id:
+            raise HTTPException(status_code=400, detail="Seccion invalida")
+
     user = User(
         username=body.username,
         email=body.email,
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=role,
-        school_id=UUID(body.school_id) if body.school_id else None,
+        school_id=school_id,
         section_id=UUID(body.section_id) if body.section_id else None,
     )
     created = await repo.create(user)
@@ -114,13 +138,16 @@ async def create_staff_user(
         raise HTTPException(status_code=400, detail="El usuario ya existe")
 
     if body.role not in {Role.PROFESSOR.value, Role.TUTOR.value}:
-        raise HTTPException(status_code=400, detail="Rol invalido: solo professor o tutor")
+        raise HTTPException(
+            status_code=400, detail="Rol invalido: solo professor o tutor"
+        )
 
     director_school_id = payload.get("school_id")
     if not director_school_id and not body.school_id:
         raise HTTPException(status_code=400, detail="Se requiere school_id")
 
     school_id = UUID(body.school_id) if body.school_id else UUID(director_school_id)
+    _require_school_match(payload, school_id)
 
     user = User(
         username=body.username,
@@ -148,7 +175,9 @@ async def bulk_create_students_csv(
     section_repo = SQLAlchemySectionRepository(session)
     section = await section_repo.get_by_id(UUID(section_id))
     if not section or section.school_id != UUID(school_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Seccion no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Seccion no encontrada"
+        )
 
     _require_school_match(payload, UUID(school_id))
 
@@ -156,7 +185,9 @@ async def bulk_create_students_csv(
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise HTTPException(status_code=400, detail="El archivo CSV debe ser UTF-8") from exc
+        raise HTTPException(
+            status_code=400, detail="El archivo CSV debe ser UTF-8"
+        ) from exc
 
     reader = csv.DictReader(StringIO(text))
     expected = {"username", "full_name", "password"}

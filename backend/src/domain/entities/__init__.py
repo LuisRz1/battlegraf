@@ -1,7 +1,15 @@
 """Entidades de dominio."""
 
 from .battle import Battle, BattleMove, BattleNodeState, Graph, GraphNode
-from .question import Clan, Question, QuestionBank, Rank, Task
+from .question import (
+    Clan,
+    Question,
+    QuestionBank,
+    Rank,
+    Task,
+    TaskSubmission,
+    XPTransaction,
+)
 from .school import School, Section, User
 
 __all__ = [
@@ -17,5 +25,7 @@ __all__ = [
     "School",
     "Section",
     "Task",
+    "TaskSubmission",
     "User",
+    "XPTransaction",
 ]
