@@ -7,8 +7,8 @@ const steps = [
 	},
 	{
 		number: "02",
-		title: "Responde en 20 segundos",
-		body: "El reloj corre para todos los jugadores con acceso al nodo. Quien responda correctamente primero se queda con el territorio.",
+		title: "Responde durante tu turno",
+		body: "El jugador activo tiene 20 segundos para responder. Al terminar la jugada, el turno pasa al rival y el tablero actualiza el territorio.",
 	},
 	{
 		number: "03",
@@ -52,7 +52,7 @@ const steps = [
 		<!-- Nota Táctica al Pie -->
 		<div class="reveal mt-12 text-center">
 			<div class="game-hud inline-block rounded p-4 text-xs text-crema-300 leading-relaxed border border-piedra-700 max-w-2xl">
-				💡 <strong class="text-oro-300">SIN TURNOS PASIVOS:</strong> Todos compiten al mismo tiempo. Fallar te bloquea brevemente, pero nadie ve tu error. Es un duelo directo de velocidad y conocimiento.
+				<strong class="text-oro-300">BATALLA POR TURNOS:</strong> El equipo rojo juega primero y luego el morado. Cada decisión respeta las conexiones del grafo y abre una oportunidad de respuesta al rival.
 			</div>
 		</div>
 	</div>
