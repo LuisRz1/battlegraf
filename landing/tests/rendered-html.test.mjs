@@ -8,13 +8,13 @@ import {
   getQuestionForState,
 } from "../app/battle-engine.ts";
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -28,6 +28,32 @@ async function render() {
     },
   );
 }
+
+test("server-renders the separate institutional console", async () => {
+  const response = await render("/admin");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Panel institucional \| BattleGraf/i);
+  assert.match(html, /CONSOLA INSTITUCIONAL/);
+  assert.match(html, /ENTRAR AL PANEL/);
+  assert.match(html, /director@battlegraf\.demo/);
+  assert.doesNotMatch(html, /INICIAR BATALLA/);
+});
+
+test("admin console includes medieval assets, working modals and simulated AI output", async () => {
+  const [page, css] = await Promise.all([
+    readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/admin/admin.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /role="dialog"/);
+  assert.match(page, /GUARDAR DEMO/);
+  assert.match(page, /Borrador simulado listo/);
+  assert.match(page, /INFORME CREADO POR EL AGENTE/);
+  assert.match(css, /\/admin-assets\/menu_bg\.webp/);
+  assert.match(css, /\/admin-assets\/panel\.png/);
+  assert.match(css, /\/admin-assets\/base_team\.png/);
+  assert.match(css, /border-image:url\("\/admin-assets\/button_normal\.png"\)/);
+});
 
 function answerCorrectly(state, responseTimeMs = 2400) {
   const question = getQuestionForState(state);

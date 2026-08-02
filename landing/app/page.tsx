@@ -397,13 +397,13 @@ function PrototypeModal({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
-  const answer = (optionIndex: number) => {
+  const answer = (optionIndex: number, answeredAt: number) => {
     dispatch({
       type: "ANSWER",
       optionIndex,
       responseTimeMs: Math.max(
         100,
-        Math.round(performance.now() - turnStartedAt.current),
+        Math.round(answeredAt - turnStartedAt.current),
       ),
     });
   };
@@ -533,7 +533,7 @@ function PrototypeModal({ onClose }: { onClose: () => void }) {
                   {question.options.map((option, index) => (
                     <button
                       key={option}
-                      onClick={() => answer(index)}
+                      onClick={(event) => answer(index, event.timeStamp)}
                       type="button"
                     >
                       <span>{String.fromCharCode(65 + index)}</span>

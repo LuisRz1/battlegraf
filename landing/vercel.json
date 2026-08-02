@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npx next build"
+  "buildCommand": "npx next build",
+  "rewrites": [
+    {
+      "source": "/downloads/battlegraf-prototipo.apk",
+      "destination": "https://battlegraf-landing.vercel.app/downloads/battlegraf-prototipo.apk"
+    }
+  ]
 }
