@@ -445,7 +445,7 @@
 .ai-feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin-top: 1rem; }
 .ai-feature-grid span { padding: .75rem; border: 1px solid var(--color-piedra-700); background: rgba(13,12,20,.6); color: var(--color-crema-300); font-size: .58rem; text-align: center; }
 
-.portal-dialog { width: min(31rem, calc(100% - 2rem)); padding: 0; border: 2px solid var(--color-oro-700); background: var(--color-piedra-900); color: var(--color-crema-100); box-shadow: 0 30px 90px rgba(0,0,0,.8), inset 0 0 0 4px var(--color-piedra-950); }
+.portal-dialog { position: fixed; inset: 0; width: min(31rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border: 2px solid var(--color-oro-700); background: var(--color-piedra-900); color: var(--color-crema-100); box-shadow: 0 30px 90px rgba(0,0,0,.8), inset 0 0 0 4px var(--color-piedra-950); }
 .portal-dialog::backdrop { background: rgba(5,4,9,.78); backdrop-filter: blur(4px); }
 .portal-dialog form { display: grid; gap: 1rem; padding: 1.4rem; }
 .portal-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .9rem; border-bottom: 1px solid var(--color-piedra-700); }
