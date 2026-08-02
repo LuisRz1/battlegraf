@@ -34,3 +34,7 @@ Desktop.ini
 
 # local tooling state
 .opencode/
+.vercel
+.env*
+.agents/
+skills-lock.json

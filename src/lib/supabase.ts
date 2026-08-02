@@ -1,11 +1,26 @@
 import { createServerClient, parseCookieHeader } from "@supabase/ssr";
 import type { AstroCookies } from "astro";
 
-export function hasSupabaseConfig() {
-	return Boolean(
-		import.meta.env.PUBLIC_SUPABASE_URL &&
-			import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+function getSupabaseUrl() {
+	return (
+		import.meta.env.SUPABASE_URL ??
+		import.meta.env.PUBLIC_SUPABASE_URL ??
+		import.meta.env.NEXT_PUBLIC_SUPABASE_URL
 	);
+}
+
+function getSupabasePublishableKey() {
+	return (
+		import.meta.env.SUPABASE_PUBLISHABLE_KEY ??
+		import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+		import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+		import.meta.env.SUPABASE_ANON_KEY ??
+		import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+	);
+}
+
+export function hasSupabaseConfig() {
+	return Boolean(getSupabaseUrl() && getSupabasePublishableKey());
 }
 
 export function createSupabaseServerClient({
@@ -15,8 +30,8 @@ export function createSupabaseServerClient({
 	request: Request;
 	cookies: AstroCookies;
 }) {
-	const url = import.meta.env.PUBLIC_SUPABASE_URL;
-	const key = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+	const url = getSupabaseUrl();
+	const key = getSupabasePublishableKey();
 
 	if (!url || !key) {
 		throw new Error("Supabase no está configurado. Revise las variables de entorno.");

@@ -9,6 +9,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "check": "astro check",
+    "db:migrate": "bun scripts/migrate.mjs",
+    "db:verify": "bun scripts/verify-db.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "postgres": "^3.4.7",
     "typescript": "^6.0.0"
   }
 }
