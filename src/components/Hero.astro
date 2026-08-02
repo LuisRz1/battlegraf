@@ -1,0 +1,72 @@
+---
+---
+
+<section id="inicio" class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-28 pb-20 text-center">
+	<!-- Fondo de menú con overlay de graduación y viñeta -->
+	<div class="absolute inset-0 -z-10">
+		<img src="/assets/ui/menu_bg.png" alt="" aria-hidden="true" class="px h-full w-full object-cover object-center scale-105 transition-transform duration-1000" />
+		<div class="absolute inset-0 bg-piedra-950/70" aria-hidden="true"></div>
+		<div class="absolute inset-0 bg-gradient-to-b from-piedra-950/90 via-transparent to-piedra-950" aria-hidden="true"></div>
+		<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_#0d0c14_85%)]" aria-hidden="true"></div>
+	</div>
+
+	<div class="mx-auto flex w-full max-w-5xl flex-col items-center gap-6">
+		<!-- Tag Badge -->
+		<p class="section-tag !gap-3 reveal">
+			<span aria-hidden="true" class="inline-block h-2.5 w-2.5 bg-oro-500 shadow-[0_0_12px_rgba(230,184,77,0.8)]"></span>
+			Multijugador de conquista por trivia
+		</p>
+
+		<!-- Logo del Juego -->
+		<img
+			src="/assets/ui/logo.png"
+			alt="BattleGraph"
+			class="px reveal w-[min(85vw,28rem)] drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)]"
+			width="320"
+			height="108"
+			loading="eager"
+		/>
+
+		<!-- Título Principal -->
+		<h1 class="display reveal max-w-3xl text-crema-100">
+			Conquista el grafo.
+			<br />
+			<span class="text-oro-300 drop-shadow-[0_2px_12px_rgba(230,184,77,0.4)]">Domina por trivia.</span>
+		</h1>
+
+		<!-- Descripción -->
+		<p class="reveal max-w-2xl text-base leading-relaxed text-crema-300 sm:text-lg">
+			Cada nodo del mapa es territorio. Responde preguntas antes que tus rivales, activa power-ups tácticos y destruye las bases enemigas.
+		</p>
+
+		<!-- Botones de Acción -->
+		<div class="reveal mt-2 flex flex-col sm:flex-row w-full sm:w-auto items-center justify-center gap-3 sm:gap-4 px-4">
+			<button type="button" data-open-game class="pixel-btn w-full sm:w-auto !px-6 sm:!px-8 !py-3.5 sm:!py-4 shadow-[0_0_25px_rgba(230,184,77,0.35)] cursor-pointer text-sm sm:text-base">
+				<span aria-hidden="true">⚔️</span> Jugar Ahora (Web)
+			</button>
+			<a href="#mapa" class="pixel-btn pixel-btn-secondary w-full sm:w-auto !px-5 sm:!px-6 !py-3.5 sm:!py-4 text-sm sm:text-base">
+				<span aria-hidden="true">🗺️</span> Explorar Mapa
+			</a>
+		</div>
+
+		<!-- Muestra Principal del Juego (hero.png con Botón de Play Overlay) -->
+		<div class="reveal mt-6 sm:mt-8 w-full max-w-4xl px-2">
+			<div class="relative group cursor-pointer" data-open-game>
+				<div class="absolute -inset-1 rounded-xl bg-gradient-to-r from-oro-700/30 via-violeta-600/30 to-oro-700/30 blur-lg opacity-75 group-hover:opacity-100 transition duration-500"></div>
+				<img
+					src="/hero.png"
+					alt="Gameplay de BattleGraph - Haz clic para jugar"
+					class="px relative w-full h-auto rounded-lg shadow-[0_25px_60px_rgba(0,0,0,0.9)] border-2 border-oro-700/40 transition-transform duration-300 group-hover:scale-[1.01]"
+					loading="eager"
+				/>
+				<div class="absolute inset-0 flex items-center justify-center bg-piedra-950/40 group-hover:bg-piedra-950/20 transition-colors rounded-lg">
+					<button type="button" data-open-game class="pixel-btn !px-4 !py-2.5 sm:!px-6 sm:!py-3 !text-xs sm:!text-sm shadow-2xl scale-100 sm:scale-110 group-hover:scale-125 transition-transform pointer-events-none">
+						▶️ Cargar Demo Web
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+

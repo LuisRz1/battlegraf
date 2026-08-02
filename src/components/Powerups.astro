@@ -1,0 +1,53 @@
+---
+const powerups = [
+	{ name: "Mitad de Opciones", icon: "icon_half", rarity: "TÁCTICO", color: "text-aliados", desc: "Elimina dos respuestas incorrectas de la pregunta activa al instante." },
+	{ name: "Escudo Absoluto", icon: "icon_shield", rarity: "DEFENSIVO", color: "text-oro-300", desc: "Blinda un nodo durante 30 segundos: inmune a ataques rivales." },
+	{ name: "Fortificación", icon: "icon_fortify", rarity: "DEFENSIVO", color: "text-legion", desc: "Refuerza la resistencia del nodo para soportar múltiples asedios." },
+	{ name: "Cambio de Tema", icon: "icon_retopic", rarity: "TÁCTICO", color: "text-violeta-400", desc: "Sustituye la materia del nodo por una categoría donde domines más." },
+	{ name: "Doble Oportunidad", icon: "icon_double", rarity: "RARO", color: "text-oro-500", desc: "Te permite fallar una opción sin quedar bloqueado en la ronda." },
+	{ name: "Alarma Temprana", icon: "icon_alarm", rarity: "RADAR", color: "text-imperio", desc: "Alerta previa de 5 segundos antes de que el atacante vea la pregunta." },
+	{ name: "Cofre del Nodo", icon: "icon_chest", rarity: "BOTÍN", color: "text-oro-300", desc: "Los nodos especiales otorgan objetos e ítems tácticos acumulables." },
+	{ name: "Control del Reloj", icon: "icon_clock", rarity: "PASIVO", color: "text-crema-100", desc: "20 segundos por duelo. La rapidez en responder te otorga bonos de puntos." },
+];
+---
+
+<section id="mejoras" class="relative overflow-hidden py-24 sm:py-32">
+	<div class="absolute inset-0 -z-10 opacity-30" aria-hidden="true">
+		<img src="/assets/ui/menu_bg.png" alt="" class="px h-full w-full object-cover filter blur-[2px]" />
+		<div class="absolute inset-0 bg-piedra-950/80" aria-hidden="true"></div>
+	</div>
+
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<div class="reveal mb-14 flex flex-col gap-4">
+			<div class="section-tag">INVENTARIO TÁCTICO</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				El mapa <span class="text-violeta-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">esconde armas</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				Al conquistar nodos clave acumulas un arsenal de artefactos y habilidades especiales para inclinar la balanza en la guerra.
+			</p>
+		</div>
+
+		<!-- Inventario Grid Estilo Ranuras de Objeto -->
+		<ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			{
+				powerups.map((p) => (
+					<li class="reveal">
+						<article class="pixel-panel pixel-card flex h-full flex-col items-center gap-3 p-5 text-center">
+							<div class="game-hud rounded p-3 mb-1 flex items-center justify-center w-14 h-14 border border-piedra-700 shadow-inner">
+								<img src={`/assets/nodes/${p.icon}.png`} alt="" aria-hidden="true" class="px h-9 w-9 transition-transform group-hover:scale-110" width="32" height="32" loading="lazy" />
+							</div>
+
+							<span class={`game-badge !py-0.5 !text-[0.6rem] ${p.color}`}>{p.rarity}</span>
+
+							<h3 class="text-base font-bold leading-tight text-crema-100">{p.name}</h3>
+
+							<p class="text-xs leading-relaxed text-crema-300/90">{p.desc}</p>
+						</article>
+					</li>
+				))
+			}
+		</ul>
+	</div>
+</section>
+

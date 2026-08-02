@@ -1,0 +1,61 @@
+---
+const steps = [
+	{
+		number: "01",
+		title: "Elige un nodo frontera",
+		body: "Selecciona un nodo conectado a tu territorio y pulsa Conquistar. Se genera una pregunta en tiempo real sobre la materia de ese territorio.",
+	},
+	{
+		number: "02",
+		title: "Responde en 20 segundos",
+		body: "El reloj corre para todos los jugadores con acceso al nodo. Quien responda correctamente primero se queda con el territorio.",
+	},
+	{
+		number: "03",
+		title: "Conquista y avanza a la base",
+		body: "El nodo se tiñe de tu color y obtiene protección temporal. Úsalo como ruta estratégica para atacar las bases enemigas.",
+	},
+];
+---
+
+<section id="como-jugar" class="relative py-24 sm:py-32">
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<!-- Encabezado de Sección -->
+		<div class="reveal mb-14 text-center flex flex-col items-center gap-3">
+			<div class="section-tag justify-center">CÓMO SE JUEGA</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				Conquistar es <span class="text-oro-300 drop-shadow-[0_0_12px_rgba(240,207,122,0.4)]">responder bien</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				Tres pasos sencillos para dominar el mapa y derrotar a tus rivales.
+			</p>
+		</div>
+
+		<!-- Cuadrícula Limpia de 3 Pasos -->
+		<div class="grid gap-6 md:grid-cols-3">
+			{
+				steps.map((s) => (
+					<div class="reveal">
+						<article class="pixel-panel pixel-card flex h-full flex-col gap-4 p-6 text-left">
+							<div class="flex items-center justify-between border-b border-piedra-700/80 pb-3">
+								<span class="text-3xl font-bold text-oro-300 tracking-wider font-mono">{s.number}</span>
+								<span class="game-badge !py-0.5 !text-[0.65rem]">PASO CLAVE</span>
+							</div>
+							<h3 class="text-lg font-bold text-crema-100 leading-snug">{s.title}</h3>
+							<p class="text-sm leading-relaxed text-crema-300/90">{s.body}</p>
+						</article>
+					</div>
+				))
+			}
+		</div>
+
+		<!-- Nota Táctica al Pie -->
+		<div class="reveal mt-12 text-center">
+			<div class="game-hud inline-block rounded p-4 text-xs text-crema-300 leading-relaxed border border-piedra-700 max-w-2xl">
+				💡 <strong class="text-oro-300">SIN TURNOS PASIVOS:</strong> Todos compiten al mismo tiempo. Fallar te bloquea brevemente, pero nadie ve tu error. Es un duelo directo de velocidad y conocimiento.
+			</div>
+		</div>
+	</div>
+</section>
+
+

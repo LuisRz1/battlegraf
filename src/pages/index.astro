@@ -1,0 +1,162 @@
+---
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Hero from "../components/Hero.astro";
+import MapSection from "../components/MapSection.astro";
+import Steps from "../components/Steps.astro";
+import Versus from "../components/Versus.astro";
+import Teams from "../components/Teams.astro";
+import Powerups from "../components/Powerups.astro";
+import Topics from "../components/Topics.astro";
+import FinalCta from "../components/FinalCta.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/assets/ui/icon_app_512.png" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<meta
+			name="description"
+			content="BattleGraph — multijugador de conquista territorial por trivia. Conquista nodos respondiendo preguntas, defiende tus bases y domina el grafo."
+		/>
+		<meta name="theme-color" content="#0d0c14" />
+		<meta property="og:title" content="BattleGraph" />
+		<meta property="og:description" content="Conquista territorios respondiendo preguntas. El multijugador de trivia sobre un grafo." />
+		<meta property="og:image" content="/assets/ui/icon_app_512.png" />
+		<title>BattleGraph — Conquista territorios por trivia</title>
+	</head>
+	<body>
+		<Nav />
+		<main>
+			<Hero />
+			<MapSection />
+			<Steps />
+			<Versus />
+			<Teams />
+			<Powerups />
+			<Topics />
+			<FinalCta />
+		</main>
+		<Footer />
+
+		<!-- Modal del Juego Web (Godot 4 HTML5 Player) -->
+		<div
+			id="game-modal"
+			class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/90 p-2 sm:p-6 backdrop-blur-md transition-opacity duration-300"
+			aria-hidden="true"
+		>
+			<div class="relative flex h-full max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border-2 border-oro-700/60 bg-piedra-950 shadow-[0_0_60px_rgba(230,184,77,0.3)]">
+				<!-- Header del Modal -->
+				<div class="flex items-center justify-between border-b border-piedra-700 bg-piedra-900/90 px-4 py-3">
+					<div class="flex items-center gap-3">
+						<img src="/assets/ui/icon_app_512.png" alt="" class="h-6 w-6" />
+						<span class="text-sm font-bold text-oro-300 uppercase tracking-wider">BattleGraph — Demo Web en Vivo</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<button
+							id="game-fullscreen-btn"
+							type="button"
+							class="rounded bg-piedra-800 px-3 py-1 text-xs font-bold text-crema-300 hover:text-oro-300 hover:bg-piedra-700 border border-piedra-600 transition-colors"
+							title="Pantalla Completa"
+						>
+							⛶ Pantalla Completa
+						</button>
+						<button
+							id="game-close-btn"
+							type="button"
+							class="rounded bg-red-900/40 px-3 py-1 text-xs font-bold text-red-300 hover:bg-red-800 hover:text-white border border-red-700/60 transition-colors"
+							aria-label="Cerrar juego"
+						>
+							✕ Cerrar
+						</button>
+					</div>
+				</div>
+
+				<!-- Contenedor del Iframe -->
+				<div class="relative flex-1 bg-black">
+					<iframe
+						id="game-iframe"
+						data-src="/game/BattleGraph.html"
+						class="h-full w-full border-0"
+						allow="autoplay; fullscreen; focus-without-user-activation"
+						title="Juego BattleGraph"
+					></iframe>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// Reveal observer
+			const reveals = document.querySelectorAll(".reveal");
+			if (reveals.length > 0) {
+				const observer = new IntersectionObserver(
+					(entries) => {
+						for (const entry of entries) {
+							if (entry.isIntersecting) {
+								entry.target.classList.add("in");
+								observer.unobserve(entry.target);
+							}
+						}
+					},
+					{ threshold: 0.12 },
+				);
+				for (const el of reveals) observer.observe(el);
+			}
+
+			// Modal Handler del Juego Web
+			const gameModal = document.getElementById("game-modal");
+			const gameIframe = document.getElementById("game-iframe") as HTMLIFrameElement | null;
+			const gameCloseBtn = document.getElementById("game-close-btn");
+			const gameFullscreenBtn = document.getElementById("game-fullscreen-btn");
+			const openGameTriggers = document.querySelectorAll("[data-open-game]");
+
+			function openGame() {
+				if (!gameModal || !gameIframe) return;
+				const src = gameIframe.getAttribute("data-src");
+				if (src && (!gameIframe.src || gameIframe.src === "about:blank")) {
+					gameIframe.src = src;
+				}
+				gameModal.classList.remove("hidden");
+				gameModal.classList.add("flex");
+				document.body.style.overflow = "hidden";
+			}
+
+			function closeGame() {
+				if (!gameModal || !gameIframe) return;
+				gameModal.classList.add("hidden");
+				gameModal.classList.remove("flex");
+				document.body.style.overflow = "";
+			}
+
+			for (const trigger of openGameTriggers) {
+				trigger.addEventListener("click", (e) => {
+					e.preventDefault();
+					openGame();
+				});
+			}
+
+			gameCloseBtn?.addEventListener("click", closeGame);
+
+			gameModal?.addEventListener("click", (e) => {
+				if (e.target === gameModal) closeGame();
+			});
+
+			document.addEventListener("keydown", (e) => {
+				if (e.key === "Escape" && gameModal && !gameModal.classList.contains("hidden")) {
+					closeGame();
+				}
+			});
+
+			gameFullscreenBtn?.addEventListener("click", () => {
+				if (gameIframe) {
+					if (gameIframe.requestFullscreen) {
+						gameIframe.requestFullscreen();
+					}
+				}
+			});
+		</script>
+	</body>
+</html>

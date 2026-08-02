@@ -1,0 +1,128 @@
+---
+const features = [
+	{
+		title: "Versus en tiempo real",
+		body: "Ataca un nodo enemigo y el duelo comienza: tú, el defensor y cualquier aliado ven la misma pregunta y el reloj de 20 segundos.",
+		icon: "icon_alarm",
+	},
+	{
+		title: "Derecho de defensa",
+		body: "El dueño del nodo recibe una alerta al instante y puede entrar a defender desde cualquier lugar. La iniciativa da ventaja.",
+		icon: "node_shield",
+	},
+	{
+		title: "Bases: al mejor de tres",
+		body: "Las bases no caen con una sola pregunta. Atacante y defensor se enfrentan en hasta 3 rondas; gana quien acierte dos veces.",
+		icon: "base_team",
+	},
+];
+---
+
+<section id="versus" class="relative overflow-hidden py-24 sm:py-32">
+	<div class="absolute inset-0 -z-10 bg-gradient-to-b from-piedra-950 via-piedra-900/90 to-piedra-950" aria-hidden="true"></div>
+
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<div class="reveal mb-12 flex flex-col gap-4">
+			<div class="section-tag">MODO VERSUS</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				Cada nodo es una <span class="text-imperio drop-shadow-[0_0_12px_rgba(255,77,77,0.5)]">batalla de trivia</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				Sin turnos pasivos: cuando el desafío se abre, el temporizador corre y el que acierta primero se lleva el punto.
+			</p>
+		</div>
+
+		<!-- Mockup Interactivo del Duelo de Trivia -->
+		<div class="reveal mb-16">
+			<div class="pixel-panel p-6 sm:p-8">
+				<div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+					<!-- Cabecera del Duelo -->
+					<div class="flex items-center gap-4 border-b border-piedra-700 pb-4 lg:border-b-0 lg:pb-0">
+						<div class="flex items-center gap-2">
+							<img src="/assets/nodes/base_team.png" alt="" class="px base-frame base-blue" width="48" height="48" />
+							<div>
+								<div class="text-xs font-bold text-aliados uppercase tracking-widest">ATACANTE</div>
+								<div class="text-sm text-crema-100 font-bold">ALIADOS (TÚ)</div>
+							</div>
+						</div>
+
+						<div class="text-xl font-bold text-oro-500 px-3">VS</div>
+
+						<div class="flex items-center gap-2">
+							<img src="/assets/nodes/base_team.png" alt="" class="px base-frame base-red" width="48" height="48" />
+							<div>
+								<div class="text-xs font-bold text-imperio uppercase tracking-widest">DEFENSOR</div>
+								<div class="text-sm text-crema-100 font-bold">IMPERIO ROJO</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Temporizador HUD -->
+					<div class="game-hud rounded-lg px-5 py-2.5 flex items-center justify-between gap-4 border border-oro-700/50">
+						<div class="flex items-center gap-2">
+							<img src="/assets/nodes/icon_clock.png" alt="" class="px h-6 w-6 animate-pulse" width="24" height="24" />
+							<span class="text-xs font-bold text-crema-300">RELOJ DE DUELO</span>
+						</div>
+						<span class="text-xl font-bold text-oro-300">14.8 s</span>
+					</div>
+				</div>
+
+				<!-- Ventana de Pregunta Muestra -->
+				<div class="mt-6 rounded bg-piedra-950/90 p-5 border border-piedra-700">
+					<div class="mb-3 flex items-center justify-between text-xs text-crema-500">
+						<span>CATEGORÍA: QUÍMICA</span>
+						<span class="text-oro-500">VALOR: 1 NODO</span>
+					</div>
+					<h4 class="mb-5 text-base sm:text-lg font-bold text-crema-100">
+						¿Cuál es el elemento químico representado por el símbolo "Fe" en la tabla periódica?
+					</h4>
+
+					<!-- Opciones de Respuesta en Estilo UI Juego -->
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div class="game-hud rounded p-3 text-sm text-crema-300 border border-piedra-700 flex items-center justify-between cursor-pointer hover:border-oro-500 transition-colors">
+							<span>A) Flúor</span>
+							<span class="text-xs text-crema-500">[1]</span>
+						</div>
+						<div class="game-hud rounded p-3 text-sm text-crema-100 font-bold border-2 border-aliados bg-aliados/20 flex items-center justify-between shadow-[0_0_12px_rgba(77,153,255,0.3)]">
+							<span>B) Hierro (¡ACIERTO!)</span>
+							<span class="text-xs text-aliados font-bold">✓ GANADOR</span>
+						</div>
+						<div class="game-hud rounded p-3 text-sm text-crema-300 border border-piedra-700 flex items-center justify-between opacity-60">
+							<span>C) Fósforo</span>
+							<span class="text-xs text-crema-500">[3]</span>
+						</div>
+						<div class="game-hud rounded p-3 text-sm text-crema-300 border border-piedra-700 flex items-center justify-between opacity-60">
+							<span>D) Francio</span>
+							<span class="text-xs text-crema-500">[4]</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Tarjetas de Características -->
+		<div class="grid gap-6 md:grid-cols-3">
+			{
+				features.map((f) => (
+					<article class="reveal pixel-panel pixel-card flex flex-col items-center gap-4 p-6 text-center">
+						{f.icon === "base_team" ? (
+							<img src="/assets/nodes/base_team.png" alt="" aria-hidden="true" class="px base-frame" width="48" height="48" />
+						) : (
+							<img
+								src={`/assets/nodes/${f.icon}.png`}
+								alt=""
+								aria-hidden="true"
+								class="px h-10 w-10"
+								width="32"
+								height="32"
+							/>
+						)}
+						<h3 class="text-lg font-bold text-crema-100">{f.title}</h3>
+						<p class="text-sm leading-relaxed text-crema-300">{f.body}</p>
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>
+

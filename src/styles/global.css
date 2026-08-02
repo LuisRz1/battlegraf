@@ -1,0 +1,270 @@
+@import "tailwindcss";
+
+@font-face {
+	font-family: "VCR OSD Mono";
+	src: url("/fonts/VCR_OSD_MONO_1.001.ttf") format("truetype");
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+@theme {
+	--font-pixel: "VCR OSD Mono", "Courier New", monospace;
+
+	--color-piedra-950: #0d0c14;
+	--color-piedra-900: #131120;
+	--color-piedra-800: #1b1830;
+	--color-piedra-700: #262142;
+	--color-piedra-600: #342d58;
+	--color-crema-100: #f7eed6;
+	--color-crema-300: #e9d9ae;
+	--color-crema-500: #cdb888;
+	--color-violeta-400: #a78bfa;
+	--color-violeta-600: #7c5cd6;
+	--color-violeta-900: #3b2a63;
+	--color-oro-300: #f0cf7a;
+	--color-oro-500: #e6b84d;
+	--color-oro-700: #b5852c;
+	--color-aliados: #4d99ff;
+	--color-imperio: #ff4d4d;
+	--color-legion: #4dcc66;
+}
+
+@layer base {
+	html {
+		scroll-behavior: smooth;
+	}
+
+	body {
+		background-color: var(--color-piedra-950);
+		color: var(--color-crema-100);
+		font-family: var(--font-pixel);
+		font-size: 16px;
+		line-height: 1.6;
+		-webkit-font-smoothing: none;
+	}
+
+	::selection {
+		background: var(--color-oro-500);
+		color: var(--color-piedra-950);
+	}
+
+	:focus-visible {
+		outline: 3px solid var(--color-oro-500);
+		outline-offset: 3px;
+	}
+}
+
+@layer components {
+	/* Imágenes pixel del juego: filtro Nearest, sin suavizado */
+	.px {
+		image-rendering: pixelated;
+		image-rendering: crisp-edges;
+	}
+
+	/* Botón principal estilizado con CSS */
+	.pixel-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding: 0.85rem 1.8rem 0.75rem;
+		background: linear-gradient(180deg, #342d58 0%, #1b1830 100%);
+		border: 2px solid var(--color-oro-500);
+		border-radius: 6px;
+		color: var(--color-crema-100);
+		font-family: var(--font-pixel);
+		font-size: 1.05rem;
+		font-weight: bold;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		text-shadow: 1px 1px 0 #0d0c14, 0 2px 4px rgba(0,0,0,0.8);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.6);
+		cursor: pointer;
+		user-select: none;
+		transition: all 0.15s ease;
+		text-decoration: none;
+	}
+
+	.pixel-btn:hover {
+		background: linear-gradient(180deg, var(--color-oro-500) 0%, var(--color-oro-700) 100%);
+		border-color: #ffffff;
+		color: var(--color-piedra-950);
+		text-shadow: none;
+		box-shadow: 0 0 18px rgba(230, 184, 77, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+		transform: translateY(-2px);
+	}
+
+	.pixel-btn:active {
+		transform: translateY(1px);
+	}
+
+	.pixel-btn[aria-disabled="true"] {
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
+	.pixel-btn-secondary {
+		background: linear-gradient(180deg, #1b1830 0%, #0d0c14 100%);
+		border: 2px solid var(--color-piedra-700);
+		color: var(--color-crema-300);
+	}
+
+	.pixel-btn-secondary:hover {
+		background: linear-gradient(180deg, #262142 0%, #1b1830 100%);
+		border-color: var(--color-oro-500);
+		color: var(--color-oro-300);
+		box-shadow: 0 0 12px rgba(230, 184, 77, 0.2);
+	}
+
+	/* Panel / Tarjeta estilizada con CSS */
+	.pixel-panel {
+		background: rgba(19, 17, 32, 0.85);
+		border: 1px solid rgba(240, 207, 122, 0.2);
+		border-radius: 12px;
+		backdrop-filter: blur(8px);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.5);
+	}
+
+	.pixel-card {
+		transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.pixel-card:hover {
+		transform: translateY(-3px);
+		border-color: rgba(240, 207, 122, 0.5);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 15px 35px -10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(240, 207, 122, 0.1);
+	}
+
+	/* Estandarte / HUD de juego */
+	.game-hud {
+		background: rgba(13, 12, 20, 0.85);
+		border: 2px solid var(--color-piedra-700);
+		box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 8px 24px rgba(0, 0, 0, 0.5);
+	}
+
+	.game-badge {
+		background: var(--color-piedra-900);
+		border: 1px solid var(--color-oro-700);
+		color: var(--color-oro-300);
+		padding: 0.25rem 0.75rem;
+		font-size: 0.75rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	/* Frame de nodo 32x32 desde node_team.png (orden: azul, rojo, verde, neutral) */
+	.node-frame {
+		width: 32px;
+		height: 32px;
+		object-fit: none;
+		object-position: 0% 0%;
+	}
+
+	.node-blue { object-position: 0% 0%; }
+	.node-red { object-position: 33.3333% 0%; }
+	.node-green { object-position: 66.6666% 0%; }
+	.node-neutral { object-position: 100% 0%; }
+
+	.node-dispute {
+		width: 32px;
+		height: 32px;
+	}
+
+	/* Frame de base 48x48 desde base_team.png (mismo orden) */
+	.base-frame {
+		width: 48px;
+		height: 48px;
+		object-fit: none;
+		object-position: 0% 0%;
+	}
+
+	.base-blue { object-position: 0% 0%; }
+	.base-red { object-position: 33.3333% 0%; }
+	.base-green { object-position: 66.6666% 0%; }
+	.base-neutral { object-position: 100% 0%; }
+
+	/* Nodo en disputa: pulso pixelado */
+	@keyframes dispute-pulse {
+		0%, 100% { transform: scale(1); filter: brightness(1); }
+		50% { transform: scale(1.18); filter: brightness(1.35); }
+	}
+
+	.disputing {
+		animation: dispute-pulse 0.6s steps(2, end) infinite;
+	}
+
+	/* Cinta de VFX: sprite animado frame a frame */
+	@keyframes fx-run {
+		0% { background-position: 0 0; }
+		100% { background-position: -100% 0; }
+	}
+
+	.fx-strip {
+		width: 32px;
+		height: 32px;
+		background-repeat: no-repeat;
+		animation: fx-run 0.8s steps(4) infinite;
+	}
+
+	/* Revelado al hacer scroll */
+	.reveal {
+		opacity: 0;
+		transform: translateY(18px);
+		transition: opacity 0.6s steps(4, end), transform 0.6s steps(4, end);
+	}
+
+	.reveal.in {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	/* Etiqueta tipo "eyebrow" de sección */
+	.section-tag {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		color: var(--color-oro-500);
+		font-size: 0.85rem;
+		letter-spacing: 0.35em;
+		text-transform: uppercase;
+	}
+
+	.section-tag::before {
+		content: "";
+		width: 2.5rem;
+		height: 2px;
+		background: currentColor;
+	}
+
+	/* Encabezado grande pixel */
+	.display {
+		font-size: clamp(2rem, 4.2vw, 3.4rem);
+		line-height: 1.12;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+
+	.reveal {
+		opacity: 1;
+		transform: none;
+	}
+}

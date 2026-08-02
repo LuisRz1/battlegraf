@@ -1,0 +1,83 @@
+---
+const teams = [
+	{
+		name: "Aliados",
+		color: "var(--color-aliados)",
+		textColor: "text-aliados",
+		borderColor: "border-aliados/40",
+		bgGlow: "shadow-[0_0_20px_rgba(77,153,255,0.2)]",
+		frame: "base-blue",
+		style: "Estratégico / Equilibrado",
+		desc: "El equipo principal del jugador. Conquista territorios, acumula power-ups de conocimiento y coordina ataques a gran escala.",
+	},
+	{
+		name: "Imperio Rojo",
+		color: "var(--color-imperio)",
+		textColor: "text-imperio",
+		borderColor: "border-imperio/40",
+		bgGlow: "shadow-[0_0_20px_rgba(255,77,77,0.2)]",
+		frame: "base-red",
+		style: "Agresivo / Asedio Rápido",
+		desc: "Fuerza expansiva implacable. Ataca sin tregua cualquier nodo frontera desprotegido para estrangular tu red de suministros.",
+	},
+	{
+		name: "Legión Verde",
+		color: "var(--color-legion)",
+		textColor: "text-legion",
+		borderColor: "border-legion/40",
+		bgGlow: "shadow-[0_0_20px_rgba(77,204,102,0.2)]",
+		frame: "base-green",
+		style: "Defensivo / Fortificado",
+		desc: "Especialistas en control territorial a largo plazo. Blinda sus nodos con escudos y espera el instante preciso para contraatacar.",
+	},
+];
+---
+
+<section id="equipos" class="relative py-24 sm:py-32">
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<div class="reveal mb-12 flex flex-col gap-4">
+			<div class="section-tag">TRES FACCIONES</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				Tres ejércitos, <span class="text-oro-300 drop-shadow-[0_0_12px_rgba(240,207,122,0.4)]">un solo mapa</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				La guerra concluye cuando una facción destruye las bases de las otras dos. Elige tu estrategia y domina los tres frentes.
+			</p>
+		</div>
+
+		<!-- Tarjetas de Facciones Estilo Estandarte -->
+		<div class="grid gap-6 md:grid-cols-3">
+			{
+				teams.map((t) => (
+					<article class={`reveal pixel-panel pixel-card flex flex-col items-center gap-4 p-6 text-center border-2 ${t.borderColor} ${t.bgGlow}`}>
+						<div class="relative mt-2">
+							<img
+								src="/assets/nodes/base_team.png"
+								alt={`Base del equipo ${t.name}`}
+								class={`px base-frame ${t.frame} scale-125 transition-transform group-hover:scale-150`}
+								width="48"
+								height="48"
+								loading="lazy"
+							/>
+						</div>
+
+						<span class="game-badge !py-0.5 !text-[0.65rem]">{t.style}</span>
+
+						<h3 class={`text-2xl font-bold tracking-wide ${t.textColor}`}>{t.name}</h3>
+
+						<p class="text-sm leading-relaxed text-crema-300">{t.desc}</p>
+
+						<div class="mt-auto pt-4 w-full flex items-center justify-between border-t border-piedra-700/60 text-xs text-crema-500">
+							<div class="flex items-center gap-1.5">
+								<span class="inline-block h-2.5 w-2.5 rounded-full" style={`background:${t.color}`} aria-hidden="true"></span>
+								<span>Territorio</span>
+							</div>
+							<span class="font-bold text-crema-100">BASE ACTIVA</span>
+						</div>
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>
+
