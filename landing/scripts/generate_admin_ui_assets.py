@@ -70,6 +70,38 @@ def build_clean_frame(destination: Path) -> None:
     frame.save(destination, "PNG", optimize=True)
 
 
+def build_button_frame(destination: Path, *, hover: bool = False, pressed: bool = False, disabled: bool = False) -> None:
+    width, height = 64, 32
+    image = Image.new("RGBA", (width, height), "#090a08")
+    draw = ImageDraw.Draw(image)
+
+    if disabled:
+        outer, metal, light, center, accent = "#1e211f", "#555851", "#76786f", "#171a18", "#555851"
+    elif pressed:
+        outer, metal, light, center, accent = "#160b0c", "#7d4b2e", "#a86e35", "#2a1214", "#8e2e34"
+    elif hover:
+        outer, metal, light, center, accent = "#1a0d0d", "#d09a42", "#f0c968", "#371719", "#d04a45"
+    else:
+        outer, metal, light, center, accent = "#100c0b", "#9a7137", "#c99b4c", "#251617", "#a53539"
+
+    draw.rectangle((0, 0, width - 1, height - 1), fill=outer)
+    draw.rectangle((2, 2, width - 3, height - 3), outline=metal, width=2)
+    draw.rectangle((5, 5, width - 6, height - 6), outline=light)
+    draw.rectangle((7, 7, width - 8, height - 8), fill=center)
+    draw.line((8, 8, width - 9, 8), fill="#5b3428" if not disabled else "#363a36")
+    draw.line((8, height - 9, width - 9, height - 9), fill="#120a09")
+
+    for x, y in ((1, 1), (width - 6, 1), (1, height - 6), (width - 6, height - 6)):
+        draw.rectangle((x, y, x + 4, y + 4), fill="#121310", outline=metal)
+        draw.point((x + 2, y + 2), fill=accent)
+
+    if pressed:
+        draw.line((8, 8, width - 9, 8), fill="#180b0c")
+        draw.line((8, height - 9, width - 9, height - 9), fill="#6e3e2a")
+
+    image.save(destination, "PNG", optimize=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
@@ -78,6 +110,10 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     build_seamless_stone(args.source, args.output / "stone_tile.webp")
     build_clean_frame(args.output / "panel_frame_clean.png")
+    build_button_frame(args.output / "button_frame_normal.png")
+    build_button_frame(args.output / "button_frame_hover.png", hover=True)
+    build_button_frame(args.output / "button_frame_pressed.png", pressed=True)
+    build_button_frame(args.output / "button_frame_disabled.png", disabled=True)
 
 
 if __name__ == "__main__":

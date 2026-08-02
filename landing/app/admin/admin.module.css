@@ -144,3 +144,38 @@
 }
 @media(max-width:1100px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}}
 @media(max-width:760px){.metrics{grid-template-columns:1fr}.metrics article{min-height:138px}.panel,.generated,.battle,.modal{border-width:14px}.chart{height:210px}.chart i{width:10%}}
+
+/* Shared button frame: no protruding ornaments, consistent across every boxed action. */
+.primary,.loginForm>button,.buttonGroup>button:not(.primary),.sectionCard>button,.subjects button,.battleCards button,.drop>b,.modal form footer>button,.generated>footer button{
+  height:auto;
+  min-height:44px;
+  border:8px solid transparent;
+  border-image-source:url("/admin-assets/button_frame_normal.png");
+  border-image-slice:8 fill;
+  border-image-repeat:stretch;
+  background:none;
+  padding:4px 17px;
+  overflow:hidden;
+  color:#f5d58f;
+  line-height:1.25;
+  image-rendering:pixelated;
+  box-shadow:0 3px 0 #070806;
+  transform:none;
+}
+.primary:hover,.loginForm>button:hover,.buttonGroup>button:not(.primary):hover,.sectionCard>button:hover,.subjects button:hover,.battleCards button:hover,.drop>b:hover,.modal form footer>button:hover,.generated>footer button:hover{
+  border-image-source:url("/admin-assets/button_frame_hover.png");
+  color:#ffe7a5;
+  filter:none;
+  transform:translateY(-1px);
+}
+.primary:active,.loginForm>button:active,.buttonGroup>button:not(.primary):active,.sectionCard>button:active,.subjects button:active,.battleCards button:active,.modal form footer>button:active,.generated>footer button:active{
+  border-image-source:url("/admin-assets/button_frame_pressed.png");
+  transform:translateY(2px);
+  box-shadow:none;
+}
+.loginForm>button:disabled,.buttonGroup>button:disabled,.sectionCard>button:disabled,.subjects button:disabled,.battleCards button:disabled,.modal form footer>button:disabled,.generated>footer button:disabled{
+  border-image-source:url("/admin-assets/button_frame_disabled.png");
+  color:#85847a;
+  cursor:not-allowed;
+  box-shadow:none;
+}
