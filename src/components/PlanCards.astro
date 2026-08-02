@@ -1,0 +1,30 @@
+---
+import { plans } from "../lib/plans";
+
+interface Props {
+	compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+---
+
+<div class:list={["plan-grid", compact && "plan-grid-compact"]}>
+	{plans.map((plan, index) => (
+		<article class:list={["plan-card", plan.featured && "plan-card-featured"]}>
+			<div class="plan-card-topline">
+				<span>PLAN {String(index + 1).padStart(2, "0")}</span>
+				{plan.featured && <span class="plan-recommended">RECOMENDADO</span>}
+			</div>
+			<h3>{plan.name}</h3>
+			<div class="plan-price">{plan.price}</div>
+			<p class="plan-period">{plan.period}</p>
+			<p class="plan-copy">{plan.description}</p>
+			<ul>
+				{plan.features.map((feature) => <li>{feature}</li>)}
+			</ul>
+			<a class:list={["pixel-btn", !plan.featured && "pixel-btn-secondary", "plan-action"]} href={`/registro?plan=${plan.slug}`}>
+				{plan.cta}
+			</a>
+		</article>
+	))}
+</div>

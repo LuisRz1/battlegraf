@@ -1,0 +1,121 @@
+---
+import PortalLayout from "../layouts/PortalLayout.astro";
+import { getPlan } from "../lib/plans";
+import { createSupabaseServerClient, hasSupabaseConfig } from "../lib/supabase";
+
+if (!hasSupabaseConfig()) return Astro.redirect("/registro?error=config");
+
+const supabase = createSupabaseServerClient({ request: Astro.request, cookies: Astro.cookies });
+const { data: userData } = await supabase.auth.getUser();
+if (!userData.user) return Astro.redirect("/registro");
+
+const { data: membership } = await supabase
+	.from("memberships")
+	.select("school_id, role, schools(id, name, code, region, city, onboarding_complete)")
+	.eq("user_id", userData.user.id)
+	.limit(1)
+	.maybeSingle();
+
+const { data: subscription } = membership
+	? await supabase
+		.from("subscriptions")
+		.select("plan_slug, status, student_limit, ai_credits_monthly")
+		.eq("school_id", membership.school_id)
+		.maybeSingle()
+	: { data: null };
+
+const { count: studentCount } = membership
+	? await supabase
+		.from("student_profiles")
+		.select("id", { count: "exact", head: true })
+		.eq("school_id", membership.school_id)
+	: { count: 0 };
+
+const schoolRecord = Array.isArray(membership?.schools)
+	? membership?.schools[0]
+	: membership?.schools;
+const school = schoolRecord as { name?: string; code?: string; region?: string; city?: string; onboarding_complete?: boolean } | null | undefined;
+const plan = getPlan(subscription?.plan_slug);
+const used = studentCount ?? 0;
+const percentage = Math.min(100, Math.round((used / plan.studentLimit) * 100));
+const needsSetup = !school?.onboarding_complete;
+const welcome = Astro.url.searchParams.has("welcome");
+const saved = Astro.url.searchParams.has("saved");
+---
+
+<PortalLayout
+	title="Panel institucional | BattleGraph"
+	description="Configure su institución, secciones, personas y capacidades en BattleGraph."
+>
+	<section class="panel-shell">
+		<aside class="panel-sidebar">
+			<div class="panel-user">
+				<img src={userData.user.user_metadata.avatar_url ?? "/assets/ui/icon_app_512.webp"} alt="" referrerpolicy="no-referrer" />
+				<div><strong>{userData.user.user_metadata.full_name ?? "Administrador"}</strong><span>{membership?.role ?? "owner"}</span></div>
+			</div>
+			<nav aria-label="Panel institucional">
+				<a class="active" href="/panel"><span>01</span> Configuración</a>
+				<a href="/panel#estructura"><span>02</span> Secciones</a>
+				<a href="/panel#personas"><span>03</span> Personas</a>
+				<a href="/panel#contenido"><span>04</span> Contenido</a>
+				<a href="/panel#ia"><span>05</span> IA pedagógica</a>
+			</nav>
+			<form method="post" action="/auth/logout">
+				<button class="portal-link" type="submit">Cerrar sesión</button>
+			</form>
+		</aside>
+
+		<div class="panel-content">
+			<header class="panel-header">
+				<div><span>CUARTEL INSTITUCIONAL</span><h1>{school?.name ?? "Nueva institución"}</h1></div>
+				<a class="pixel-btn !text-xs !px-4 !py-2" href="/planes">Gestionar plan</a>
+			</header>
+
+			{(welcome || saved) && (
+				<div class="panel-notice success">{saved ? "Configuración institucional guardada." : "Cuenta validada. Completa ahora los datos del colegio."}</div>
+			)}
+
+			<div class="panel-metrics">
+				<article><span>PLAN ACTUAL</span><strong>{plan.name}</strong><small>{subscription?.status ?? "active"}</small></article>
+				<article><span>ESTUDIANTES</span><strong>{used} / {plan.studentLimit.toLocaleString("es-PE")}</strong><div class="meter"><i style={`width:${percentage}%`}></i></div></article>
+				<article><span>IA MENSUAL</span><strong>{plan.aiCredits === 0 ? "No incluida" : `${plan.aiCredits.toLocaleString("es-PE")} acciones`}</strong><small>{plan.aiCredits === 0 ? "Disponible al mejorar el plan" : "Cuota institucional"}</small></article>
+			</div>
+
+			<section class="panel-module" id="configuracion">
+				<div class="module-title"><span>PASO 01</span><h2>Datos de la institución</h2><p>Esta información identifica el espacio aislado donde vivirán secciones, docentes, estudiantes y contenido.</p></div>
+				<form class="institution-form" method="post" action="/api/institucion">
+					<label>Nombre oficial<input name="name" required minlength="3" maxlength="120" value={school?.name ?? ""} placeholder="I.E. BattleGraph" /></label>
+					<label>Código institucional<input name="code" required minlength="3" maxlength="30" value={school?.code ?? ""} placeholder="BG-2026" /></label>
+					<label>Región<input name="region" maxlength="80" value={school?.region ?? ""} placeholder="Lima" /></label>
+					<label>Ciudad o distrito<input name="city" maxlength="80" value={school?.city ?? ""} placeholder="Distrito" /></label>
+					<button class="pixel-btn" type="submit">Guardar institución</button>
+				</form>
+			</section>
+
+			<section class="panel-module" id="estructura">
+				<div class="module-title"><span>PASO 02</span><h2>Estructura académica</h2><p>Crea grados y secciones como 5.º Primaria A o 6.º Primaria B; después asigna cursos, tutor y docentes.</p></div>
+				<div class="module-grid">
+					<div><b>Secciones</b><strong>0</strong><span>Aún no configuradas</span></div>
+					<div><b>Cursos</b><strong>0</strong><span>Materias del grafo</span></div>
+					<div><b>Clanes</b><strong>0</strong><span>Reglas por sección</span></div>
+				</div>
+				<button class="pixel-btn pixel-btn-secondary" type="button" aria-disabled={needsSetup ? "true" : "false"}>Crear primera sección</button>
+			</section>
+
+			<section class="panel-module" id="personas">
+				<div class="module-title"><span>PASO 03</span><h2>Personas y permisos</h2><p>Invita directores, subdirectores, coordinadores, tutores y profesores. Los alumnos se importan cuando la estructura está lista.</p></div>
+				<div class="role-chips"><span>Director</span><span>Subdirector</span><span>Coordinador</span><span>Tutor</span><span>Profesor</span><span>Estudiante</span></div>
+			</section>
+
+			<section class="panel-module" id="contenido">
+				<div class="module-title"><span>PASO 04</span><h2>Contenido y preguntas</h2><p>Organiza materiales, bancos de preguntas, tareas y nodos. Los archivos quedan vinculados al colegio y al curso correspondiente.</p></div>
+				<div class="feature-status"><span>PDF · PPTX · DOCX · IMG</span><b>{plan.aiCredits > 0 ? "Procesamiento con IA habilitado" : "Carga manual en plan gratuito"}</b></div>
+			</section>
+
+			<section class="panel-module" id="ia">
+				<div class="module-title"><span>PASO 05</span><h2>IA pedagógica</h2><p>Generación de preguntas, clases, revisión de respuestas, resúmenes posbatalla y asistentes conversacionales según el plan.</p></div>
+				<div class:list={["ai-lock", plan.aiCredits > 0 && "unlocked"]}><strong>{plan.aiCredits > 0 ? "Módulo habilitado" : "Módulo bloqueado"}</strong><span>{plan.aiCredits > 0 ? "Las funciones se activarán cuando existan cursos y responsables asignados." : "El plan Explorador no procesa información con inteligencia artificial."}</span></div>
+			</section>
+		</div>
+	</section>
+</PortalLayout>

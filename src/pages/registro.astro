@@ -1,0 +1,60 @@
+---
+import PortalLayout from "../layouts/PortalLayout.astro";
+import { getPlan } from "../lib/plans";
+import { hasSupabaseConfig } from "../lib/supabase";
+
+const plan = getPlan(Astro.url.searchParams.get("plan"));
+const authReady = hasSupabaseConfig();
+---
+
+<PortalLayout
+	title="Crear cuenta institucional | BattleGraph"
+	description="Cree una cuenta institucional de BattleGraph con validación segura de Google."
+>
+	<section class="auth-shell">
+		<div class="auth-copy">
+			<div class="portal-kicker">REGISTRO INSTITUCIONAL / PASO 02</div>
+			<h1>Funda tu<br /><span>academia</span></h1>
+			<p>La cuenta de Google identifica al propietario inicial. Después podrás registrar el colegio, invitar directivos y organizar docentes, tutores, secciones y estudiantes.</p>
+
+			<div class="auth-steps" aria-label="Proceso de registro">
+				<div class="active"><b>01</b><span>Elegir plan</span></div>
+				<div class="active"><b>02</b><span>Validar identidad</span></div>
+				<div><b>03</b><span>Configurar colegio</span></div>
+			</div>
+		</div>
+
+		<div class="auth-card">
+			<div class="auth-plan-line">
+				<span>PLAN SELECCIONADO</span>
+				<a href="/planes">Cambiar</a>
+			</div>
+			<div class="auth-plan">
+				<div><strong>{plan.name}</strong><small>{plan.studentLimit.toLocaleString("es-PE")} estudiantes incluidos</small></div>
+				<b>{plan.price}</b>
+			</div>
+
+			<h2>Crea tu acceso</h2>
+			<p class="auth-helper">Usa una cuenta institucional o personal de Google. Nunca almacenamos tu contraseña de Google.</p>
+
+			{authReady ? (
+				<a class="google-button" href={`/auth/google?plan=${plan.slug}`}>
+					<span class="google-mark" aria-hidden="true">G</span>
+					Continuar con Google
+				</a>
+			) : (
+				<div class="auth-config-warning" role="status">
+					<strong>Conexión pendiente</strong>
+					<span>El formulario está listo. Falta configurar las variables de Supabase en Vercel para habilitar Google.</span>
+				</div>
+			)}
+
+			<div class="auth-security">
+				<span class="security-glyph" aria-hidden="true"></span>
+				<div><strong>Acceso protegido</strong><small>OAuth 2.0 con PKCE, sesión segura y permisos por institución.</small></div>
+			</div>
+
+			<p class="auth-legal">Al continuar aceptas los términos de uso institucional y la política de tratamiento de datos. Las cuentas de menores son creadas y administradas por el colegio.</p>
+		</div>
+	</section>
+</PortalLayout>

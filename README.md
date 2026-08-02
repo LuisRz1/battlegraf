@@ -1,43 +1,44 @@
-# Astro Starter Kit: Minimal
+# BattleGraph — landing y acceso institucional
+
+Landing retro medieval, demo web y flujo de adquisición institucional de BattleGraph.
+
+## Rutas
+
+- `/` — presentación del juego, demo y resumen de planes.
+- `/planes` — comparación de los cuatro niveles de suscripción.
+- `/registro?plan=explorador` — registro institucional con Google.
+- `/panel` — onboarding y estado de la cuenta autenticada.
+- `/auth/google` y `/auth/callback` — OAuth con PKCE.
+
+## Desarrollo local
+
+El repositorio usa Bun.
 
 ```sh
-bun create astro@latest -- --template minimal
+bun install
+copy .env.example .env
+bun run dev
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Comprobaciones:
 
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+```sh
+bun run astro check
+bun run build
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Supabase
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+1. Cree un proyecto en Supabase.
+2. Ejecute `supabase/migrations/20260802010000_battlegraf_accounts.sql`.
+3. Habilite Google en Authentication → Providers.
+4. Añada `http://localhost:4321/auth/callback` y la URL productiva a las redirecciones autorizadas.
+5. Configure las variables descritas en `.env.example` tanto en local como en Vercel.
 
-Any static assets, like images, can be placed in the `public/` directory.
+Las sesiones viven en cookies SSR. PostgreSQL conserva perfiles, colegios, membresías y suscripciones; las políticas RLS aíslan los datos por institución.
 
-## 🧞 Commands
+## Despliegue
 
-All commands are run from the root of the project, from a terminal:
+El proyecto usa `@astrojs/vercel` y `output: "server"` para servir rutas autenticadas. Conecte este repositorio a Vercel, copie las variables de entorno y despliegue después de ejecutar la migración.
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+El export de Godot se encuentra en `public/game/` y no debe editarse manualmente.

@@ -1,13 +1,13 @@
 ---
 const topics = [
-	{ name: "Matemática", icon: "📐" },
-	{ name: "Física", icon: "⚡" },
-	{ name: "Química", icon: "🧪" },
-	{ name: "Historia", icon: "📜" },
-	{ name: "Literatura", icon: "📖" },
-	{ name: "Comunicación", icon: "💬" },
-	{ name: "Geografía", icon: "🌍" },
-	{ name: "Inglés", icon: "🔤" },
+	{ name: "Matemática", code: "MAT" },
+	{ name: "Física", code: "FIS" },
+	{ name: "Química", code: "QUI" },
+	{ name: "Historia", code: "HIS" },
+	{ name: "Literatura", code: "LIT" },
+	{ name: "Comunicación", code: "COM" },
+	{ name: "Geografía", code: "GEO" },
+	{ name: "Inglés", code: "ING" },
 ];
 ---
 
@@ -32,7 +32,7 @@ const topics = [
 							href="#jugar"
 							class="pixel-panel pixel-card flex items-center gap-3 !border-[12px] p-4 text-sm font-bold text-crema-100 transition-all hover:text-oro-300 hover:border-oro-700/60 no-underline"
 						>
-							<span class="text-xl">{t.icon}</span>
+							<span class="topic-code" aria-hidden="true">{t.code}</span>
 							<div class="flex flex-col">
 								<span class="text-[0.6rem] text-oro-500 font-bold uppercase tracking-wider">DOMINIO #0{i + 1}</span>
 								<span>{t.name}</span>
