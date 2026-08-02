@@ -39,7 +39,7 @@ const features = [
 					<!-- Cabecera del Duelo -->
 					<div class="flex items-center gap-4 border-b border-piedra-700 pb-4 lg:border-b-0 lg:pb-0">
 						<div class="flex items-center gap-2">
-							<img src="/assets/nodes/base_team.png" alt="" class="px base-frame base-blue" width="48" height="48" />
+							<img src="/assets/nodes/base_team.webp" alt="" class="px base-frame base-blue" width="48" height="48" />
 							<div>
 								<div class="text-xs font-bold text-aliados uppercase tracking-widest">ATACANTE</div>
 								<div class="text-sm text-crema-100 font-bold">ALIADOS (TÚ)</div>
@@ -49,7 +49,7 @@ const features = [
 						<div class="text-xl font-bold text-oro-500 px-3">VS</div>
 
 						<div class="flex items-center gap-2">
-							<img src="/assets/nodes/base_team.png" alt="" class="px base-frame base-red" width="48" height="48" />
+							<img src="/assets/nodes/base_team.webp" alt="" class="px base-frame base-red" width="48" height="48" />
 							<div>
 								<div class="text-xs font-bold text-imperio uppercase tracking-widest">DEFENSOR</div>
 								<div class="text-sm text-crema-100 font-bold">IMPERIO ROJO</div>
@@ -60,7 +60,7 @@ const features = [
 					<!-- Temporizador HUD -->
 					<div class="game-hud rounded-lg px-5 py-2.5 flex items-center justify-between gap-4 border border-oro-700/50">
 						<div class="flex items-center gap-2">
-							<img src="/assets/nodes/icon_clock.png" alt="" class="px h-6 w-6 animate-pulse" width="24" height="24" />
+							<img src="/assets/nodes/icon_clock.webp" alt="" class="px h-6 w-6 animate-pulse" width="24" height="24" />
 							<span class="text-xs font-bold text-crema-300">RELOJ DE DUELO</span>
 						</div>
 						<span class="text-xl font-bold text-oro-300">14.8 s</span>
@@ -106,10 +106,10 @@ const features = [
 				features.map((f) => (
 					<article class="reveal pixel-panel pixel-card flex flex-col items-center gap-4 p-6 text-center">
 						{f.icon === "base_team" ? (
-							<img src="/assets/nodes/base_team.png" alt="" aria-hidden="true" class="px base-frame" width="48" height="48" />
+							<img src="/assets/nodes/base_team.webp" alt="" aria-hidden="true" class="px base-frame" width="48" height="48" />
 						) : (
 							<img
-								src={`/assets/nodes/${f.icon}.png`}
+								src={`/assets/nodes/${f.icon}.webp`}
 								alt=""
 								aria-hidden="true"
 								class="px h-10 w-10"

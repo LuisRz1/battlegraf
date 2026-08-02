@@ -23,7 +23,7 @@ const nodes = [
 
 <section id="mapa" class="relative overflow-hidden py-24 sm:py-32">
 	<div class="absolute inset-0 -z-10 opacity-30" aria-hidden="true">
-		<img src="/assets/ui/map_bg.png" alt="" class="px h-full w-full object-cover filter blur-[2px]" />
+		<img src="/assets/ui/map_bg.webp" alt="" class="px h-full w-full object-cover filter blur-[2px]" />
 		<div class="absolute inset-0 bg-piedra-950/80" aria-hidden="true"></div>
 	</div>
 
@@ -47,7 +47,7 @@ const nodes = [
 						<span class="game-badge shadow-md">RADAR TÁCTICO</span>
 					</div>
 
-					<img src="/assets/ui/map_bg.png" alt="" aria-hidden="true" class="px absolute inset-0 h-full w-full object-cover" />
+					<img src="/assets/ui/map_bg.webp" alt="" aria-hidden="true" class="px absolute inset-0 h-full w-full object-cover" />
 					<div class="absolute inset-0 bg-piedra-950/30" aria-hidden="true"></div>
 
 					<!-- SVG de Grafo con Animación de Rutas -->
@@ -76,7 +76,7 @@ const nodes = [
 							>
 								{n.state === "disputing" ? (
 									<img
-										src="/assets/ui/icon_clock.png"
+										src="/assets/ui/icon_clock.webp"
 										alt=""
 										aria-hidden="true"
 										class="px absolute -top-4 left-1/2 -translate-x-1/2 animate-bounce"
@@ -86,7 +86,7 @@ const nodes = [
 								) : null}
 								{n.state === "shield" ? (
 									<img
-										src="/assets/ui/icon_shield.png"
+										src="/assets/ui/icon_shield.webp"
 										alt=""
 										aria-hidden="true"
 										class="px absolute -top-4 left-1/2 -translate-x-1/2"
@@ -96,7 +96,7 @@ const nodes = [
 								) : null}
 								{n.state === "disputing" ? (
 									<img
-										src="/assets/nodes/node_dispute.png"
+										src="/assets/nodes/node_dispute.webp"
 										alt={`Nodo ${n.label}`}
 										class="px disputing"
 										width="32"
@@ -105,7 +105,7 @@ const nodes = [
 									/>
 								) : (
 									<img
-										src="/assets/nodes/node_team.png"
+										src="/assets/nodes/node_team.webp"
 										alt={`Nodo ${n.label}`}
 										class={`px node-frame ${n.frame}`}
 										width="32"
