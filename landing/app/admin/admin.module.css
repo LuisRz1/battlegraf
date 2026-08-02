@@ -35,3 +35,112 @@
 .modal form>label{display:grid;grid-template-columns:185px minmax(0,1fr);align-items:center;gap:12px;margin:4px 0}.modal form>label input,.modal form>label select{width:100%;min-width:0}.modal form footer{background:transparent}
 @media(max-width:760px){.brandLogo{width:180px}}
 @media(max-width:760px){.modal form>label{grid-template-columns:1fr;gap:6px}}
+
+/* Crisp medieval UI v2: scalable 9-slice frame + seamless stone fill. */
+.app,.login{
+  --bg:#090a09;
+  --panel:#111411;
+  --line:#5e584c;
+  --red:#c33a40;
+  --violet:#76558b;
+  --gold:#d6a84d;
+  --green:#799b63;
+}
+.app{
+  background-image:
+    radial-gradient(circle at 78% 8%,rgba(127,41,44,.12),transparent 32%),
+    linear-gradient(rgba(6,8,7,.91),rgba(8,9,8,.95)),
+    url("/admin-assets/stone_tile.webp");
+  background-size:auto,auto,256px 256px;
+  background-repeat:no-repeat,no-repeat,repeat;
+}
+.workspace{min-width:0;overflow:hidden}
+.content{width:100%;min-width:0}
+.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.metrics article,.panel,.sectionCard,.subjects article,.taskGrid article,.roleCards div,.questionStats div,.ranks div,.school,.drop,.battle,.generated,.modal{
+  border-style:solid;
+  border-color:transparent;
+  border-image-source:url("/admin-assets/panel_frame_clean.png");
+  border-image-slice:18;
+  border-image-repeat:repeat;
+  background-color:#101310;
+  background-image:linear-gradient(rgba(10,12,10,.68),rgba(8,10,8,.78)),url("/admin-assets/stone_tile.webp");
+  background-size:auto,256px 256px;
+  image-rendering:pixelated;
+  box-shadow:0 8px 18px rgba(0,0,0,.34),inset 0 0 24px rgba(0,0,0,.28);
+}
+.metrics article,.sectionCard,.subjects article,.taskGrid article,.roleCards div,.questionStats div,.ranks div{border-width:14px}
+.panel,.generated,.battle{border-width:18px}
+.modal{border-width:20px}
+.school{border-width:12px}
+.drop{border-width:16px}
+.metrics article{
+  min-width:0;
+  min-height:148px;
+  padding:16px 17px 20px;
+  overflow:hidden;
+}
+.metrics article:after{
+  right:10px;
+  bottom:10px;
+  width:30px;
+  height:30px;
+  border:2px solid rgba(190,142,67,.22);
+  box-shadow:inset 0 0 0 4px rgba(16,18,15,.85);
+  transform:rotate(45deg);
+}
+.metrics span{color:#b09a79}.metrics strong{color:#f4d58d;text-shadow:2px 2px #351718}.metrics p{color:#c1ab87}
+.split{grid-template-columns:minmax(0,1.35fr) minmax(270px,.65fr);gap:16px;margin-top:16px}
+.panel{min-width:0;padding:10px 12px}
+.panel>header{padding:3px 4px 8px;margin-bottom:7px;border-bottom:1px solid rgba(176,133,69,.26)}
+.chart{
+  height:244px;
+  padding:22px 12px 0;
+  background:repeating-linear-gradient(0deg,rgba(153,125,81,.23) 0 1px,transparent 1px 25%);
+}
+.chart i{
+  position:relative;
+  width:7%;
+  min-width:18px;
+  background:
+    repeating-linear-gradient(0deg,rgba(255,230,164,.08) 0 2px,transparent 2px 5px),
+    linear-gradient(180deg,#d3a64a 0 10%,#bd753c 36%,#a8343b 100%);
+  border:2px solid #241511;
+  border-top-color:#f0c86a;
+  box-shadow:inset 2px 0 rgba(255,223,142,.18),inset -2px 0 rgba(54,19,17,.45),0 3px #080908;
+}
+.chart i:after{content:"";position:absolute;left:2px;right:2px;top:3px;height:2px;background:rgba(255,235,173,.36)}
+.actions button{padding:0 6px;border-color:rgba(137,108,67,.34);color:#ead8b5}
+.actions button:hover{background:rgba(151,57,51,.13)}
+.actions button>span{border-color:#95653e;color:#dc5350;background:#151512}
+.actions button small{color:#a99576}.actions button>b{color:#d6a84d}
+.badge_violet{border-color:#6f5b78;color:#c7aecf;background:#211b24}
+.roleCards span,.taskGrid article>small,.table button,.files button,.audit button{color:#c69a59}
+.questions button{border-color:#8f6342;background:#281b16;color:#e2b56b}
+.ranks .current{border-color:#b6813c;box-shadow:inset 0 0 30px rgba(185,126,52,.18)}
+.xp{background:radial-gradient(circle,#151815 54%,transparent 56%),conic-gradient(#b2383e 0 48%,#7a5a82 48% 72%,#d0a048 72%)}
+.pipeline div,.steps div{background:#141713;border-color:#9a7540}.pipeline span,.steps span{color:#ddb158}
+.battle{background-color:#111410;background-image:linear-gradient(90deg,rgba(81,25,28,.35),rgba(34,31,24,.25)),url("/admin-assets/stone_tile.webp")}
+.battle section>div i,.route>i,.miniMap>i{background:linear-gradient(90deg,#c13b3f,#d2a34b);box-shadow:0 0 6px rgba(196,89,55,.36)}
+.drop{background-color:#101310;background-image:radial-gradient(circle,rgba(171,113,47,.12),transparent 56%),url("/admin-assets/stone_tile.webp");color:#d8c39e}
+.drop>span{color:#dc5a53}.drop>b{border-color:#8b6840}
+.generated>div span{background:#1c1913;border-color:#765b36}
+.modalBackdrop{background:rgba(3,4,3,.86)}
+.modal{background-color:#101310;color:#eddbb8}
+.modalSummary{background:#0c0f0c;border-color:#6e5739}
+.loginForm input,.loginForm select,.formGrid input,.inlineForm input,.inlineForm select,.modal input,.modal select{
+  border:2px solid #66563f;
+  border-image:none;
+  background:#0d100d;
+  box-shadow:inset 0 0 0 2px #171a16;
+  image-rendering:auto;
+}
+.loginForm input:focus,.loginForm select:focus,.formGrid input:focus,.inlineForm input:focus,.inlineForm select:focus,.modal input:focus,.modal select:focus{
+  border-color:#c29248;
+  box-shadow:inset 0 0 0 2px #171a16,0 0 0 2px rgba(194,146,72,.2);
+}
+.primary,.loginForm>button,.buttonGroup>button:not(.primary),.sectionCard>button,.subjects button,.battleCards button,.drop>b,.modal form footer>button,.generated>footer button{
+  image-rendering:pixelated;
+}
+@media(max-width:1100px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}}
+@media(max-width:760px){.metrics{grid-template-columns:1fr}.metrics article{min-height:138px}.panel,.generated,.battle,.modal{border-width:14px}.chart{height:210px}.chart i{width:10%}}

@@ -53,6 +53,10 @@ test("admin console includes medieval assets, working modals and simulated AI ou
   assert.match(css, /\/admin-assets\/panel\.png/);
   assert.match(css, /\/admin-assets\/base_team\.png/);
   assert.match(css, /border-image:url\("\/admin-assets\/button_normal\.png"\)/);
+  assert.match(css, /\/admin-assets\/panel_frame_clean\.png/);
+  assert.match(css, /\/admin-assets\/stone_tile\.webp/);
+  assert.match(css, /border-image-repeat:repeat/);
+  assert.match(css, /#d3a64a/);
 });
 
 function answerCorrectly(state, responseTimeMs = 2400) {
