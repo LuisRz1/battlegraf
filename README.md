@@ -37,6 +37,8 @@ bun run build
 
 Las sesiones viven en cookies SSR. PostgreSQL conserva perfiles, colegios, membresías y suscripciones; las políticas RLS aíslan los datos por institución. La integración de Vercel Marketplace proporciona automáticamente `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y las conexiones PostgreSQL.
 
+El alta institucional genera una configuración demostrativa editable con secciones, materias, clanes, alumnos, materiales, preguntas y reglas por turnos. El plan Explorador recibe siete días con las capacidades de Red Educativa y luego continúa con sus límites gratuitos. Las cuentas existentes acceden desde `/iniciar-sesion` sin duplicar el colegio ni reiniciar la prueba.
+
 ## Despliegue
 
 El proyecto usa `@astrojs/vercel` y `output: "server"` para servir rutas autenticadas. Conecte este repositorio a Vercel, copie las variables de entorno y despliegue después de ejecutar la migración.

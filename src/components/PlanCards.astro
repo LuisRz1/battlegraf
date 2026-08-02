@@ -15,6 +15,7 @@ const { compact = false } = Astro.props;
 				<span>PLAN {String(index + 1).padStart(2, "0")}</span>
 				{plan.featured && <span class="plan-recommended">RECOMENDADO</span>}
 			</div>
+			{plan.trialDays > 0 && <div class="plan-trial-ribbon">PRUEBA RED EDUCATIVA · 7 DÍAS</div>}
 			<h3>{plan.name}</h3>
 			<div class="plan-price">{plan.price}</div>
 			<p class="plan-period">{plan.period}</p>

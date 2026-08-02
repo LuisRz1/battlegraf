@@ -14,8 +14,16 @@ export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	const url = new URL(request.url);
 	const requestedPlan = url.searchParams.get("plan");
 	const plan = isPlanSlug(requestedPlan) ? requestedPlan : "explorador";
+	const mode = url.searchParams.get("mode") === "login" ? "login" : "register";
 
 	cookies.set("bg_selected_plan", plan, {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: url.protocol === "https:",
+		path: "/",
+		maxAge: 60 * 15,
+	});
+	cookies.set("bg_auth_mode", mode, {
 		httpOnly: true,
 		sameSite: "lax",
 		secure: url.protocol === "https:",
@@ -33,7 +41,7 @@ export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	});
 
 	if (error || !data.url) {
-		return redirect(`/registro?plan=${plan}&error=oauth`, 303);
+		return redirect(mode === "login" ? "/iniciar-sesion?error=oauth" : `/registro?plan=${plan}&error=oauth`, 303);
 	}
 
 	return redirect(data.url, 303);

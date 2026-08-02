@@ -1,0 +1,53 @@
+---
+import PortalLayout from "../layouts/PortalLayout.astro";
+import { hasSupabaseConfig } from "../lib/supabase";
+
+const authReady = hasSupabaseConfig();
+const error = Astro.url.searchParams.get("error");
+const errorMessage = error === "not_found"
+	? "Esta cuenta de Google todavía no tiene una institución BattleGraph. Crea una cuenta gratuita para comenzar."
+	: error
+		? "No pudimos completar el acceso. Revisa la configuración de Google o inténtalo nuevamente."
+		: null;
+---
+
+<PortalLayout
+	title="Iniciar sesión | BattleGraph"
+	description="Acceda a su institución BattleGraph con su cuenta de Google."
+>
+	<section class="auth-shell auth-shell-login">
+		<div class="auth-copy">
+			<div class="portal-kicker">ACCESO AL CUARTEL</div>
+			<h1>Continúa tu<br /><span>campaña</span></h1>
+			<p>Vuelve al panel de tu colegio, conserva la estructura creada y continúa administrando secciones, docentes, estudiantes, contenidos y batallas.</p>
+			<div class="login-benefits">
+				<span>Tu institución no se vuelve a crear</span>
+				<span>La prueba mantiene su fecha original</span>
+				<span>Los permisos y datos permanecen aislados</span>
+			</div>
+		</div>
+
+		<div class="auth-card">
+			<div class="auth-plan-line"><span>CUENTA EXISTENTE</span><a href="/registro">Crear cuenta</a></div>
+			<h2>Inicia sesión</h2>
+			<p class="auth-helper">Usa la misma cuenta de Google con la que registraste tu institución.</p>
+
+			{errorMessage && <div class="auth-config-warning" role="alert"><strong>Acceso no completado</strong><span>{errorMessage}</span></div>}
+
+			{authReady ? (
+				<a class="google-button" href="/auth/google?mode=login">
+					<span class="google-mark" aria-hidden="true">G</span>
+					Continuar con Google
+				</a>
+			) : (
+				<div class="auth-config-warning" role="status"><strong>Conexión pendiente</strong><span>Supabase todavía no está disponible.</span></div>
+			)}
+
+			<div class="auth-security">
+				<span class="security-glyph" aria-hidden="true"></span>
+				<div><strong>Acceso seguro</strong><small>La sesión se valida con Google y Supabase. BattleGraph nunca recibe tu contraseña.</small></div>
+			</div>
+			<p class="auth-existing">¿Primera vez? <a href="/planes">Empieza con 7 días del nivel máximo</a></p>
+		</div>
+	</section>
+</PortalLayout>

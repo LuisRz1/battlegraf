@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		.from("memberships")
 		.select("school_id, role")
 		.eq("user_id", userData.user.id)
-		.in("role", ["owner", "director", "admin"])
+		.in("role", ["owner", "director", "subdirector", "coordinator"])
 		.limit(1)
 		.maybeSingle();
 

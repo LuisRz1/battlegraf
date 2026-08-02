@@ -15,7 +15,7 @@ const authReady = hasSupabaseConfig();
 		<div class="auth-copy">
 			<div class="portal-kicker">REGISTRO INSTITUCIONAL / PASO 02</div>
 			<h1>Funda tu<br /><span>academia</span></h1>
-			<p>La cuenta de Google identifica al propietario inicial. Después podrás registrar el colegio, invitar directivos y organizar docentes, tutores, secciones y estudiantes.</p>
+			<p>La cuenta de Google identifica al propietario inicial. BattleGraph crea automáticamente un colegio demostrativo editable con secciones, materias, clanes, estudiantes, materiales y reglas de batalla.</p>
 
 			<div class="auth-steps" aria-label="Proceso de registro">
 				<div class="active"><b>01</b><span>Elegir plan</span></div>
@@ -33,6 +33,12 @@ const authReady = hasSupabaseConfig();
 				<div><strong>{plan.name}</strong><small>{plan.studentLimit.toLocaleString("es-PE")} estudiantes incluidos</small></div>
 				<b>{plan.price}</b>
 			</div>
+			{plan.trialDays > 0 && (
+				<div class="trial-callout">
+					<strong>7 días con el nivel máximo</strong>
+					<span>Prueba IA, carga de archivos, asistentes, resúmenes y configuración Red Educativa. Después continuarás gratis con hasta 30 alumnos.</span>
+				</div>
+			)}
 
 			<h2>Crea tu acceso</h2>
 			<p class="auth-helper">Usa una cuenta institucional o personal de Google. Nunca almacenamos tu contraseña de Google.</p>
@@ -55,6 +61,7 @@ const authReady = hasSupabaseConfig();
 			</div>
 
 			<p class="auth-legal">Al continuar aceptas los términos de uso institucional y la política de tratamiento de datos. Las cuentas de menores son creadas y administradas por el colegio.</p>
+			<p class="auth-existing">¿Ya configuraste BattleGraph? <a href="/iniciar-sesion">Inicia sesión</a></p>
 		</div>
 	</section>
 </PortalLayout>
