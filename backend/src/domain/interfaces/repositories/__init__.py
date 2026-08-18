@@ -85,8 +85,13 @@ class QuestionAgent(ABC):
         material_text: str,
         subject: Subject,
         count: int = 100,
+        context: dict | None = None,
     ) -> list[dict]:
-        """Genera `count` preguntas de alternativa multiple basadas en el material."""
+        """Genera `count` preguntas de alternativa multiple basadas en el material.
+
+        `context` es opcional y contiene la memoria del agente para el colegio
+        (p. ej. {"prior_questions": [...]}) para variar el contenido generado.
+        """
         ...
 
     @abstractmethod

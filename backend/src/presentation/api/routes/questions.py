@@ -167,6 +167,30 @@ async def generate_questions(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
     await session.commit()
+
+    # Memoria del agente (Redis): registrar el evento y cachear claves de preguntas
+    from src.infrastructure.ai.memory import build_agent_memory
+
+    memory = build_agent_memory()
+    try:
+        if await memory.ping():
+            school_key = str(bank.school_id)
+            subject_label = (
+                bank.subject.value if hasattr(bank.subject, "value") else str(bank.subject)
+            )
+            question_keys = [q["text"][:64] for q in questions]
+            await memory.remember_generated(school_key, subject_label, question_keys)
+            await memory.add_message(
+                school_key,
+                "agent",
+                f"Generadas {len(questions)} preguntas de {subject_label} para el banco {bank_id}.",
+            )
+            await memory.bump_generation_counter(school_key)
+    except Exception as exc:  # la memoria nunca debe romper la generacion
+        import logging
+
+        logging.getLogger(__name__).warning("AgentMemory post-generate error: %s", exc)
+
     return [_question_response(q) for q in questions]
 
 

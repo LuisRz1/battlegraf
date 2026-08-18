@@ -1,5 +1,3 @@
-"""BattleGraf API \u2014 Aplicacion FastAPI principal."""
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,8 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.infrastructure.database.init_db import init_db
 from src.presentation.api.routes import (
+    ai_agent,
     auth,
     battles,
+    graphs,
     health,
     progression,
     questions,
@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS \u2014 permisivo en desarrollo
+    # CORS — permisivo en desarrollo
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -52,12 +52,14 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1", tags=["Users"])
     app.include_router(questions.router, prefix="/api/v1", tags=["Questions"])
     app.include_router(battles.router, prefix="/api/v1", tags=["Battles"])
+    app.include_router(graphs.router, prefix="/api/v1", tags=["Graphs"])
     app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
     app.include_router(
         progression.router,
         prefix="/api/v1",
         tags=["Progression"],
     )
+    app.include_router(ai_agent.router, prefix="/api/v1", tags=["AI Agent"])
     app.include_router(battle_ws.router, tags=["WebSocket"])
 
     return app

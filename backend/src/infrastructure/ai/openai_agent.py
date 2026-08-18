@@ -1,4 +1,8 @@
-"""AI question generation agent using LangChain/OpenAI with local fallback."""
+"""AI question generation agent using LangChain/OpenAI with local fallback.
+
+El agente puede recibir contexto desde la memoria Redis (AgentMemory) para
+evitar repetir preguntas ya generadas por el colegio (memory por school_id).
+"""
 
 import asyncio
 import os
@@ -76,9 +80,11 @@ class MockQuestionAgent(QuestionAgent):
         material_text: str,
         subject: Subject,
         count: int = 100,
+        context: dict | None = None,
     ) -> list[dict[str, Any]]:
         """Generate deterministic mock questions."""
         _ = material_text
+        _ = context
         questions = []
         for i in range(count):
             template = self.TEMPLATES[i % len(self.TEMPLATES)]
@@ -145,11 +151,12 @@ class OpenAIQuestionAgent(QuestionAgent):
         material_text: str,
         subject: Subject,
         count: int = 100,
+        context: dict | None = None,
     ) -> list[dict[str, Any]]:
         """Generate questions via OpenAI or fallback to mock if no key."""
         if not self.api_key:
             return await MockQuestionAgent().generate_questions(
-                material_text, subject, count
+                material_text, subject, count, context
             )
 
         try:
@@ -162,20 +169,37 @@ class OpenAIQuestionAgent(QuestionAgent):
             model=self.model,
             temperature=0.7,
         )
-        prompt = self._build_prompt(material_text, subject, count)
+        prompt = self._build_prompt(material_text, subject, count, context)
         # Run blocking LangChain call in a thread pool
         response = await asyncio.to_thread(llm.invoke, prompt)
         if not isinstance(response.content, str):
             raise ValueError("Agent response must be textual JSON")
         return self._parse_response(response.content)
 
-    def _build_prompt(self, material_text: str, subject: Subject, count: int) -> str:
+    def _build_prompt(
+        self,
+        material_text: str,
+        subject: Subject,
+        count: int,
+        context: dict | None = None,
+    ) -> str:
+        memo = ""
+        if context:
+            prior = context.get("prior_questions") or []
+            if prior:
+                memo = (
+                    "Evita repetir o parafrasear estas preguntas ya generadas "
+                    "anteriormente para esta materia:\n"
+                    + "\n".join(f"- {p[:120]}" for p in prior[:20])
+                    + "\n\n"
+                )
         return (
             f"Genera {count} preguntas de alternativa multiple basadas en el siguiente texto. "
             "Para cada pregunta devuelve un objeto JSON con: "
             "text, option_a, option_b, option_c, option_d, correct_option (A/B/C/D), explanation. "
             f"Materia: {subject.label}. "
             "Responde unicamente con un array JSON. No incluyas explicaciones adicionales.\n\n"
+            f"{memo}"
             f"TEXTO:\n{material_text[:4000]}"
         )
 
