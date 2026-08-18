@@ -74,3 +74,6 @@ landing-sites-*.tar.gz
 # OS
 *.log
 *.tmp
+
+# Scripts de diagnostico local (no se suben)
+diag_db.py

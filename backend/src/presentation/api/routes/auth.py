@@ -64,6 +64,10 @@ async def register_director(
     school = School(name=body.school_name, region=body.region)
     created_school = await school_repo.create(school)
 
+    from src.application.school.academic_years import get_or_create_academic_year
+
+    await get_or_create_academic_year(session, created_school.id)
+
     user = User(
         username=body.username,
         email=body.email,

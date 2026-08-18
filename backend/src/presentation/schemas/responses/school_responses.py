@@ -19,7 +19,7 @@ class SectionResponse(BaseModel):
     id: str
     school_id: str
     name: str
-    grade: int
+    grade: str
     level: str
     tutor_id: Optional[str]
     is_active: bool

@@ -64,8 +64,15 @@ class Section:
     id: UUID = field(default_factory=uuid4)
     school_id: UUID = field(default_factory=uuid4)
     name: str = ""
-    grade: int = 1
+    grade: str = "1"
     level: str = "primary"
+    academic_year_id: Optional[UUID] = None
+    section_label: str = ""
+    code: str = ""
+    display_name: str = ""
+    tutor_name: Optional[str] = None
+    max_students: int = 30
+    status: str = "active"
     tutor_id: Optional[UUID] = None
     is_active: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)

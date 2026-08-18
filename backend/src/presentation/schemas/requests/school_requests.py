@@ -11,7 +11,7 @@ class CreateSchoolRequest(BaseModel):
 
 class CreateSectionRequest(BaseModel):
     name: str
-    grade: int
+    grade: str
     level: str = "primary"
     tutor_id: str | None = None
 

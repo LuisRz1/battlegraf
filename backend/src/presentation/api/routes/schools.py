@@ -1,8 +1,11 @@
 """School and section management endpoints."""
 
+import uuid
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import Section, User
@@ -22,6 +25,53 @@ from src.presentation.schemas.responses.school_responses import (
 )
 
 router = APIRouter(prefix="/schools", tags=["Schools"])
+
+
+def _level_code(level: str) -> str:
+    """Abreviatura de nivel para el code de seccion (P/S)."""
+    lowered = (level or "").lower()
+    if lowered.startswith("prim"):
+        return "P"
+    if lowered.startswith("sec"):
+        return "S"
+    return "?"
+
+
+def _grade_number(grade: str) -> str:
+    """Extrae el numero del grado ('1ro' -> '1', '5' -> '5', fallback al texto)."""
+    digits = "".join(ch for ch in (grade or "") if ch.isdigit())
+    return digits or (grade or "0").strip()
+
+
+def _build_section_meta(section_data, existing_codes: set[str]) -> dict:
+    """Genera code unico (por school), section_label y display_name tipo landing."""
+    label = (section_data.name or "A").strip() or "A"
+    grade = (section_data.grade or "1").strip()
+    level = section_data.level or "primary"
+    lvl_code = _level_code(level)
+    gnum = _grade_number(grade)
+    base = f"{gnum}{lvl_code}-{label}"
+    code = base
+    n = 2
+    while code in existing_codes:
+        code = f"{base}-{n}"
+        n += 1
+    existing_codes.add(code)
+    level_title = "Primaria" if lvl_code == "P" else "Secundaria" if lvl_code == "S" else level
+    return {
+        "code": code,
+        "section_label": label,
+        "display_name": f"{grade}. {level_title} {label}",
+    }
+
+
+async def _get_or_create_academic_year(
+    session: AsyncSession, school_id: UUID
+) -> UUID:
+    """Devuelve el anio activo del colegio; lo crea (2026) si no existe."""
+    from src.application.school.academic_years import get_or_create_academic_year
+
+    return (await get_or_create_academic_year(session, school_id)).id
 
 
 def _school_response(model) -> SchoolResponse:
@@ -76,6 +126,7 @@ async def create_school(
         )
     school = School(name=body.name, region=body.region, level=body.level)
     created = await repo.create(school)
+    await _get_or_create_academic_year(session, created.id)
     await session.commit()
     return _school_response(created)
 
@@ -108,13 +159,24 @@ async def create_sections(
 ):
     if payload.get("school_id") != school_id:
         raise HTTPException(status_code=403, detail="School mismatch")
+    academic_year_id = await _get_or_create_academic_year(session, UUID(school_id))
+    existing = await repo.list_by_school(UUID(school_id))
+    existing_codes = {s.code for s in existing if s.code}
     created = []
     for section_data in body.sections:
+        meta = _build_section_meta(section_data, existing_codes)
         section = Section(
             school_id=UUID(school_id),
             name=section_data.name,
             grade=section_data.grade,
             level=section_data.level,
+            academic_year_id=academic_year_id,
+            section_label=meta["section_label"],
+            code=meta["code"],
+            display_name=meta["display_name"],
+            tutor_name="Tutor por asignar" if not section_data.tutor_id else None,
+            max_students=30,
+            status="active",
             tutor_id=UUID(section_data.tutor_id) if section_data.tutor_id else None,
         )
         created.append(await repo.create(section))

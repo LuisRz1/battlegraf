@@ -15,10 +15,11 @@ from .question import (
     TaskModel,
     TaskSubmissionModel,
 )
-from .school import SchoolModel, SectionModel, UserModel
+from .school import AcademicYearModel, SchoolModel, SectionModel, UserModel
 
 __all__ = [
     "Base",
+    "AcademicYearModel",
     "SchoolModel",
     "SectionModel",
     "UserModel",

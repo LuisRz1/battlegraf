@@ -9,7 +9,7 @@ from ...domain.interfaces.repositories import SectionRepository
 @dataclass
 class ConfigureSectionItem:
     name: str
-    grade: int
+    grade: str
     level: str = "primary"
 
 
