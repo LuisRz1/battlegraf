@@ -29,8 +29,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    # Agente IA generador de preguntas (compatible con la API de OpenAI)
+    # openai_base_url vacio = endpoint oficial de OpenAI
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = ""
 
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "minioadmin"
@@ -45,11 +48,8 @@ class Settings(BaseSettings):
         os.makedirs(path, exist_ok=True)
         return path
 
-    @property
-    def is_production(self) -> bool:
-        return self.app_env.lower() == "production"
-
 
 @lru_cache
 def get_settings() -> Settings:
+    """Cached settings singleton."""
     return Settings()

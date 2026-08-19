@@ -136,12 +136,14 @@ async def extract_text_from_file(file_path: str) -> str:
 class OpenAIQuestionAgent(QuestionAgent):
     """LangChain/OpenAI question generation agent."""
 
-    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, model: str | None = None,
+                 base_url: str | None = None) -> None:
         settings = get_settings()
         self.api_key = (
             api_key or settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
         )
         self.model = model or settings.openai_model
+        self.base_url = base_url or settings.openai_base_url
 
     async def extract_text_from_file(self, file_path: str) -> str:
         return await extract_text_from_file(file_path)
@@ -164,11 +166,14 @@ class OpenAIQuestionAgent(QuestionAgent):
         except ImportError as exc:
             raise RuntimeError("langchain-openai is not installed") from exc
 
-        llm = ChatOpenAI(
-            api_key=SecretStr(self.api_key),
-            model=self.model,
-            temperature=0.7,
-        )
+        llm_kwargs = {
+            "api_key": SecretStr(self.api_key),
+            "model": self.model,
+            "temperature": 0.7,
+        }
+        if self.base_url:
+            llm_kwargs["base_url"] = self.base_url
+        llm = ChatOpenAI(**llm_kwargs)
         prompt = self._build_prompt(material_text, subject, count, context)
         # Run blocking LangChain call in a thread pool
         response = await asyncio.to_thread(llm.invoke, prompt)
