@@ -1,4 +1,4 @@
-# .gitignore — BattleGraf monorepo
+# .gitignore — BattleGraph monorepo
 
 # Python
 __pycache__/
