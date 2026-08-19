@@ -1,6 +1,8 @@
 """Graph generation endpoints."""
 
-from fastapi import APIRouter, Depends, status
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.graph.use_cases import GenerateGraph
@@ -15,6 +17,13 @@ from src.presentation.schemas.responses.graph_responses import (
 )
 
 router = APIRouter(prefix="/graphs", tags=["Graphs"])
+
+teacher_access = require_role(
+    Role.PROFESSOR,
+    Role.TUTOR,
+    Role.DIRECTOR,
+    Role.SUBDIRECTOR,
+)
 
 
 def _graph_response(graph) -> GraphResponse:
@@ -40,13 +49,22 @@ def _graph_response(graph) -> GraphResponse:
     )
 
 
+@router.get("", response_model=list[GraphResponse])
+async def list_graphs(
+    session: AsyncSession = Depends(get_db),
+    _=Depends(teacher_access),
+):
+    graph_repo = SQLAlchemyGraphRepository(session)
+    graphs = await graph_repo.list_all()
+    # invalidar lazy load: los nodos ya estan cargados por el repo
+    return [_graph_response(g) for g in graphs]
+
+
 @router.post("", response_model=GraphResponse, status_code=status.HTTP_201_CREATED)
 async def generate_graph(
     body: GenerateGraphRequest,
     session: AsyncSession = Depends(get_db),
-    _=Depends(
-        require_role(Role.PROFESSOR, Role.TUTOR, Role.DIRECTOR, Role.SUBDIRECTOR)
-    ),
+    _=Depends(teacher_access),
 ):
     graph_repo = SQLAlchemyGraphRepository(session)
     use_case = GenerateGraph(graph_repo)
@@ -58,3 +76,30 @@ async def generate_graph(
     )
     await session.commit()
     return _graph_response(graph)
+
+
+@router.get("/{graph_id}", response_model=GraphResponse)
+async def get_graph(
+    graph_id: str,
+    session: AsyncSession = Depends(get_db),
+    _=Depends(teacher_access),
+):
+    graph_repo = SQLAlchemyGraphRepository(session)
+    graph = await graph_repo.get_by_id(UUID(graph_id))
+    if graph is None:
+        raise HTTPException(status_code=404, detail="Grafo no encontrado")
+    return _graph_response(graph)
+
+
+@router.delete("/{graph_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_graph(
+    graph_id: str,
+    session: AsyncSession = Depends(get_db),
+    _=Depends(teacher_access),
+):
+    graph_repo = SQLAlchemyGraphRepository(session)
+    graph = await graph_repo.get_by_id(UUID(graph_id))
+    if graph is None:
+        raise HTTPException(status_code=404, detail="Grafo no encontrado")
+    await graph_repo.delete(graph.id)
+    await session.commit()

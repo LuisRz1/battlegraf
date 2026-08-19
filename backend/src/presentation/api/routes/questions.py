@@ -12,6 +12,7 @@ from src.application.question_bank.use_cases import (
     ListQuestions,
     UploadMaterial,
 )
+from src.domain.entities.question import Question
 from src.domain.enums import Role, Subject
 from src.infrastructure.ai import build_question_agent
 from src.infrastructure.auth.dependencies import require_role
@@ -24,6 +25,8 @@ from src.infrastructure.storage import LocalStorageService
 from src.presentation.schemas.requests.question_requests import (
     CreateQuestionBankRequest,
     GenerateQuestionsRequest,
+    UpdateQuestionBankRequest,
+    UpdateQuestionRequest,
 )
 from src.presentation.schemas.responses.question_responses import (
     QuestionBankResponse,
@@ -231,3 +234,122 @@ async def approve_question(
         ) from exc
     await session.commit()
     return _question_response(question)
+
+
+@router.get("/banks/{bank_id}", response_model=QuestionBankResponse)
+async def get_bank(
+    bank_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    bank = await SQLAlchemyQuestionBankRepository(session).get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
+    return _bank_response(bank)
+
+
+@router.patch("/banks/{bank_id}", response_model=QuestionBankResponse)
+async def update_bank(
+    bank_id: str,
+    body: UpdateQuestionBankRequest,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    bank_repo = SQLAlchemyQuestionBankRepository(session)
+    bank = await bank_repo.get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
+    if body.subject is not None:
+        try:
+            new_subject = Subject(body.subject)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Materia invalida") from exc
+        bank.subject = new_subject
+    saved = await bank_repo.update(bank)
+    await session.commit()
+    return _bank_response(saved)
+
+
+@router.delete("/banks/{bank_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_bank(
+    bank_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    bank_repo = SQLAlchemyQuestionBankRepository(session)
+    bank = await bank_repo.get_by_id(UUID(bank_id))
+    if bank is None:
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    _require_bank_school(payload, bank.school_id)
+    await bank_repo.delete(bank.id)
+    await session.commit()
+
+
+@router.get("/{question_id}", response_model=QuestionResponse)
+async def get_question(
+    question_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    question = await SQLAlchemyQuestionRepository(session).get_by_id(UUID(question_id))
+    if question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    _require_bank_school(payload, question.school_id)
+    return _question_response(question)
+
+
+@router.patch("/{question_id}", response_model=QuestionResponse)
+async def update_question(
+    question_id: str,
+    body: UpdateQuestionRequest,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    question_repo = SQLAlchemyQuestionRepository(session)
+    question = await question_repo.get_by_id(UUID(question_id))
+    if question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    _require_bank_school(payload, question.school_id)
+
+    import dataclasses
+
+    updated = dataclasses.replace(question)
+    if body.text is not None:
+        updated.text = body.text
+    if body.option_a is not None:
+        updated.option_a = body.option_a
+    if body.option_b is not None:
+        updated.option_b = body.option_b
+    if body.option_c is not None:
+        updated.option_c = body.option_c
+    if body.option_d is not None:
+        updated.option_d = body.option_d
+    if body.correct_option is not None:
+        if body.correct_option.upper() not in ("A", "B", "C", "D"):
+            raise HTTPException(status_code=400, detail="Respuesta correcta invalida (A/B/C/D)")
+        updated.correct_option = body.correct_option.upper()
+    if body.explanation is not None:
+        updated.explanation = body.explanation
+    if body.is_approved is not None:
+        updated.is_approved = body.is_approved
+
+    saved = await question_repo.update(updated)
+    await session.commit()
+    return _question_response(saved)
+
+
+@router.delete("/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_question(
+    question_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(teacher_access),
+):
+    question_repo = SQLAlchemyQuestionRepository(session)
+    question = await question_repo.get_by_id(UUID(question_id))
+    if question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    _require_bank_school(payload, question.school_id)
+    await question_repo.delete(question.id)
+    await session.commit()

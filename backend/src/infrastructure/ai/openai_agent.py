@@ -5,6 +5,7 @@ evitar repetir preguntas ya generadas por el colegio (memory por school_id).
 """
 
 import asyncio
+import logging
 import os
 import random
 from pathlib import Path
@@ -175,11 +176,20 @@ class OpenAIQuestionAgent(QuestionAgent):
             llm_kwargs["base_url"] = self.base_url
         llm = ChatOpenAI(**llm_kwargs)
         prompt = self._build_prompt(material_text, subject, count, context)
-        # Run blocking LangChain call in a thread pool
-        response = await asyncio.to_thread(llm.invoke, prompt)
-        if not isinstance(response.content, str):
-            raise ValueError("Agent response must be textual JSON")
-        return self._parse_response(response.content)
+        # Run blocking LangChain call in a thread pool, con degradacion a mock
+        # si el proveedor falla (rate limit, timeout, 5xx) para no romper el flujo.
+        try:
+            response = await asyncio.to_thread(llm.invoke, prompt)
+            if not isinstance(response.content, str):
+                raise ValueError("Agent response must be textual JSON")
+            return self._parse_response(response.content)
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "OpenAI generate fallback a mock por error del proveedor: %s", exc
+            )
+            return await MockQuestionAgent().generate_questions(
+                material_text, subject, count, context
+            )
 
     def _build_prompt(
         self,

@@ -544,3 +544,68 @@ async def get_battle(
                 },
             )
     return _battle_response(battle, graph)
+
+
+@router.get("/history/player/{player_id}", response_model=list[BattleResponse])
+async def get_player_history(
+    player_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(get_current_user),
+):
+    """Historial de batallas de un jugador (o las del propio usuario autenticado)."""
+    actor_id = UUID(payload["sub"])
+    target_id = UUID(player_id)
+    if payload["role"] == Role.STUDENT.value and actor_id != target_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Students can only view their own history",
+        )
+    battle_repo = SQLAlchemyBattleRepository(session)
+    graph_repo = SQLAlchemyGraphRepository(session)
+
+    if payload["role"] != Role.STUDENT.value:
+        player = await SQLAlchemyUserRepository(session).get_by_id(target_id)
+        if player is None or str(player.school_id) != payload.get("school_id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Player belongs to another school",
+            )
+
+    battles = await battle_repo.list_by_player(target_id)
+    result = []
+    for battle in battles:
+        graph = await graph_repo.get_by_id(battle.graph_id)
+        if graph is not None:
+            battle, _ = await _reconcile_turn_clock(
+                battle, graph, battle_repo, session
+            )
+        result.append(_battle_response(battle, graph))
+    return result
+
+
+@router.delete("/{battle_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_battle(
+    battle_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload: dict = Depends(
+        require_role(
+            Role.PROFESSOR,
+            Role.TUTOR,
+            Role.SUBDIRECTOR,
+            Role.DIRECTOR,
+        )
+    ),
+):
+    """Elimina una batalla (solo personal docente/directivo del colegio)."""
+    battle_repo = SQLAlchemyBattleRepository(session)
+    battle = await battle_repo.get_by_id(UUID(battle_id))
+    if battle is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batalla no encontrada")
+    player = await SQLAlchemyUserRepository(session).get_by_id(battle.player_1_id)
+    if player is None or str(player.school_id) != payload.get("school_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Battle belongs to another school",
+        )
+    await battle_repo.delete(battle.id)
+    await session.commit()

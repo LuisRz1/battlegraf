@@ -15,11 +15,16 @@ from src.infrastructure.auth.permissions import require_role
 from src.infrastructure.database.session import get_db
 from src.presentation.api.dependencies import get_school_repo, get_section_repo
 from src.presentation.schemas.requests.school_requests import (
+    AcademicYearCreateRequest,
+    AcademicYearUpdateRequest,
     BulkCreateStudentsRequest,
     CreateSchoolRequest,
     CreateSectionsRequest,
+    UpdateSchoolRequest,
+    UpdateSectionRequest,
 )
 from src.presentation.schemas.responses.school_responses import (
+    AcademicYearResponse,
     SchoolResponse,
     SectionResponse,
 )
@@ -89,12 +94,32 @@ def _section_response(model) -> SectionResponse:
     return SectionResponse(
         id=str(model.id),
         school_id=str(model.school_id),
-        name=model.name,
+        name=model.name or "",
         grade=model.grade,
         level=model.level,
+        academic_year_id=str(model.academic_year_id) if model.academic_year_id else None,
+        section_label=model.section_label,
+        code=model.code,
+        display_name=model.display_name,
+        tutor_name=model.tutor_name,
+        max_students=model.max_students or 30,
+        status=model.status or "active",
         tutor_id=str(model.tutor_id) if model.tutor_id else None,
         is_active=model.is_active,
         created_at=model.created_at,
+    )
+
+
+def _academic_year_response(model) -> AcademicYearResponse:
+    return AcademicYearResponse(
+        id=str(model.id),
+        school_id=str(model.school_id),
+        label=model.label,
+        starts_on=model.starts_on,
+        ends_on=model.ends_on,
+        is_active=model.is_active,
+        created_at=model.created_at,
+        updated_at=getattr(model, "updated_at", model.created_at),
     )
 
 
@@ -131,6 +156,170 @@ async def create_school(
     return _school_response(created)
 
 
+@router.get("/{school_id}", response_model=SchoolResponse)
+async def get_school(
+    school_id: str,
+    repo=Depends(get_school_repo),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    school = await repo.get_by_id(UUID(school_id))
+    if school is None:
+        raise HTTPException(status_code=404, detail="Escuela no encontrada")
+    return _school_response(school)
+
+
+@router.patch("/{school_id}", response_model=SchoolResponse)
+async def update_school(
+    school_id: str,
+    body: UpdateSchoolRequest,
+    repo=Depends(get_school_repo),
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    from src.domain.entities import School
+
+    current = await repo.get_by_id(UUID(school_id))
+    if current is None:
+        raise HTTPException(status_code=404, detail="Escuela no encontrada")
+
+    updated = School(
+        id=current.id,
+        name=body.name if body.name is not None else current.name,
+        region=body.region if body.region is not None else current.region,
+        level=body.level if body.level is not None else current.level,
+        is_active=body.is_active if body.is_active is not None else current.is_active,
+        created_at=current.created_at,
+    )
+    saved = await repo.update(updated)
+    await session.commit()
+    return _school_response(saved)
+
+
+@router.delete("/{school_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_school(
+    school_id: str,
+    repo=Depends(get_school_repo),
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    school = await repo.get_by_id(UUID(school_id))
+    if school is None:
+        raise HTTPException(status_code=404, detail="Escuela no encontrada")
+    await repo.delete(school.id)
+    await session.commit()
+
+
+@router.get("/{school_id}/academic-years", response_model=list[AcademicYearResponse])
+async def list_academic_years(
+    school_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(
+        require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+    ),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    from src.infrastructure.database.models import AcademicYearModel
+
+    result = await session.execute(
+        select(AcademicYearModel)
+        .where(AcademicYearModel.school_id == UUID(school_id))
+        .order_by(AcademicYearModel.label.desc())
+    )
+    return [_academic_year_response(m) for m in result.scalars().all()]
+
+
+@router.post(
+    "/{school_id}/academic-years",
+    response_model=AcademicYearResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_academic_year(
+    school_id: str,
+    body: AcademicYearCreateRequest,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    from src.infrastructure.database.models import AcademicYearModel
+
+    model = AcademicYearModel(
+        id=uuid.uuid4(),
+        school_id=UUID(school_id),
+        label=body.label,
+        starts_on=datetime.fromisoformat(body.starts_on) if body.starts_on else None,
+        ends_on=datetime.fromisoformat(body.ends_on) if body.ends_on else None,
+        is_active=body.is_active,
+    )
+    session.add(model)
+    await session.commit()
+    await session.refresh(model)
+    return _academic_year_response(model)
+
+
+@router.patch(
+    "/{school_id}/academic-years/{year_id}", response_model=AcademicYearResponse
+)
+async def update_academic_year(
+    school_id: str,
+    year_id: str,
+    body: AcademicYearUpdateRequest,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    from src.infrastructure.database.models import AcademicYearModel
+
+    result = await session.execute(
+        select(AcademicYearModel).where(AcademicYearModel.id == UUID(year_id))
+    )
+    model = result.scalar_one_or_none()
+    if model is None or str(model.school_id) != school_id:
+        raise HTTPException(status_code=404, detail="Anio academico no encontrado")
+    if body.label is not None:
+        model.label = body.label
+    if body.starts_on is not None:
+        model.starts_on = datetime.fromisoformat(body.starts_on)
+    if body.ends_on is not None:
+        model.ends_on = datetime.fromisoformat(body.ends_on)
+    if body.is_active is not None:
+        model.is_active = body.is_active
+    await session.commit()
+    await session.refresh(model)
+    return _academic_year_response(model)
+
+
+@router.delete(
+    "/{school_id}/academic-years/{year_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_academic_year(
+    school_id: str,
+    year_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    from src.infrastructure.database.models import AcademicYearModel
+
+    result = await session.execute(
+        select(AcademicYearModel).where(AcademicYearModel.id == UUID(year_id))
+    )
+    model = result.scalar_one_or_none()
+    if model is None or str(model.school_id) != school_id:
+        raise HTTPException(status_code=404, detail="Anio academico no encontrado")
+    await session.delete(model)
+    await session.commit()
+
+
 @router.get("/{school_id}/sections", response_model=list[SectionResponse])
 async def list_sections(
     school_id: str,
@@ -143,6 +332,23 @@ async def list_sections(
         raise HTTPException(status_code=403, detail="School mismatch")
     sections = await repo.list_by_school(UUID(school_id))
     return [_section_response(s) for s in sections]
+
+
+@router.get("/{school_id}/sections/{section_id}", response_model=SectionResponse)
+async def get_section(
+    school_id: str,
+    section_id: str,
+    repo=Depends(get_section_repo),
+    payload=Depends(
+        require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR, Role.PROFESSOR)
+    ),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    section = await repo.get_by_id(UUID(section_id))
+    if section is None or str(section.school_id) != school_id:
+        raise HTTPException(status_code=404, detail="Seccion no encontrada")
+    return _section_response(section)
 
 
 @router.post(
@@ -182,6 +388,91 @@ async def create_sections(
         created.append(await repo.create(section))
     await session.commit()
     return [_section_response(s) for s in created]
+
+
+@router.patch("/{school_id}/sections/{section_id}", response_model=SectionResponse)
+async def update_section(
+    school_id: str,
+    section_id: str,
+    body: UpdateSectionRequest,
+    repo=Depends(get_section_repo),
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR, Role.TUTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    current = await repo.get_by_id(UUID(section_id))
+    if current is None or str(current.school_id) != school_id:
+        raise HTTPException(status_code=404, detail="Seccion no encontrada")
+
+    name = body.name if body.name is not None else current.name
+    grade = body.grade if body.grade is not None else current.grade
+    level = body.level if body.level is not None else current.level
+    section_label = body.section_label if body.section_label is not None else current.section_label
+    code = body.code if body.code is not None else current.code
+    display_name = body.display_name if body.display_name is not None else current.display_name
+    tutor_name = body.tutor_name if body.tutor_name is not None else current.tutor_name
+    max_students = body.max_students if body.max_students is not None else current.max_students
+    status_v = body.status if body.status is not None else current.status
+    tutor_id = body.tutor_id if body.tutor_id is not None else current.tutor_id
+    ay_id = body.academic_year_id if body.academic_year_id else current.academic_year_id
+
+    # Si vienen cambios semanticos y no hay code, regenerar el codigo
+    new_code = code
+    if code is None and (body.name is not None or body.grade is not None or body.level is not None):
+        existing_codes = {s.code for s in await repo.list_by_school(UUID(school_id)) if s.code}
+        _ = _build_section_meta(
+            type("D", (), {"name": name or "A", "grade": grade or "1", "level": level or "primary"})(),
+            existing_codes,
+        )
+        # use the returned meta for consistency
+        meta = _build_section_meta(
+            type("D", (), {"name": section_label or name or "A", "grade": grade or "1", "level": level or "primary"})(),
+            existing_codes,
+        )
+        new_code = meta["code"]
+        section_label = meta["section_label"]
+        display_name = meta["display_name"]
+
+    updated = Section(
+        id=current.id,
+        school_id=current.school_id,
+        name=name,
+        grade=grade,
+        level=level,
+        academic_year_id=ay_id,
+        section_label=section_label,
+        code=new_code,
+        display_name=display_name,
+        tutor_name=tutor_name,
+        max_students=max_students,
+        status=status_v,
+        tutor_id=tutor_id,
+        is_active=body.is_active if body.is_active is not None else current.is_active,
+        created_at=current.created_at,
+    )
+    saved = await repo.update(updated)
+    await session.commit()
+    return _section_response(saved)
+
+
+@router.delete(
+    "/{school_id}/sections/{section_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_section(
+    school_id: str,
+    section_id: str,
+    repo=Depends(get_section_repo),
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+):
+    if payload.get("school_id") != school_id:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    section = await repo.get_by_id(UUID(section_id))
+    if section is None or str(section.school_id) != school_id:
+        raise HTTPException(status_code=404, detail="Seccion no encontrada")
+    await repo.delete(section.id)
+    await session.commit()
 
 
 @router.post("/{school_id}/students/bulk", status_code=status.HTTP_201_CREATED)

@@ -24,6 +24,7 @@ from src.presentation.api.dependencies import get_user_repo
 from src.presentation.schemas.requests.auth_requests import (
     CreateStaffRequest,
     CreateUserRequest,
+    UpdateUserRequest,
 )
 from src.presentation.schemas.responses.auth_responses import UserResponse
 
@@ -235,3 +236,73 @@ async def bulk_create_students_csv(
         "errors": errors,
         "section_id": section_id,
     }
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str, repo=Depends(get_user_repo), payload=Depends(require_teacher)):
+    user = await repo.get_by_id(UUID(user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if payload.get("school_id") and user.school_id and str(user.school_id) != payload["school_id"]:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    return _user_response(user)
+
+
+@router.patch("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: str,
+    body: UpdateUserRequest,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_director),
+):
+    repo = SQLAlchemyUserRepository(session)
+    user = await repo.get_by_id(UUID(user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if user.school_id and payload.get("school_id") and str(user.school_id) != payload["school_id"]:
+        raise HTTPException(status_code=403, detail="School mismatch")
+
+    import dataclasses
+
+    updated = dataclasses.replace(user)
+    if body.full_name is not None:
+        updated.full_name = body.full_name
+    if body.email is not None:
+        updated.email = str(body.email)
+    if body.section_id is not None:
+        section = await SQLAlchemySectionRepository(session).get_by_id(UUID(body.section_id))
+        if section is None:
+            raise HTTPException(status_code=400, detail="Seccion invalida")
+        updated.section_id = section.id
+    if body.role is not None and body.role != user.role.value:
+        try:
+            new_role = Role(body.role)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Rol invalido") from exc
+        if new_role == Role.DIRECTOR and user.role != Role.DIRECTOR:
+            raise HTTPException(status_code=400, detail="No se puede otorgar rol director")
+        updated.role = new_role
+    if body.is_active is not None:
+        updated.is_active = body.is_active
+
+    saved = await repo.update(updated)
+    await session.commit()
+    return _user_response(saved)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    session: AsyncSession = Depends(get_db),
+    payload=Depends(require_director),
+):
+    repo = SQLAlchemyUserRepository(session)
+    user = await repo.get_by_id(UUID(user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if user.role == Role.DIRECTOR:
+        raise HTTPException(status_code=400, detail="No se puede eliminar al director")
+    if user.school_id and payload.get("school_id") and str(user.school_id) != payload["school_id"]:
+        raise HTTPException(status_code=403, detail="School mismatch")
+    await repo.delete(user.id)
+    await session.commit()
