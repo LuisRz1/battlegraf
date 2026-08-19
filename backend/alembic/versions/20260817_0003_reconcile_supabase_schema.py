@@ -1,7 +1,7 @@
 """Reconcile the backend schema with Supabase tables created by the landing.
 
 The landing (Supabase) already created `schools` and `sections` with its own
-column set. This migration ADDS the columns the BattleGraf backend expects,
+column set. This migration ADDS the columns the BattleGraph backend expects,
 without dropping or renaming landing columns, so both apps share the DB.
 
 Revision ID: 20260817_0003

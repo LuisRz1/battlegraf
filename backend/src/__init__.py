@@ -1,1 +1,1 @@
-"""BattleGraf Backend — Clean Architecture."""
+"""BattleGraph Backend — Clean Architecture."""

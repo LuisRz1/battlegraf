@@ -1,7 +1,7 @@
 """Make landing-only NOT NULL columns friendly to backend inserts.
 
 The landing (Supabase) owns `schools.created_by` and the display columns of
-`sections` (section_label, code, display_name). The BattleGraf backend inserts
+`sections` (section_label, code, display_name). The BattleGraph backend inserts
 rows without those fields, so give them server defaults / nullable so both
 apps can write to the shared tables.
 
