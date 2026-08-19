@@ -74,10 +74,27 @@ class SQLAlchemyQuestionBankRepository(QuestionBankRepository):
         model = result.scalar_one_or_none()
         if not model:
             raise ValueError("Question bank not found")
+        model.subject = bank.subject.value
         model.total_generated = bank.total_generated
         model.total_approved = bank.total_approved
         await self._session.flush()
         return self._to_entity(model)
+
+    async def delete(self, bank_id: uuid.UUID) -> None:
+        result = await self._session.execute(
+            select(QuestionBankModel).where(QuestionBankModel.id == bank_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError("Question bank not found")
+        await self._session.delete(model)
+        # borrar en cascada manual: preguntas del banco
+        qs = await self._session.execute(
+            select(QuestionModel).where(QuestionModel.bank_id == bank_id)
+        )
+        for q in qs.scalars().all():
+            await self._session.delete(q)
+        await self._session.flush()
 
 
 class SQLAlchemyQuestionRepository(QuestionRepository):
@@ -184,7 +201,31 @@ class SQLAlchemyQuestionRepository(QuestionRepository):
         model = result.scalar_one_or_none()
         if not model:
             raise ValueError("Question not found")
+        if question.text is not None:
+            model.text = question.text
+        if question.option_a is not None:
+            model.option_a = question.option_a
+        if question.option_b is not None:
+            model.option_b = question.option_b
+        if question.option_c is not None:
+            model.option_c = question.option_c
+        if question.option_d is not None:
+            model.option_d = question.option_d
+        if question.correct_option is not None:
+            model.correct_option = question.correct_option
+        if question.explanation is not None:
+            model.explanation = question.explanation
         model.is_approved = question.is_approved
         model.usage_count = question.usage_count
         await self._session.flush()
         return self._to_entity(model)
+
+    async def delete(self, question_id: uuid.UUID) -> None:
+        result = await self._session.execute(
+            select(QuestionModel).where(QuestionModel.id == question_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError("Question not found")
+        await self._session.delete(model)
+        await self._session.flush()

@@ -35,6 +35,12 @@ class SchoolRepository(ABC):
     @abstractmethod
     async def list_all(self) -> Sequence[School]: ...
 
+    @abstractmethod
+    async def update(self, school: School) -> School: ...
+
+    @abstractmethod
+    async def delete(self, school_id: UUID) -> None: ...
+
 
 class UserRepository(ABC):
     """Puerto para persistencia de usuarios."""
@@ -57,6 +63,9 @@ class UserRepository(ABC):
     @abstractmethod
     async def update(self, user: User) -> User: ...
 
+    @abstractmethod
+    async def delete(self, user_id: UUID) -> None: ...
+
 
 class SectionRepository(ABC):
     """Puerto para persistencia de secciones."""
@@ -74,6 +83,12 @@ class SectionRepository(ABC):
     async def assign_tutor(
         self, section_id: UUID, tutor_id: UUID
     ) -> Section | None: ...
+
+    @abstractmethod
+    async def update(self, section: Section) -> Section: ...
+
+    @abstractmethod
+    async def delete(self, section_id: UUID) -> None: ...
 
 
 class QuestionAgent(ABC):

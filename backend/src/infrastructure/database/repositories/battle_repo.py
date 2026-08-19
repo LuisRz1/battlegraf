@@ -114,6 +114,21 @@ class SQLAlchemyGraphRepository(GraphRepository):
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
+    async def delete(self, graph_id: uuid.UUID) -> None:
+        result = await self._session.execute(
+            select(GraphModel).where(GraphModel.id == graph_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError("Graph not found")
+        nodes = await self._session.execute(
+            select(GraphNodeModel).where(GraphNodeModel.graph_id == graph_id)
+        )
+        for n in nodes.scalars().all():
+            await self._session.delete(n)
+        await self._session.delete(model)
+        await self._session.flush()
+
     async def update_node_questions(
         self, node_id: uuid.UUID, question_ids: list[uuid.UUID]
     ) -> None:
@@ -231,6 +246,27 @@ class SQLAlchemyBattleRepository(BattleRepository):
         )
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
+
+    async def delete(self, battle_id: uuid.UUID) -> None:
+        result = await self._session.execute(
+            select(BattleModel).where(BattleModel.id == battle_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError("Battle not found")
+        # borrar en cascada manual: node states y moves
+        states = await self._session.execute(
+            select(BattleNodeStateModel).where(BattleNodeStateModel.battle_id == battle_id)
+        )
+        for s in states.scalars().all():
+            await self._session.delete(s)
+        moves = await self._session.execute(
+            select(BattleMoveModel).where(BattleMoveModel.battle_id == battle_id)
+        )
+        for m in moves.scalars().all():
+            await self._session.delete(m)
+        await self._session.delete(model)
+        await self._session.flush()
 
     async def list_by_player(self, player_id: uuid.UUID) -> Sequence[Battle]:
         result = await self._session.execute(

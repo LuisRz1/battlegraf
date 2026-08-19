@@ -92,10 +92,28 @@ class SQLAlchemyUserRepository(UserRepository):
         model = result.scalar_one_or_none()
         if not model:
             raise ValueError("User not found")
-        model.xp = user.xp
-        model.rank_id = user.rank_id
-        model.clan_id = user.clan_id
-        model.section_id = user.section_id
+        if user.full_name is not None:
+            model.full_name = user.full_name
+        if user.email is not None:
+            model.email = user.email
+        if user.section_id is not None:
+            model.section_id = user.section_id
+        if user.rank_id is not None:
+            model.rank_id = user.rank_id
+        if user.clan_id is not None:
+            model.clan_id = user.clan_id
+        model.xp = user.xp if user.xp is not None else model.xp
         model.is_active = user.is_active
         await self._session.flush()
         return self._to_entity(model)
+
+    async def delete(self, user_id: uuid.UUID) -> None:
+        result = await self._session.execute(
+            select(UserModel).where(UserModel.id == user_id)
+        )
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError("User not found")
+        model.is_active = False
+        model.section_id = None
+        await self._session.flush()

@@ -35,3 +35,11 @@ class CreateStaffRequest(BaseModel):
     role: str
     school_id: str | None = None
     section_id: str | None = None
+
+
+class UpdateUserRequest(BaseModel):
+    full_name: str | None = None
+    email: EmailStr | None = None
+    section_id: str | None = None
+    role: str | None = None
+    is_active: bool | None = None

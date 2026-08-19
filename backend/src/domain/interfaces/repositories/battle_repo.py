@@ -18,6 +18,9 @@ class GraphRepository(ABC):
 
     @abstractmethod
     async def list_all(self) -> Sequence[Graph]: ...
+
+    @abstractmethod
+    async def delete(self, graph_id: UUID) -> None: ...
     @abstractmethod
     async def update_node_questions(
         self, node_id: UUID, question_ids: list[UUID]
@@ -41,6 +44,9 @@ class BattleRepository(ABC):
 
     @abstractmethod
     async def list_by_player(self, player_id: UUID) -> Sequence[Battle]: ...
+
+    @abstractmethod
+    async def delete(self, battle_id: UUID) -> None: ...
 
 
 class BattleMoveRepository(ABC):

@@ -27,6 +27,9 @@ class QuestionBankRepository(ABC):
     @abstractmethod
     async def update(self, bank: QuestionBank) -> QuestionBank: ...
 
+    @abstractmethod
+    async def delete(self, bank_id: UUID) -> None: ...
+
 
 class QuestionRepository(ABC):
     """Port for question persistence."""
@@ -53,3 +56,6 @@ class QuestionRepository(ABC):
 
     @abstractmethod
     async def update(self, question: Question) -> Question: ...
+
+    @abstractmethod
+    async def delete(self, question_id: UUID) -> None: ...
