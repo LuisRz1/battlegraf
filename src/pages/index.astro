@@ -117,8 +117,14 @@ import Footer from "../components/Footer.astro";
 
 			function openGame() {
 				if (!gameModal || !gameIframe) return;
-				const src = gameIframe.getAttribute("data-src");
-				if (src && (!gameIframe.src || gameIframe.src === "about:blank")) {
+				let src = gameIframe.getAttribute("data-src") || "/game/BattleGraph.html";
+				// Propagar school_id de la URL de la landing al juego (preguntas IA por colegio)
+				const sp = new URLSearchParams(window.location.search);
+				const schoolId = sp.get("school_id");
+				if (schoolId && !/[?&]school_id=/.test(src)) {
+					src += (src.includes("?") ? "&" : "?") + "school_id=" + encodeURIComponent(schoolId);
+				}
+				if (!gameIframe.src || gameIframe.src === "about:blank" || !/[?&]school_id=/.test(gameIframe.src)) {
 					gameIframe.src = src;
 				}
 				gameModal.classList.remove("hidden");
