@@ -74,11 +74,15 @@ async def list_section_users(
     repo=Depends(get_user_repo),
     payload=Depends(require_teacher),
 ):
-    section = await SQLAlchemySectionRepository(session).get_by_id(UUID(section_id))
+    try:
+        section_uuid = UUID(section_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="section_id debe ser un UUID valido")
+    section = await SQLAlchemySectionRepository(session).get_by_id(section_uuid)
     if section is None:
         raise HTTPException(status_code=404, detail="Seccion no encontrada")
     _require_school_match(payload, section.school_id)
-    users = await repo.list_by_section(UUID(section_id))
+    users = await repo.list_by_section(section_uuid)
     return [_user_response(u) for u in users]
 
 
@@ -297,7 +301,11 @@ async def delete_user(
     payload=Depends(require_director),
 ):
     repo = SQLAlchemyUserRepository(session)
-    user = await repo.get_by_id(UUID(user_id))
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="user_id debe ser un UUID valido")
+    user = await repo.get_by_id(user_uuid)
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if user.role == Role.DIRECTOR:
