@@ -257,5 +257,93 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		return go(redirect, error ? "error=save" : "created=approval", "preguntas");
 	}
 
+	// ── EDITAR (update) ──
+	if (action === "update_student") {
+		const id = clean(form.get("id"), 40);
+		const fullName = clean(form.get("full_name"), 120);
+		const sectionId = clean(form.get("section_id"), 40);
+		if (!id || fullName.length < 3) return go(redirect, "error=validation", "personas");
+		const patch: Record<string, unknown> = { full_name: fullName, email: clean(form.get("email"), 160) || null, section_id: sectionId || null };
+		await supabase.from("student_profiles").update(patch).eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=change", "personas");
+	}
+	if (action === "delete_student") {
+		const id = clean(form.get("id"), 40);
+		const { error } = await supabase.from("student_profiles").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, error ? "error=save" : "saved=deleted", "personas");
+	}
+	if (action === "update_staff") {
+		const id = clean(form.get("id"), 40);
+		const fullName = clean(form.get("full_name"), 120);
+		const role = clean(form.get("role"), 24);
+		const allowed = ["director", "subdirector", "coordinator", "tutor", "teacher"];
+		if (!id || fullName.length < 3 || !allowed.includes(role)) return go(redirect, "error=validation", "personas");
+		const patch: Record<string, unknown> = { full_name: fullName, email: clean(form.get("email"), 160) || null, role, scope_label: clean(form.get("scope_label"), 160) || "Todo el colegio", status: clean(form.get("status"), 16) || "active" };
+		await supabase.from("staff_profiles").update(patch).eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=change", "personas");
+	}
+	if (action === "delete_staff") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("staff_profiles").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "personas");
+	}
+	if (action === "delete_material") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("learning_materials").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "materiales");
+	}
+	if (action === "update_question") {
+		const id = clean(form.get("id"), 40);
+		const subjectId = clean(form.get("subject_id"), 40);
+		const question = clean(form.get("question"), 300);
+		const options = [0, 1, 2, 3].map((index) => clean(form.get(`option_${index}`), 160));
+		const correctIndex = Number(clean(form.get("correct_index"), 1));
+		const status = clean(form.get("status"), 16) === "approved" ? "approved" : "review";
+		if (!id || !subjectId || question.length < 8 || options.some((option) => option.length < 1) || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
+			return go(redirect, "error=validation", "preguntas");
+		}
+		await supabase.from("question_bank").update({ subject_id: subjectId, question, options, correct_index: correctIndex, status }).eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=change", "preguntas");
+	}
+	if (action === "delete_question") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("question_bank").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "preguntas");
+	}
+	if (action === "update_assignment") {
+		const id = clean(form.get("id"), 40);
+		if (!id) return go(redirect, "error=validation", "tareas");
+		const patch: Record<string, unknown> = { title: clean(form.get("title"), 140), section_id: clean(form.get("section_id"), 40), subject_id: clean(form.get("subject_id"), 40), delivery_type: clean(form.get("delivery_type"), 20), due_at: clean(form.get("due_at"), 40) || null, xp_reward: Math.min(10000, Math.max(0, Number(clean(form.get("xp_reward"), 6)) || 80)), status: clean(form.get("status"), 16) || "scheduled" };
+		await supabase.from("assignments").update(patch).eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=change", "tareas");
+	}
+	if (action === "delete_assignment") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("assignments").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "tareas");
+	}
+	if (action === "update_battle") {
+		const id = clean(form.get("id"), 40);
+		if (!id) return go(redirect, "error=validation", "batallas");
+		const patch: Record<string, unknown> = { title: clean(form.get("title"), 140), opponent_a: clean(form.get("opponent_a"), 120), opponent_b: clean(form.get("opponent_b"), 120), scheduled_at: clean(form.get("scheduled_at"), 40) || null, status: clean(form.get("status"), 16) || "scheduled" };
+		await supabase.from("battle_events").update(patch).eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=change", "batallas");
+	}
+	if (action === "delete_battle") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("battle_events").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "batallas");
+	}
+	if (action === "delete_rank") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("rank_definitions").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "progreso");
+	}
+	if (action === "delete_section") {
+		const id = clean(form.get("id"), 40);
+		await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
+		return go(redirect, "saved=deleted", "estructura");
+	}
+
 	return go(redirect, "error=unknown_action", "configuracion");
 };
