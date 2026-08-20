@@ -1,11 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "rootDirectory": "landing",
   "buildCommand": "npx next build",
+  "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
     {
       "source": "/downloads/battlegraf-prototipo.apk",
-      "destination": "https://battlegraf-landing.vercel.app/downloads/battlegraf-prototipo.apk"
+      "destination": "https://battlegraf-landing-five.vercel.app/downloads/battlegraf-prototipo.apk"
     }
   ]
 }
