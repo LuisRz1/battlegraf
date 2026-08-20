@@ -128,12 +128,79 @@
 .modalBackdrop{background:rgba(3,4,3,.86)}
 .modal{background-color:#101310;color:#eddbb8}
 .modalSummary{background:#0c0f0c;border-color:#6e5739}
-.loginForm input,.loginForm select,.formGrid input,.inlineForm input,.inlineForm select,.modal input,.modal select{
+.loginForm input,.loginForm select,.formGrid input,.formGrid select,.inlineForm input,.inlineForm select,.modal input,.modal select{
   border:2px solid #66563f;
   border-image:none;
   background:#0d100d;
   box-shadow:inset 0 0 0 2px #171a16;
   image-rendering:auto;
+}
+
+/* ==========================================================
+   Tipografía responsiva del panel (v2+): letra más grande
+   y fluida. Escala con el ancho de pantalla (clamp) para que
+   los casilleros y textos sean legibles en cualquier tamaño.
+   ========================================================== */
+.app,.login{font-size:clamp(14px, 1.05vw + 9px, 18px)}
+
+/* Casilleros (input/select): la queja principal, debe ser legible */
+.loginForm input,.loginForm select,.formGrid input,.formGrid select,
+.inlineForm input,.inlineForm select,.modal input,.modal select,
+.topbar input,.topbar select{
+  font-size:clamp(16px, 1.15vw + 12px, 20px)!important;
+  height:clamp(50px, 5.8vh, 60px)!important;
+  padding:0 16px!important;
+}
+
+/* Etiquetas de formulario */
+.loginForm label,.formGrid label,.inlineForm label,.modal label{
+  font-size:clamp(12px, 1vw + 8px, 15px)!important;
+}
+
+/* Texto de párrafos y descripciones */
+.loginScene>p,.viewHeader p,.panel>header h2,.generated>p,.modalSummary p,.loginForm>p{
+  font-size:clamp(14px, 1.05vw + 10px, 17px)!important;
+  line-height:1.6!important;
+}
+
+/* Títulos de tarjetas y encabezados de vistas */
+.viewHeader h1,.panel>header h2,.sectionCard h2,.taskGrid h2,.battle section h2,.subjects h2,.loginForm h2{
+  font-size:clamp(20px, 2.2vw + 12px, 30px)!important;
+}
+
+/* Datos de métricas y números */
+.metrics strong,.metrics span,.metrics p,.questionStats strong,
+.taskGrid footer strong,.sectionCard dl dd,.subjects dl dd{
+  font-size:clamp(15px, 1.1vw + 11px, 19px)!important;
+}
+
+/* Sidebar de navegación */
+.sidebar nav button{font-size:clamp(13px, 0.9vw + 9px, 16px)!important}
+.sidebar nav button span,.sidebar>footer>strong,.school small{font-size:clamp(10px, 0.8vw + 7px, 13px)!important}
+.school strong{font-size:clamp(14px, 0.95vw + 10px, 17px)!important}
+
+/* Tablas, filas de archivos y auditoría */
+.table,.files,.questions,.audit,.actions,.timeline,.settings{font-size:clamp(13px, 1vw + 9px, 16px)!important}
+.table button,.files button,.audit button,.sectionCard>button,.subjects button,.battleCards button{
+  font-size:clamp(11px, 0.85vw + 8px, 14px)!important
+}
+
+/* Overline decorativos (Press/panel) suben para legibilidad */
+.loginScene>span,.loginForm>span,.viewHeader>div>span,.panel>header span,
+.modal>span,.sidebar nav>small{
+  font-size:clamp(9px, 0.7vw + 6px, 11px)!important;
+}
+
+/* Ajuste en pantallas muy angostas: mantener mínimo legible */
+@media(max-width:760px){
+  .app,.login{font-size:15px}
+  .loginForm input,.loginForm select,.formGrid input,.formGrid select,
+  .inlineForm input,.inlineForm select,.modal input,.modal select{
+    font-size:16px!important;height:52px!important;
+  }
+  .viewHeader h1{font-size:22px!important}
+  .viewHeader p{font-size:14px!important;line-height:1.55!important}
+  .panel>header h2{font-size:17px!important}
 }
 .loginForm input:focus,.loginForm select:focus,.formGrid input:focus,.inlineForm input:focus,.inlineForm select:focus,.modal input:focus,.modal select:focus{
   border-color:#c29248;
