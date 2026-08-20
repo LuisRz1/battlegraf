@@ -38,3 +38,5 @@ Desktop.ini
 .env*
 .agents/
 skills-lock.json
+# npm local (el proyecto usa bun)
+package-lock.json
