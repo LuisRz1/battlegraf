@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -245,10 +245,26 @@ async def create_academic_year(
     body: AcademicYearCreateRequest,
     session: AsyncSession = Depends(get_db),
     payload=Depends(require_role(Role.DIRECTOR, Role.SUBDIRECTOR)),
+    response: Response = None,
 ):
     if payload.get("school_id") != school_id:
         raise HTTPException(status_code=403, detail="School mismatch")
     from src.infrastructure.database.models import AcademicYearModel
+    from sqlalchemy.exc import IntegrityError
+
+    # Idempotente: si ya existe un anio con la misma etiqueta para el colegio,
+    # devolverlo (200) en lugar de fallar. El registro de director auto-crea
+    # el anio lectivo activo; este POST cubre el caso de re-envio o edicion UI.
+    existing = await session.execute(
+        select(AcademicYearModel).where(
+            AcademicYearModel.school_id == UUID(school_id),
+            AcademicYearModel.label == body.label,
+        )
+    )
+    current = existing.scalar_one_or_none()
+    if current is not None:
+        response.status_code = status.HTTP_200_OK
+        return _academic_year_response(current)
 
     model = AcademicYearModel(
         id=uuid.uuid4(),
@@ -259,7 +275,15 @@ async def create_academic_year(
         is_active=body.is_active,
     )
     session.add(model)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Raza posible si dos peticiones crean el mismo anio a la vez
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"El anio academico '{body.label}' ya existe para este colegio",
+        )
     await session.refresh(model)
     return _academic_year_response(model)
 
