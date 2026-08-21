@@ -13,7 +13,10 @@ class UserResponse(BaseModel):
     username: str
     email: str
     full_name: str
+    last_name: str = ""
+    phone: str = ""
     role: str
     school_id: str | None
+    school_code: str | None = None
     section_id: str | None
     xp: int

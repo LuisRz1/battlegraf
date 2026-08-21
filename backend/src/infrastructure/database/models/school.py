@@ -107,6 +107,8 @@ class UserModel(Base, UUIDMixin):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
+    phone: Mapped[str] = mapped_column(String(20), nullable=False, server_default="")
     role: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     school_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("schools.id"), nullable=True

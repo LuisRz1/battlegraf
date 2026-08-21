@@ -16,6 +16,13 @@ from .question import (
     TaskSubmissionModel,
 )
 from .school import AcademicYearModel, SchoolModel, SectionModel, UserModel
+from .membership import (
+    SchoolCodeModel,
+    SchoolMembershipModel,
+    ClassModel,
+    ClassEnrollmentModel,
+    MembershipSnapshotModel,
+)
 
 __all__ = [
     "Base",
@@ -35,4 +42,9 @@ __all__ = [
     "BattleNodeStateModel",
     "GraphModel",
     "GraphNodeModel",
+    "SchoolCodeModel",
+    "SchoolMembershipModel",
+    "ClassModel",
+    "ClassEnrollmentModel",
+    "MembershipSnapshotModel",
 ]

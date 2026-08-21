@@ -34,6 +34,7 @@ body {
   margin: 0;
   color: var(--cream);
   font-family: var(--font-body);
+  font-size: clamp(16px, 1.1vw, 19px);
   background:
     radial-gradient(circle at 90% 0%, rgba(99, 25, 164, 0.15), transparent 34rem),
     var(--ink);
@@ -372,7 +373,7 @@ main {
 .hero h1 {
   margin: 22px 0 5px;
   font-family: var(--font-display);
-  font-size: clamp(76px, 7.4vw, 132px);
+  font-size: clamp(3rem, 8vw, 6rem);
   font-weight: 1000;
   line-height: 0.76;
   letter-spacing: clamp(-9px, -0.5vw, -5px);
@@ -415,7 +416,7 @@ main {
   padding: 9px 13px;
   color: var(--cream);
   font-family: var(--font-display);
-  font-size: clamp(11px, 1.15vw, 16px);
+  font-size: clamp(1rem, 2vw, 1.5rem);
   font-weight: 950;
   letter-spacing: 1.7px;
   background: rgba(5, 3, 9, 0.72);
@@ -428,7 +429,7 @@ main {
   max-width: 590px;
   margin: 0;
   color: rgba(255, 241, 199, 0.72);
-  font-size: 16px;
+  font-size: clamp(0.95rem, 1.3vw, 1.2rem);
   line-height: 1.72;
 }
 
@@ -1252,7 +1253,7 @@ main {
 
 .intel-strip strong {
   font-family: var(--font-display);
-  font-size: 21px;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
   letter-spacing: -1px;
 }
 
@@ -1290,7 +1291,7 @@ main {
 .section-heading h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(34px, 4.4vw, 64px);
+  font-size: clamp(1.6rem, 3.5vw, 2.8rem);
   font-weight: 950;
   line-height: 0.98;
   letter-spacing: -3.8px;
@@ -1300,7 +1301,7 @@ main {
 .section-heading p {
   margin: 0;
   color: rgba(255, 241, 199, 0.58);
-  font-size: 15px;
+  font-size: clamp(0.95rem, 1.2vw, 1.15rem);
   line-height: 1.72;
 }
 

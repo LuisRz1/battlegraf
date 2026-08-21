@@ -18,6 +18,8 @@ from .question_repo import (
 )
 from .school_repo import SQLAlchemySchoolRepository, SQLAlchemySectionRepository
 from .user_repo import SQLAlchemyUserRepository
+from .membership_repo import SQLAlchemySchoolCodeRepository, SQLAlchemyMembershipRepository
+from .class_repo import SQLAlchemyClassRepository, SQLAlchemyEnrollmentRepository
 
 __all__ = [
     "SQLAlchemyBattleMoveRepository",
@@ -33,4 +35,8 @@ __all__ = [
     "SQLAlchemyTaskSubmissionRepository",
     "SQLAlchemyUserRepository",
     "SQLAlchemyXPTransactionRepository",
+    "SQLAlchemySchoolCodeRepository",
+    "SQLAlchemyMembershipRepository",
+    "SQLAlchemyClassRepository",
+    "SQLAlchemyEnrollmentRepository",
 ]

@@ -177,6 +177,14 @@ class _LoginViewState extends ConsumerState<LoginView> {
                                         : const Text('ENTRAR AL GRAFO'),
                                   ),
                                 ),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: () => context.go('/register'),
+                                    child: const Text('CREAR CUENTA'),
+                                  ),
+                                ),
                               ],
                             ),
                           ).animate(delay: 400.ms).fadeIn().slideY(begin: .12),

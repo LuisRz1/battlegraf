@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/network/api_client.dart';
 
@@ -42,8 +42,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Stream<AuthState> get stream => _controller.stream;
 
   Future<void> _loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    const secureStorage = FlutterSecureStorage();
+    final token = await secureStorage.read(key: 'token');
     if (token != null && token.isNotEmpty) {
       state = state.copyWith(token: token);
       await _fetchUser(token);
@@ -79,8 +79,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       final token = response.data['access_token'] as String;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', token);
+      const secureStorage = FlutterSecureStorage();
+      await secureStorage.write(key: 'token', value: token);
 
       state = state.copyWith(isLoading: false, token: token);
       await _fetchUser(token);
@@ -95,8 +95,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
+    const secureStorage = FlutterSecureStorage();
+    await secureStorage.delete(key: 'token');
     state = const AuthState();
     _controller.add(state);
   }

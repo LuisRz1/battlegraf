@@ -12,6 +12,8 @@ class CreateDirectorRequest(BaseModel):
     username: str
     email: EmailStr
     full_name: str
+    last_name: str = ""
+    phone: str = ""
     password: str
     school_name: str
     region: str = ""
@@ -43,3 +45,21 @@ class UpdateUserRequest(BaseModel):
     section_id: str | None = None
     role: str | None = None
     is_active: bool | None = None
+
+
+class RegisterProfessorRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    school_code: str
+
+
+class RegisterStudentRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    school_code: str

@@ -14,6 +14,9 @@ import '../../presentation/views/progression/progression_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
 import '../../presentation/views/tasks/task_list_view.dart';
 import '../../presentation/widgets/retro_ui.dart';
+import '../../presentation/views/auth/register_view.dart';
+import '../../presentation/views/classes/class_list_view.dart';
+import '../../presentation/views/classes/join_class_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authRefresh = GoRouterRefreshStream(
@@ -31,10 +34,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         location: state.uri.path,
       );
     },
-    routes: [
       GoRoute(path: '/splash', builder: (context, state) => const SplashView()),
       GoRoute(path: '/login', builder: (context, state) => const LoginView()),
+      GoRoute(path: '/register', builder: (context, state) => const RegisterView()),
       GoRoute(path: '/lobby', builder: (context, state) => const LobbyView()),
+      GoRoute(path: '/classes', builder: (context, state) => const ClassListView()),
+      GoRoute(path: '/classes/join', builder: (context, state) => const JoinClassView()),
       GoRoute(
         path: '/battle/demo-bot',
         builder: (context, state) => const BotBattleDemoView(),
@@ -76,14 +81,15 @@ String? resolveAppRedirect({
   required String location,
 }) {
   final isLoginRoute = location == '/login';
+  final isRegisterRoute = location == '/register';
   final isSplashRoute = location == '/splash';
   final isPrototypeRoute = location == '/battle/demo-bot';
 
   if (isPrototypeRoute) return null;
   if (isLoading) return isSplashRoute ? null : '/splash';
   if (isSplashRoute) return isAuthenticated ? '/lobby' : '/login';
-  if (!isAuthenticated && !isLoginRoute) return '/login';
-  if (isAuthenticated && isLoginRoute) return '/lobby';
+  if (!isAuthenticated && !isLoginRoute && !isRegisterRoute) return '/login';
+  if (isAuthenticated && (isLoginRoute || isRegisterRoute)) return '/lobby';
   return null;
 }
 

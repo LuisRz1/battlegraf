@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 import '../constants/api_constants.dart';
@@ -20,13 +21,15 @@ class ApiClient {
     if (token != null && token.isNotEmpty) {
       _dio.options.headers['Authorization'] = 'Bearer $token';
     }
-    _dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => debugPrint('$o'),
-      ),
-    );
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          requestBody: true,
+          responseBody: true,
+          logPrint: (o) => debugPrint('$o'),
+        ),
+      );
+    }
   }
 
   Dio get dio => _dio;
@@ -38,9 +41,4 @@ class ApiClient {
   void clearToken() {
     _dio.options.headers.remove('Authorization');
   }
-}
-
-void debugPrint(String message) {
-  // ignore: avoid_print
-  print(message);
 }

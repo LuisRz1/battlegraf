@@ -17,6 +17,8 @@ class User:
     email: str = ""
     hashed_password: str = ""
     full_name: str = ""
+    last_name: str = ""
+    phone: str = ""
     role: Role = Role.STUDENT
     school_id: Optional[UUID] = None
     section_id: Optional[UUID] = None
@@ -76,3 +78,44 @@ class Section:
     tutor_id: Optional[UUID] = None
     is_active: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+@dataclass
+class SchoolCode:
+    id: UUID = field(default_factory=uuid4)
+    school_id: UUID = field(default_factory=uuid4)
+    code: str = ""
+    is_active: bool = True
+
+@dataclass
+class SchoolMembership:
+    id: UUID = field(default_factory=uuid4)
+    user_id: UUID = field(default_factory=uuid4)
+    school_id: UUID = field(default_factory=uuid4)
+    role: str = ""
+    xp: int = 0
+    rank_id: Optional[UUID] = None
+    clan_id: Optional[UUID] = None
+    is_active: bool = True
+    can_view_students: bool = True
+    joined_at: datetime = field(default_factory=datetime.utcnow)
+    left_at: Optional[datetime] = None
+
+@dataclass
+class ClassName:
+    id: UUID = field(default_factory=uuid4)
+    professor_id: UUID = field(default_factory=uuid4)
+    school_id: UUID = field(default_factory=uuid4)
+    name: str = ""
+    subject: Optional[str] = None
+    code: str = ""
+    is_active: bool = True
+
+@dataclass
+class ClassEnrollment:
+    id: UUID = field(default_factory=uuid4)
+    class_id: UUID = field(default_factory=uuid4)
+    student_id: UUID = field(default_factory=uuid4)
+    enrolled_at: datetime = field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+
