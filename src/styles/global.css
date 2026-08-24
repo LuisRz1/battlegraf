@@ -346,6 +346,18 @@
 .auth-helper { margin-top: .5rem; color: var(--color-crema-500); font-size: .72rem; line-height: 1.55; }
 .google-button { display: flex; align-items: center; justify-content: center; gap: .8rem; margin-top: 1.5rem; width: 100%; padding: 1rem; border: 2px solid #e9d9ae; background: #f7eed6; color: #131120; font-weight: bold; font-size: .8rem; text-transform: uppercase; box-shadow: 0 5px 0 #8d7b55; transition: transform .12s ease, box-shadow .12s ease; }
 .google-button:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #8d7b55, 0 0 20px rgba(240,207,122,.2); }
+.auth-role-select { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; margin-top: 1.2rem; }
+.auth-role-card { display: flex; flex-direction: column; gap: .25rem; padding: .8rem .6rem; border: 2px solid rgba(140,110,60,.4); background: rgba(10,10,16,.6); cursor: pointer; transition: border-color .12s, background .12s; }
+.auth-role-card input { position: absolute; opacity: 0; pointer-events: none; }
+.auth-role-card strong { color: var(--color-crema-100); font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; }
+.auth-role-card small { color: var(--color-crema-400); font-size: .56rem; line-height: 1.4; }
+.auth-role-card.active { border-color: var(--color-oro-500); background: rgba(60,46,22,.4); box-shadow: inset 0 0 0 1px rgba(240,207,122,.25); }
+.auth-code-field { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.2rem; }
+.auth-code-field>span { color: var(--color-crema-200); font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; }
+.auth-code-field input { padding: .8rem .9rem; border: 2px solid rgba(140,110,60,.4); background: #0a0a10; color: var(--color-crema-100); font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; }
+.auth-code-field input:focus { border-color: var(--color-oro-500); outline: none; }
+.auth-code-field small { color: var(--color-crema-400); font-size: .52rem; line-height: 1.5; }
+.hidden { display: none !important; }
 .google-mark { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 2px solid #4285f4; color: #4285f4; font-family: Arial, sans-serif; font-size: 1rem; background: white; }
 .auth-config-warning { display: grid; gap: .45rem; margin-top: 1.5rem; padding: 1rem; border: 1px solid #b5852c; background: rgba(181,133,44,.1); }
 .auth-config-warning strong { color: var(--color-oro-300); font-size: .76rem; text-transform: uppercase; }
