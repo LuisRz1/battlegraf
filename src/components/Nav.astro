@@ -30,34 +30,37 @@ const links = [
 		</nav>
 
 		<div class="flex items-center gap-2 sm:gap-3">
-			<a href="/iniciar-sesion" class="hidden text-xs font-bold uppercase tracking-wider text-crema-300 hover:text-oro-300 md:inline">Iniciar sesión</a>
-			<a
-				href="/planes"
-				class="hidden text-xs font-bold uppercase tracking-wider text-crema-300 hover:text-oro-300 sm:inline"
-			>Crear cuenta</a>
-			<button
-				type="button"
-				data-open-game
-				class="pixel-btn !px-3.5 !py-2 sm:!px-5 sm:!py-2.5 !text-xs shadow-[0_0_12px_rgba(230,184,77,0.25)] cursor-pointer"
-			>Jugar</button>
+					<a
+						href="/iniciar-sesion"
+						class="pixel-btn pixel-btn-secondary !px-3 !py-2 sm:!px-4 sm:!py-2.5 !text-xs cursor-pointer"
+					>Iniciar sesión</a>
+					<a
+						href="/registro"
+						class="pixel-btn !px-3 !py-2 sm:!px-4 sm:!py-2.5 !text-xs cursor-pointer"
+					>Registrarse</a>
+					<button
+						type="button"
+						data-open-game
+						class="pixel-btn !px-3.5 !py-2 sm:!px-5 sm:!py-2.5 !text-xs shadow-[0_0_12px_rgba(230,184,77,0.25)] cursor-pointer"
+					>Jugar</button>
 
-			<!-- Botón de Menú Móvil -->
-			<button
-				id="mobile-menu-btn"
-				type="button"
-				class="flex h-9 w-9 items-center justify-center rounded border border-piedra-700 bg-piedra-900 text-crema-300 lg:hidden"
-				aria-label="Abrir menú"
-			>
-				<span aria-hidden="true" class="grid w-4 gap-1"><i class="h-0.5 bg-current"></i><i class="h-0.5 bg-current"></i><i class="h-0.5 bg-current"></i></span>
-			</button>
-		</div>
-	</div>
+					<!-- Botón de Menú Móvil -->
+					<button
+						id="mobile-menu-btn"
+						type="button"
+						class="flex h-9 w-9 items-center justify-center rounded border border-piedra-700 bg-piedra-900 text-crema-300 lg:hidden"
+						aria-label="Abrir menú"
+					>
+						<span aria-hidden="true" class="grid w-4 gap-1"><i class="h-0.5 bg-current"></i><i class="h-0.5 bg-current"></i><i class="h-0.5 bg-current"></i></span>
+					</button>
+				</div>
+			</div>
 
-	<!-- Menú Desplegable Móvil -->
-	<div id="mobile-menu" class="hidden border-b border-piedra-700 bg-piedra-950/98 px-4 py-4 lg:hidden">
-		<nav class="flex flex-col gap-3">
-			<a href="/iniciar-sesion" class="mobile-nav-link text-sm font-bold text-crema-300 py-1.5 border-b border-piedra-800/60">Iniciar sesión</a>
-			<a href="/planes" class="mobile-nav-link text-sm font-bold text-oro-300 py-1.5 border-b border-piedra-800/60">Crear cuenta institucional</a>
+			<!-- Menú Desplegable Móvil -->
+			<div id="mobile-menu" class="hidden border-b border-piedra-700 bg-piedra-950/98 px-4 py-4 lg:hidden">
+				<nav class="flex flex-col gap-3">
+					<a href="/iniciar-sesion" class="pixel-btn pixel-btn-secondary !px-4 !py-2.5 !text-sm text-center cursor-pointer">Iniciar sesión</a>
+					<a href="/registro" class="pixel-btn !px-4 !py-2.5 !text-sm text-center cursor-pointer">Registrarse</a>
 			{
 				links.map((l) => (
 					<a
