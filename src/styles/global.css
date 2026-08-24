@@ -581,40 +581,53 @@
 
 @media (max-width:1100px){.command-shell{grid-template-columns:14.5rem minmax(0,1fr)}.command-topbar{grid-template-columns:1fr 15rem 7rem}.command-avatar{display:none}.command-content{width:calc(100% - 2rem)}.metric-grid{grid-template-columns:repeat(2,1fr)}.card-grid,.subject-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.live-arena{grid-template-columns:1fr 14rem}.live-arena>a{grid-column:1/-1}.file-list>div{grid-template-columns:3rem 1fr auto}.file-list>div>span,.file-list>div>i{display:none}}
 @media (max-width:780px){.command-shell{display:block}.command-sidebar{position:static;height:auto;overflow:visible;padding:.7rem}.command-logo{display:none}.entity-card{margin:.2rem 0 .7rem}.command-nav-label,.config-meter,.command-logout{display:none}.command-sidebar nav{display:flex;overflow-x:auto;padding-bottom:.3rem}.command-sidebar nav a{flex:0 0 auto}.command-topbar{grid-template-columns:1fr;padding:.8rem 1rem}.command-search,.role-view{display:none}.command-trial{grid-template-columns:1fr auto;padding:.7rem 1rem}.command-trial p{grid-column:1/-1}.command-content{width:calc(100% - 1.2rem);padding:1.4rem 0 3rem}.command-title{align-items:flex-start;flex-direction:column;gap:1rem}.command-title .command-btn{width:100%}.command-actions{width:100%}.command-actions>*{flex:1}.metric-grid,.dashboard-grid,.dashboard-grid.two,.institution-command-form,.card-grid,.subject-grid{grid-template-columns:1fr}.metric-grid article{min-height:5.7rem}.role-counts,.rank-track,.process-track{grid-template-columns:repeat(2,1fr)}.table-head{display:none}.table-row{grid-template-columns:1fr auto}.table-row>span{display:none}.file-list>div{grid-template-columns:3rem 1fr}.file-list button{grid-column:1/-1}.question-list article{grid-template-columns:auto 1fr}.question-list article>strong,.question-list article>form,.question-list article>span{grid-column:1/-1}.live-arena{grid-template-columns:1fr}.mini-graph{overflow:hidden}.audit-list>div{grid-template-columns:1fr auto}.audit-list time,.audit-list p{grid-column:1/-1}.audit-list div>span{display:none}.dialog-columns{grid-template-columns:1fr}}
-/* ===== TIPOGRAFIA ACCESIBLE: textos mas grandes en todo el panel ===== */
-.command-sidebar{font-size:.82rem}
-.command-sidebar nav a,.command-nav-label,.command-logout{font-size:.72rem}
-.entity-card strong{font-size:.85rem}
-.entity-card small{font-size:.68rem}
-.command-topbar{font-size:.75rem}
-.command-search,.command-search input{font-size:.75rem}
-.command-title p{font-size:.72rem}
-.command-btn,.territory-card>button,.subject-card>button,.assignment-card>button,.battle-card>button,.table-row button,.file-list button,.question-list button,.audit-list button,.live-arena>a{font-size:.68rem}
-.command-btn.ghost{font-size:.68rem}
-.role-counts strong,.role-counts span,.role-counts b{font-size:.7rem}
-.metric-grid article span,.metric-grid article small{font-size:.68rem}
-.metric-grid article strong{font-size:1.5rem}
-.game-panel>span,.game-panel h2{font-size:.92rem}
-.table-row strong{font-size:.72rem}
-.table-row strong small,.table-row span,.table-row i{font-size:.68rem}
-.file-list>div b,.file-list>div strong{font-size:.75rem}
-.file-list>div strong small,.file-list>div span,.file-list>div i{font-size:.68rem}
-.question-list article b,.question-list article i,.question-list article strong,.question-list article small{font-size:.72rem}
-.assignment-card>div span,.assignment-card>div i,.assignment-card>b,.assignment-card>p,.assignment-card>strong,.assignment-card small{font-size:.7rem}
-.assignments h2,.battle-card h2{font-size:.95rem}
-.battle-card p,.battle-card small,.battle-card>span{font-size:.72rem}
-.clan-list>div>strong,.clan-list>div>span,.clan-list small{font-size:.68rem}
-.rank-track b,.rank-track strong,.rank-track span{font-size:.72rem}
-.audit-list time,.audit-list strong,.audit-list p,.audit-list div>span{font-size:.7rem}
-.live-arena span,.live-arena p{font-size:.7rem}
-.upload-zone span,.upload-zone small{font-size:.62rem}
-.upload-zone b{font-size:.72rem}
-.btn-edit,.btn-del{font-size:.6rem;min-height:2rem;padding:.4rem .7rem}
-.row-actions{gap:.55rem}
-.portal-dialog label{font-size:.72rem}
-.portal-dialog input,.portal-dialog select{font-size:.78rem;padding:.7rem .8rem}
-.detail-dialog p{font-size:.78rem}
-.command-toast{font-size:.75rem}
-.process-track b,.process-track span{font-size:.68rem}
-.xp-source>strong{font-size:.95rem}
-.xp-source small{font-size:.72rem}
+/* ===== TIPOGRAFIA ACCESIBLE v2: textos aun mas grandes + cuadros compactos ===== */
+.command-sidebar{font-size:.95rem}
+.command-sidebar nav a,.command-nav-label,.command-logout{font-size:.88rem}
+.entity-card strong{font-size:1.02rem}
+.entity-card small{font-size:.85rem}
+.command-topbar{font-size:.9rem}
+.command-search,.command-search input{font-size:.9rem}
+.command-title p{font-size:.88rem}
+.command-btn,.territory-card>button,.subject-card>button,.assignment-card>button,.battle-card>button,.table-row button,.file-list button,.question-list button,.audit-list button,.live-arena>a{font-size:.85rem}
+.command-btn.ghost{font-size:.85rem}
+.role-counts strong,.role-counts span,.role-counts b{font-size:.88rem}
+.role-counts{padding:.55rem 0}
+.metric-grid article span,.metric-grid article small{font-size:.85rem}
+.metric-grid article strong{font-size:1.9rem}
+.game-panel>span,.game-panel h2{font-size:1.08rem}
+.table-row strong{font-size:.92rem}
+.table-row strong small,.table-row span,.table-row i{font-size:.85rem}
+.table-row{padding:.6rem 0}
+.file-list>div b,.file-list>div strong{font-size:.95rem}
+.file-list>div strong small,.file-list>div span,.file-list>div i{font-size:.85rem}
+.question-list article b,.question-list article i,.question-list article strong,.question-list article small{font-size:.9rem}
+.assignment-card>div span,.assignment-card>div i,.assignment-card>b,.assignment-card>p,.assignment-card>strong,.assignment-card small{font-size:.88rem}
+.assignments h2,.battle-card h2{font-size:1.15rem}
+.territory-card h2,.subject-card h2{font-size:1.05rem}
+.territory-card p{font-size:.9rem}
+.territory-card dl dt,.territory-card dl dd{font-size:.85rem}
+.section-glyph{font-size:1.15rem}
+.subject-card span,.subject-card p,.subject-card dl dt,.subject-card dl dd{font-size:.85rem}
+.subject-icon b{font-size:1.2rem}
+.command-title span{font-size:.9rem}
+.command-notice p,.command-notice b{font-size:.85rem}
+.battle-card p,.battle-card small,.battle-card>span{font-size:.9rem}
+.clan-list>div>strong,.clan-list>div>span,.clan-list small{font-size:.85rem}
+.rank-track b,.rank-track strong,.rank-track span{font-size:.9rem}
+.audit-list time,.audit-list strong,.audit-list p,.audit-list div>span{font-size:.88rem}
+.live-arena span,.live-arena p{font-size:.88rem}
+.upload-zone span,.upload-zone small{font-size:.78rem}
+.upload-zone b{font-size:.9rem}
+.btn-edit,.btn-del{font-size:.78rem;min-height:2.3rem;padding:.5rem .85rem}
+.row-actions{gap:.6rem}
+.portal-dialog label{font-size:.9rem}
+.portal-dialog input,.portal-dialog select{font-size:.95rem;padding:.8rem .9rem}
+.detail-dialog p{font-size:.95rem}
+.command-toast{font-size:.9rem}
+.process-track b,.process-track span{font-size:.85rem}
+.xp-source>strong{font-size:1.15rem}
+.xp-source small{font-size:.9rem}
+.game-panel{padding:1.1rem}
+.command-content{padding:1.6rem 2rem 3rem}
+.card-grid{gap:.8rem}
