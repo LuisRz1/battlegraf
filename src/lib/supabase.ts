@@ -1,4 +1,5 @@
 import { createServerClient, parseCookieHeader } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { AstroCookies } from "astro";
 
 function getSupabaseUrl() {
@@ -28,6 +29,32 @@ function getSupabasePublishableKey() {
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
 		""
 	);
+}
+
+function getSupabaseSecretKey() {
+	return (
+		import.meta.env.SUPABASE_SECRET_KEY ??
+		process.env.SUPABASE_SECRET_KEY ??
+		""
+	);
+}
+
+export function hasSupabaseSecret() {
+	return Boolean(getSupabaseUrl() && getSupabaseSecretKey());
+}
+
+/**
+ * Cliente administrativo (service role) para operaciones server-side que
+ * necesitan saltarse RLS (p. ej. buscar un colegio por código para el join de
+ * profesor/alumno, que aún no tiene membership). NUNCA exponer al navegador.
+ */
+export function createSupabaseServiceClient() {
+	const url = getSupabaseUrl();
+	const key = getSupabaseSecretKey();
+	if (!url || !key) {
+		throw new Error("SUPABASE_SECRET_KEY no está configurado.");
+	}
+	return createClient(url, key);
 }
 
 export function hasSupabaseConfig() {

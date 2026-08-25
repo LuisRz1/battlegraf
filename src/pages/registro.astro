@@ -5,17 +5,32 @@ import { hasSupabaseConfig } from "../lib/supabase";
 
 const plan = getPlan(Astro.url.searchParams.get("plan"));
 const authReady = hasSupabaseConfig();
+const error = Astro.url.searchParams.get("error");
+const enviado = Astro.url.searchParams.get("enviado") === "1";
+
+const errorMap: Record<string, string> = {
+	invalid_name: "Escribe tu nombre completo.",
+	invalid_email: "El correo no tiene un formato válido.",
+	short_password: "La contraseña debe tener al menos 8 caracteres.",
+	missing_code: "Escribe el código del colegio para unirte.",
+	signup: "No pudimos crear la cuenta. Inténtalo nuevamente.",
+	school_not_found: "No encontramos un colegio con ese código. Verifica con tu director o profesor.",
+	membership_failed: "No pudimos vincular tu cuenta al colegio. Inténtalo nuevamente.",
+	bootstrap_failed: "No pudimos crear tu institución. Inténtalo nuevamente.",
+	oauth: "No se completó la validación con Google. Inténtalo nuevamente.",
+	config: "El registro está listo pero falta la conexión con Supabase.",
+};
 ---
 
 <PortalLayout
 	title="Crear cuenta institucional | BattleGraph"
-	description="Cree una cuenta institucional de BattleGraph con validación segura de Google."
+	description="Cree una cuenta institucional de BattleGraph con Google o con su correo electrónico."
 >
 	<section class="auth-shell">
 		<div class="auth-copy">
 			<div class="portal-kicker">REGISTRO INSTITUCIONAL / PASO 02</div>
 			<h1>Funda tu<br /><span>academia</span></h1>
-			<p>La cuenta de Google identifica al propietario inicial. BattleGraph crea automáticamente un colegio demostrativo editable con secciones, materias, clanes, estudiantes, materiales y reglas de batalla.</p>
+			<p>Regístrate con Google o con tu correo. BattleGraph crea automáticamente un colegio demostrativo editable con secciones, materias, clanes, estudiantes, materiales y reglas de batalla.</p>
 
 			<div class="auth-steps" aria-label="Proceso de registro">
 				<div class="active"><b>01</b><span>Elegir plan</span></div>
@@ -41,85 +56,122 @@ const authReady = hasSupabaseConfig();
 			)}
 
 			<h2>Crea tu acceso</h2>
-						<p class="auth-helper">Elige tu rol. La cuenta de Google identifica a la persona y queda vinculada al colegio para su trazabilidad.</p>
+			<p class="auth-helper">Elige tu rol. La cuenta identifica a la persona y queda vinculada al colegio para su trazabilidad.</p>
 
-						<div class="auth-role-select" id="auth-role-select">
-							<label class="auth-role-card active" data-role="director">
-								<input type="radio" name="role" value="director" checked />
-								<strong>Director</strong>
-								<small>Fundo el colegio</small>
-							</label>
-							<label class="auth-role-card" data-role="teacher">
-								<input type="radio" name="role" value="teacher" />
-								<strong>Profesor</strong>
-								<small>Me uno a un colegio</small>
-							</label>
-							<label class="auth-role-card" data-role="student">
-								<input type="radio" name="role" value="student" />
-								<strong>Alumno</strong>
-								<small>Me uno a un colegio</small>
-							</label>
-						</div>
+			{enviado && (
+				<div class="auth-config-warning auth-success" role="status">
+					<strong>Revisa tu correo</strong>
+					<span>Te enviamos un enlace de confirmación. Ábrelo y entrarás directo al panel de tu colegio.</span>
+				</div>
+			)}
+			{error && errorMap[error] && (
+				<div class="auth-config-warning" role="alert">
+					<strong>No se completó el registro</strong>
+					<span>{errorMap[error]}</span>
+				</div>
+			)}
 
-						<label class="auth-code-field hidden" id="school-code-field">
-							<span>Código del colegio</span>
-							<input id="school-code" name="school_code" placeholder="EJ: BG-7A2K" maxlength="30" autocomplete="off" />
-							<small>Pide el código a tu director o profesor. Sirve para vincular tu cuenta al colegio.</small>
-						</label>
+			<form method="post" action="/api/registro-email" class="auth-form" id="email-register-form">
+				<div class="auth-role-select" id="auth-role-select">
+					<label class="auth-role-card active" data-role="director">
+						<input type="radio" name="role" value="director" checked />
+						<strong>Director</strong>
+						<small>Fundo el colegio</small>
+					</label>
+					<label class="auth-role-card" data-role="teacher">
+						<input type="radio" name="role" value="teacher" />
+						<strong>Profesor</strong>
+						<small>Me uno a un colegio</small>
+					</label>
+					<label class="auth-role-card" data-role="student">
+						<input type="radio" name="role" value="student" />
+						<strong>Alumno</strong>
+						<small>Me uno a un colegio</small>
+					</label>
+				</div>
 
-						{authReady ? (
-							<a class="google-button" id="google-join" href={`/auth/google?plan=${plan.slug}&role=director`}>
-								<span class="google-mark" aria-hidden="true">G</span>
-								Continuar con Google
-							</a>
-						) : (
-							<div class="auth-config-warning" role="status">
-								<strong>Conexión pendiente</strong>
-								<span>El formulario está listo. Falta configurar las variables de Supabase en Vercel para habilitar Google.</span>
-							</div>
-						)}
+				<label class="auth-code-field hidden" id="school-code-field">
+					<span>Código del colegio</span>
+					<input id="school-code" name="school_code" placeholder="EJ: BG-7A2K" maxlength="30" autocomplete="off" />
+					<small>Pide el código a tu director o profesor. Sirve para vincular tu cuenta al colegio.</small>
+				</label>
+
+				<input type="hidden" name="plan" value={plan.slug} />
+
+				<label class="auth-field">
+					<span>Nombre completo</span>
+					<input type="text" name="full_name" placeholder="EJ: María Fernández Rojas" required minlength="2" autocomplete="name" />
+				</label>
+
+				<label class="auth-field">
+					<span>Correo electrónico</span>
+					<input type="email" name="email" placeholder="EJ: maria@colegio.edu.pe" required autocomplete="email" />
+				</label>
+
+				<label class="auth-field">
+					<span>Contraseña</span>
+					<input type="password" name="password" placeholder="Mínimo 8 caracteres" required minlength="8" autocomplete="new-password" />
+				</label>
+
+				<button class="email-submit" type="submit">Crear cuenta con correo</button>
+
+				<div class="auth-divider"><span>o continúa con</span></div>
+
+				{authReady ? (
+					<a class="google-button" id="google-join" href={`/auth/google?plan=${plan.slug}&role=director`}>
+						<span class="google-mark" aria-hidden="true">G</span>
+						Continuar con Google
+					</a>
+				) : (
+					<div class="auth-config-warning" role="status">
+						<strong>Conexión pendiente</strong>
+						<span>El formulario está listo. Falta configurar las variables de Supabase en Vercel para habilitar Google.</span>
+					</div>
+				)}
+			</form>
 
 			<div class="auth-security">
 				<span class="security-glyph" aria-hidden="true"></span>
-				<div><strong>Acceso protegido</strong><small>OAuth 2.0 con PKCE, sesión segura y permisos por institución.</small></div>
+				<div><strong>Acceso protegido</strong><small>Sesión segura, contraseña cifrada por Supabase y permisos por institución.</small></div>
 			</div>
 
 			<p class="auth-legal">Al continuar aceptas los términos de uso institucional y la política de tratamiento de datos. Las cuentas de menores son creadas y administradas por el colegio.</p>
 			<p class="auth-existing">¿Ya configuraste BattleGraph? <a href="/iniciar-sesion">Inicia sesión</a></p>
-					</div>
-				</section>
+		</div>
+	</section>
 
-				<script>
-					// Selector de rol + código de colegio en el registro
-					const roleCards = document.querySelectorAll("[data-role]");
-					const codeField = document.getElementById("school-code-field");
-					const codeInput = document.getElementById("school-code");
-					const googleJoin = document.getElementById("google-join");
-					const planSlug = new URLSearchParams(location.search).get("plan") ?? "explorador";
+	<script>
+			// Selector de rol + código de colegio en el registro
+			const roleCards = document.querySelectorAll<HTMLElement>("[data-role]");
+			const codeField = document.getElementById("school-code-field");
+			const codeInput = document.getElementById("school-code") as HTMLInputElement | null;
+			const googleJoin = document.getElementById("google-join") as HTMLAnchorElement | null;
+			const planSlug = new URLSearchParams(location.search).get("plan") ?? "explorador";
 
-					function updateJoin() {
-						const active = [...roleCards].find((c) => c.classList.contains("active"));
-						const role = active ? active.dataset.role : "director";
-						let href = `/auth/google?plan=${planSlug}&role=${role}`;
-						if (role !== "director") {
-							const code = (codeInput?.value ?? "").trim().toUpperCase();
-							codeField?.classList.remove("hidden");
-							if (code.length >= 3) href += `&school_code=${encodeURIComponent(code)}`;
-						} else {
-							codeField?.classList.add("hidden");
-						}
-						if (googleJoin) googleJoin.href = href;
-					}
+			function updateJoin() {
+				const active = [...roleCards].find((c) => c.classList.contains("active"));
+				const role = active ? (active.dataset.role ?? "director") : "director";
+				let href = `/auth/google?plan=${planSlug}&role=${role}`;
+				if (role !== "director") {
+					const code = (codeInput?.value ?? "").trim().toUpperCase();
+					codeField?.classList.remove("hidden");
+					if (code.length >= 3) href += `&school_code=${encodeURIComponent(code)}`;
+				} else {
+					codeField?.classList.add("hidden");
+				}
+				if (googleJoin) googleJoin.href = href;
+			}
 
-					roleCards.forEach((card) => {
-						card.addEventListener("click", () => {
-							roleCards.forEach((c) => c.classList.remove("active"));
-							card.classList.add("active");
-							card.querySelector("input") && (card.querySelector("input").checked = true);
-							updateJoin();
-						});
-					});
-					codeInput?.addEventListener("input", updateJoin);
+			roleCards.forEach((card) => {
+				card.addEventListener("click", () => {
+					roleCards.forEach((c) => c.classList.remove("active"));
+					card.classList.add("active");
+					const radio = card.querySelector("input");
+					if (radio) radio.checked = true;
 					updateJoin();
-				</script>
-			</PortalLayout>
+				});
+			});
+			codeInput?.addEventListener("input", updateJoin);
+			updateJoin();
+		</script>
+</PortalLayout>
