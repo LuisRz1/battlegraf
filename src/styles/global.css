@@ -631,3 +631,8 @@
 .game-panel{padding:1.1rem}
 .command-content{padding:1.6rem 2rem 3rem}
 .card-grid{gap:.8rem}
+.institution-command-form label{font-size:.85rem}
+.institution-command-form input{font-size:.95rem;padding:.7rem .8rem}
+.institution-command-form strong{font-size:.9rem}
+.institution-command-form small{font-size:.8rem}
+.institution-command-form .command-btn{font-size:.85rem}
