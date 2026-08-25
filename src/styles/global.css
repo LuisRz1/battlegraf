@@ -378,7 +378,7 @@
 .auth-field input { padding: .8rem .9rem; border: 2px solid rgba(140,110,60,.4); background: #0a0a10; color: var(--color-crema-100); font-size: .8rem; }
 .auth-field input:focus { border-color: var(--color-oro-500); outline: none; }
 .auth-field input::placeholder { color: var(--color-crema-600); font-size: .72rem; }
-.email-submit { display: block; width: 100%; margin-top: .3rem; padding: 1rem; border: 2px solid var(--color-oro-600); background: var(--color-oro-600); color: #131120; font-weight: bold; font-size: .8rem; text-transform: uppercase; cursor: pointer; box-shadow: 0 5px 0 #6f5c33; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+.email-submit { display: block; width: 100%; margin-top: .3rem; padding: 1rem; border: 2px solid var(--color-oro-500); background: var(--color-oro-500); color: #131120; font-weight: bold; font-size: .8rem; text-transform: uppercase; cursor: pointer; box-shadow: 0 5px 0 #6f5c33; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
 .email-submit:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #6f5c33, 0 0 20px rgba(240,207,122,.2); background: var(--color-oro-500); }
 .auth-divider { display: flex; align-items: center; gap: .8rem; color: var(--color-crema-500); font-size: .58rem; text-transform: uppercase; letter-spacing: .1em; }
 .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--color-piedra-700); }
