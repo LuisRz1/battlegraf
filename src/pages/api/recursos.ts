@@ -340,10 +340,45 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		return go(redirect, "saved=deleted", "progreso");
 	}
 	if (action === "delete_section") {
-		const id = clean(form.get("id"), 40);
-		await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "estructura");
-	}
+			const id = clean(form.get("id"), 40);
+			await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
+			return go(redirect, "saved=deleted", "estructura");
+		}
+		if (action === "class") {
+					const name = clean(form.get("name"), 140);
+					const subjectId = clean(form.get("subject_id"), 40) || null;
+					const sectionId = clean(form.get("section_id"), 40) || null;
+					if (!name || name.length < 3) return go(redirect, "error=validation", "clases");
+					const { data: year } = await supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_active", true).limit(1).maybeSingle();
+					// materia: resuelve el nombre para la columna subject (texto)
+					let subjectName: string | null = null;
+					if (subjectId) {
+						const { data: subj } = await supabase.from("subjects").select("name").eq("id", subjectId).maybeSingle();
+						subjectName = subj?.name ?? null;
+					}
+					// Código único de la clase: CL-XXXX (letras y números)
+					let code = "";
+					for (let attempt = 0; attempt < 12 && !code; attempt++) {
+						const candidate =
+							"CL-" + Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+						const { data: existing } = await supabase.from("classes").select("id").eq("code", candidate).maybeSingle();
+						if (!existing) code = candidate;
+					}
+					const { data: myMemberships } = await supabase.from("memberships").select("id").eq("user_id", userData.user.id).eq("school_id", schoolId).eq("role", "teacher").limit(1).maybeSingle();
+					const teacherMembershipId = myMemberships?.id ?? null;
+					const { error } = await supabase.from("classes").insert({
+						school_id: schoolId,
+						name,
+						subject: subjectName,
+						code,
+						is_active: true,
+						academic_year_id: year?.id ?? null,
+						section_id: sectionId,
+						subject_id: subjectId,
+						teacher_membership_id: teacherMembershipId,
+					});
+					return go(redirect, error ? "error=save" : "created=class", "clases");
+				}
 
-	return go(redirect, "error=unknown_action", "configuracion");
-};
+		return go(redirect, "error=unknown_action", "configuracion");
+	};

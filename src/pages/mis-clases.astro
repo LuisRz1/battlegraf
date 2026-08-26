@@ -1,0 +1,99 @@
+---
+import PortalLayout from "../layouts/PortalLayout.astro";
+import { createSupabaseServerClient, hasSupabaseConfig } from "../lib/supabase";
+
+if (!hasSupabaseConfig()) return Astro.redirect("/iniciar-sesion?error=config");
+const supabase = createSupabaseServerClient({ request: Astro.request, cookies: Astro.cookies });
+const { data: userData } = await supabase.auth.getUser();
+if (!userData.user) return Astro.redirect("/iniciar-sesion");
+
+const ok = Astro.url.searchParams.get("ok") === "1";
+const error = Astro.url.searchParams.get("error");
+const errorMap: Record<string, string> = {
+	missing_code: "Escribe el código de la clase.",
+	no_student: "Tu cuenta no tiene un perfil de alumno. Pide al director que te cree uno.",
+	class_not_found: "No encontramos una clase activa con ese código este año.",
+	save: "No pudimos inscribirte. Inténtalo nuevamente.",
+};
+
+// El perfil de alumno del usuario
+const { data: memberships } = await supabase
+	.from("memberships")
+	.select("school_id, schools(name)")
+	.eq("user_id", userData.user.id)
+	.eq("role", "student");
+const members = (memberships ?? []) as any[];
+const schoolIds = members.map((m: any) => m.school_id).filter(Boolean);
+const { data: studentProfiles } = schoolIds.length
+	? await supabase.from("student_profiles").select("id, full_name, section_id, school_id").in("school_id", schoolIds).order("created_at")
+	: { data: [] as any[] };
+const myProfile = ((studentProfiles ?? []) as any[])[0] ?? null;
+
+// Sus enrolamientos + clases (con materia, año)
+const { data: enrollRows } = myProfile
+	? await supabase
+			.from("class_enrollments")
+			.select("id, status, classes(id, name, subject, code, is_active, academic_years(label, is_active))")
+			.eq("student_profile_id", myProfile.id)
+			.order("enrolled_at", { ascending: false })
+	: { data: [] as any[] };
+const myClasses = ((enrollRows ?? []) as any[]).map((e: any) => e.classes).filter(Boolean);
+const rel = (v: any) => (Array.isArray(v) ? (v[0] ?? null) : v);
+---
+
+<PortalLayout
+	title="Mis clases | BattleGraph"
+	description="Tus clases del año y acceso con código de clase."
+>
+	<section class="auth-shell">
+		<div class="auth-copy">
+			<div class="portal-kicker">ACCESO ESTUDIANTE</div>
+			<h1>Mis <span>clases</span></h1>
+			<p>Únete a tus clases con el código que te dio tu profesor. Solo las clases vigentes del año lectivo actual aceptan alumnos.</p>
+			<div class="login-benefits">
+				<span>Entra con el código de la clase (ej: CL-7K2X)</span>
+				<span>Cada año se crean clases nuevas</span>
+				<span>Tu historial sigue ligado a tu perfil</span>
+			</div>
+		</div>
+
+		<div class="auth-card">
+			<div class="auth-plan-line"><span>CODIGO DE CLASE</span></div>
+			<h2>Unirme a una clase</h2>
+
+			{ok && <div class="auth-config-warning auth-success" role="status"><strong>Inscrito ✓</strong><span>Ya formas parte de la clase. Aparecerá en tu lista.</span></div>}
+			{error && errorMap[error] && <div class="auth-config-warning" role="alert"><strong>No se completó</strong><span>{errorMap[error]}</span></div>}
+
+			<form method="post" action="/api/unir-clase" class="auth-form">
+				<label class="auth-field">
+					<span>Código de la clase</span>
+					<input type="text" name="codigo" placeholder="EJ: CL-7K2X" required maxlength="10" autocomplete="off" style="text-transform:uppercase" />
+				</label>
+				<button class="email-submit" type="submit">Unirme a la clase</button>
+			</form>
+
+			<div class="auth-divider"><span>mis clases</span></div>
+
+			{myClasses.length === 0 ? (
+				<p class="auth-helper" style="margin-top:1rem">Todavía no perteneces a ninguna clase. Pide el código a tu profesor.</p>
+			) : (
+				<div class="card-grid class-grid" style="margin-top:1rem">
+					{myClasses.map((c: any) => {
+						const ay = rel(c.academic_years);
+						const activo = c.is_active && (ay?.is_active ?? true);
+						return (
+							<article class="class-card searchable" style="margin-top:.6rem">
+								<div class="class-card-head">
+									<span class="class-code">{c.code ?? "---"}</span>
+									<i class:list={["class-status", activo && "live"]}>{activo ? "VIGENTE" : "ARCHIVADA"}</i>
+								</div>
+								<h2>{c.name}</h2>
+								<p>{c.subject ?? "Materia general"} · {ay?.label ?? "Sin año"}</p>
+							</article>
+						);
+					})}
+				</div>
+			)}
+		</div>
+	</section>
+</PortalLayout>
