@@ -190,7 +190,8 @@ document.querySelectorAll<HTMLDialogElement>("dialog").forEach(d=>d.addEventList
 document.querySelectorAll<HTMLElement>("[data-detail-title]").forEach(b=>b.addEventListener("click",()=>{const t=document.getElementById("detail-title"),p=document.getElementById("detail-body");if(t)t.textContent=b.dataset.detailTitle??"Detalle";if(p)p.textContent=b.dataset.detailBody??"";openDialog("detail-dialog");}));
 // Toda la tarjeta abre su modal al hacer clic (secciones, materias, etc.)
 document.querySelectorAll<HTMLElement>("[data-detail-card]").forEach(card=>card.addEventListener("click",(e)=>{
-	if((e.target as HTMLElement).closest("button,a,input,select,label,form"))return; // no abrir si pulsan botones internos
+	// no abrir si pulsan botones internos o la zona de acciones (editar/eliminar)
+	if((e.target as HTMLElement).closest("button,a,input,select,label,form,.row-actions,.class-actions"))return;
 	const t=document.getElementById("detail-title"),p=document.getElementById("detail-body");
 	if(t)t.textContent=card.dataset.detailTitle??"Detalle";
 	if(p)p.textContent=card.dataset.detailBody??"";
