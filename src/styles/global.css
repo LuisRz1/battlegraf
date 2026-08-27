@@ -708,3 +708,17 @@
 .confirm-dialog p{font-size:.85rem;color:#e6d9bd;line-height:1.5;padding:.4rem 0 .8rem}
 .dialog-actions{display:flex;gap:.6rem;justify-content:center}
 .dialog-actions .command-btn{min-width:8rem}
+/* --- Barra de desplazamiento con el tema del sistema --- */
+*{scrollbar-width:thin;scrollbar-color:#5a4a3a #121014}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track{background:#121014;border-left:1px solid #2a2426}
+::-webkit-scrollbar-thumb{background:#5a4a3a;border:3px solid #121014;border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:#c89a37;border:3px solid #121014}
+::-webkit-scrollbar-thumb:active{background:#f0cf7a}
+::-webkit-scrollbar-corner{background:#121014}
+/* Scroll interno del panel (sidebar y listas) */
+.command-sidebar{scrollbar-width:thin;scrollbar-color:#3a3032 #0d0b0e}
+.command-sidebar::-webkit-scrollbar{width:8px}
+.command-sidebar::-webkit-scrollbar-track{background:#0d0b0e;border-left:1px solid #1f1a1d}
+.command-sidebar::-webkit-scrollbar-thumb{background:#3a3032;border:2px solid #0d0b0e;border-radius:6px}
+.command-sidebar::-webkit-scrollbar-thumb:hover{background:#c89a37}
