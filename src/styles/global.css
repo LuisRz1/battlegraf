@@ -687,3 +687,19 @@
 .membership-row span{font-size:.75rem;color:#f0cf7a;text-transform:uppercase}
 .membership-row i{font-size:.68rem;color:#df8790;font-style:normal;text-transform:uppercase}
 @media(max-width:900px){.profile-grid{grid-template-columns:1fr}}
+/* --- Transiciones suaves para una navegacion mas fluida --- */
+.territory-card,.subject-card,.class-card,.battle-card,.assignment-card,.entity-card{transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease}
+.territory-card:hover,.subject-card:hover,.class-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.45);border-color:#c89a37}
+.subject-card:hover .subject-icon{transform:scale(1.06)}
+.subject-icon,.section-glyph{transition:transform .22s ease}
+.command-sidebar nav a{transition:color .18s ease,background .18s ease,transform .18s ease}
+.command-sidebar nav a:hover{transform:translateX(3px)}
+.command-btn,.google-button,.email-submit,.btn-edit,.btn-del{transition:transform .16s ease,box-shadow .16s ease,background .16s ease,border-color .16s ease,color .16s ease}
+.command-content{animation:fadeUp .3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.portal-dialog{animation:dialogIn .22s ease}
+@keyframes dialogIn{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
+.table-row,.searchable{transition:background .18s ease}
+.table-row:hover,.searchable:hover{background:rgba(200,154,55,.07)}
+.metric-grid article,.role-counts div{transition:transform .18s ease,border-color .18s ease}
+.metric-grid article:hover,.role-counts div:hover{transform:translateY(-2px);border-color:#c89a37}
