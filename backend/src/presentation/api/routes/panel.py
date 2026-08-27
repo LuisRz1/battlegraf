@@ -56,6 +56,7 @@ class QuestionIn(BaseModel):
     question: str = Field(min_length=8, max_length=400)
     options: list[str] = Field(min_length=4, max_length=4)
     correct_index: int = Field(ge=0, le=3)
+    status: str | None = None
 
 
 class AssignmentIn(BaseModel):
@@ -138,6 +139,60 @@ async def _require_member(supabase: Any, uid: str, school_id: str, roles: list[s
     return rows[0]
 
 
+# ---------- dashboard (todas las lecturas del panel en una llamada) ----------
+
+@router.get("/{school_id}/dashboard")
+async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_uid)]):
+    """Devuelve todos los datos que necesita el panel (lecturas) en una sola respuesta."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor", "teacher", "student"])
+    t = supabase.table
+    load = lambda name, select, **kw: (t(name).select(select).eq("school_id", school_id) if "school_id" in select or True else t(name).select(select)).order(kw.get("order", "created_at")).limit(kw.get("limit")).execute()
+    out: dict[str, Any] = {"school_id": school_id}
+
+    def rows(resp):
+        return resp.data or []
+
+    try:
+        out["subscription"] = (t("subscriptions").select("*").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+        out["students"] = rows(t("student_profiles").select("id, school_id, full_name, email, section_id, membership_id, status, is_demo, created_at").eq("school_id", school_id).execute())
+        out["sections"] = rows(t("sections").select("*").eq("school_id", school_id).execute())
+        out["subjects"] = rows(t("subjects").select("id, school_id, slug, name, color, icon_code, is_enabled, is_demo, created_at").eq("school_id", school_id).eq("is_enabled", True).execute())
+        out["clans"] = rows(t("clans").select("id, name, color, rank_name, section_id, is_demo, created_at").eq("school_id", school_id).execute())
+        out["materials"] = rows(t("learning_materials").select("id, school_id, title, file_name, file_type, processing_status, subject_id, created_at").eq("school_id", school_id).order("created_at", True).execute())
+        out["questions"] = rows(t("question_bank").select("id, school_id, question, options, status, subject_id, source, is_demo, created_at").eq("school_id", school_id).order("created_at", True).execute())
+        out["staff"] = rows(t("staff_profiles").select("id, school_id, full_name, email, role, scope_label, status, is_demo, created_at").eq("school_id", school_id).execute())
+        out["assignments"] = rows(t("assignments").select("id, school_id, title, section_id, subject_id, delivery_type, due_at, xp_reward, status").eq("school_id", school_id).execute())
+        out["battles"] = rows(t("battle_events").select("id, school_id, title, battle_type, opponent_a, opponent_b, scheduled_at, graph_layers, nodes_per_layer, status").eq("school_id", school_id).execute())
+        out["ranks"] = rows(t("rank_definitions").select("id, school_id, name, min_xp, position, is_demo").eq("school_id", school_id).execute())
+        out["audits"] = rows(t("audit_logs").select("id, actor_name, action, target_label, category, created_at").eq("school_id", school_id).order("created_at", True).limit(30).execute())
+        out["settings"] = (t("school_settings").select("battle_rules, rank_rules, ai_preferences, accessibility").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+        out["classes"] = rows(t("classes").select("id, school_id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, teacher_membership_id").eq("school_id", school_id).order("created_at", True).execute())
+        class_ids = [str(c["id"]) for c in out["classes"]]
+        out["enrollments"] = rows(t("class_enrollments").select("id, class_id, student_profile_id, academic_year_id, status, enrolled_at").in_("class_id", class_ids).execute()) if class_ids else []
+
+        # relaciones para compatibilidad con el front
+        subj_by_id = {str(s["id"]): s["name"] for s in out["subjects"]}
+        sec_by_id = {str(s["id"]): s["display_name"] for s in out["sections"]}
+        stud_by_id = {str(st["id"]): st["full_name"] for st in out["students"]}
+        stud_email_by_id = {str(st["id"]): st.get("email") for st in out["students"]}
+        for m in out["materials"]:
+            m["subjects"] = [{"name": subj_by_id.get(str(m.get("subject_id")), "Sin materia")}] if m.get("subject_id") else []
+        for q in out["questions"]:
+            q["subjects"] = [{"name": subj_by_id.get(str(q.get("subject_id")), "General")}] if q.get("subject_id") else []
+        for a in out["assignments"]:
+            a["subjects"] = [{"name": subj_by_id.get(str(a.get("subject_id")), "General")}] if a.get("subject_id") else []
+            a["sections"] = [{"id": str(a.get("section_id")), "display_name": sec_by_id.get(str(a.get("section_id")), "")}] if a.get("section_id") else []
+        for c in out["classes"]:
+            c["academic_years"] = [{"label": "2026", "is_active": True}]
+            c["sections"] = [{"id": str(c.get("section_id")), "display_name": sec_by_id.get(str(c.get("section_id")), ""), "level": "", "grade": "", "section_label": ""}] if c.get("section_id") else []
+        for e in out["enrollments"]:
+            e["student_profiles"] = [{"id": e.get("student_profile_id"), "full_name": stud_by_id.get(str(e.get("student_profile_id")), "Alumno"), "email": stud_email_by_id.get(str(e.get("student_profile_id")))}]
+    except Exception as exc:  # noqa: BLE001
+        raise _fail(f"Error cargando el dashboard: {exc}")
+    return out
+
+
 # ---------- secciones ----------
 
 @router.post("/{school_id}/sections", response_model=Msg)
@@ -153,7 +208,18 @@ async def create_section(school_id: str, body: SectionIn, uid: Annotated[str, De
         "section_label": label, "code": code, "display_name": display,
         "tutor_name": body.tutor_name, "academic_year_id": (year.data or [{}])[0].get("id"),
     }).execute()
-    return Msg(id=resp and resp.data and resp.data[0].get("id"), detail="Seccion creada")
+    sec_id = resp.data[0].get("id") if resp.data else None
+    try:
+        subs = supabase.table("subjects").select("id").eq("school_id", school_id).execute()
+        if subs.data:
+            supabase.table("section_subjects").insert([{"section_id": sec_id, "subject_id": s["id"]} for s in subs.data]).execute()
+        supabase.table("clans").insert([
+            {"school_id": school_id, "section_id": sec_id, "name": f"{label} Rojos", "color": "#ef3340", "is_demo": False},
+            {"school_id": school_id, "section_id": sec_id, "name": f"{label} Morados", "color": "#9d55f5", "is_demo": False},
+        ]).execute()
+    except Exception:  # noqa: BLE001
+        pass
+    return Msg(id=sec_id, detail="Seccion creada")
 
 
 @router.patch("/sections/{section_id}", response_model=Msg)
@@ -197,7 +263,14 @@ async def create_subject(school_id: str, body: SubjectIn, uid: Annotated[str, De
         "school_id": school_id, "name": body.name, "slug": slug,
         "icon_code": body.icon_code.upper(), "color": body.color, "is_enabled": True,
     }).execute()
-    return Msg(id=resp.data[0].get("id") if resp.data else None, detail="Materia creada")
+    subj_id = resp.data[0].get("id") if resp.data else None
+    try:
+        secs = supabase.table("sections").select("id").eq("school_id", school_id).execute()
+        if secs.data:
+            supabase.table("section_subjects").insert([{"section_id": sec["id"], "subject_id": subj_id} for sec in secs.data]).execute()
+    except Exception:  # noqa: BLE001
+        pass
+    return Msg(id=subj_id, detail="Materia creada")
 
 
 @router.patch("/subjects/{subject_id}", response_model=Msg)
@@ -389,6 +462,84 @@ async def delete_battle(battle_id: str, uid: Annotated[str, Depends(_current_uid
     return Msg(detail="Batalla eliminada")
 
 
+# ---------- materiales ----------
+
+class MaterialIn(BaseModel):
+    title: str = Field(min_length=3, max_length=120)
+    subject_id: str
+    file_name: str | None = None
+    file_type: str | None = None
+
+
+@router.post("/{school_id}/materials", response_model=Msg)
+async def create_material(school_id: str, body: MaterialIn, uid: Annotated[str, Depends(_current_uid)]):
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
+    subj = (supabase.table("subjects").select("id").eq("id", body.subject_id).eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+    if not subj.get("id"):
+        raise _fail("Materia invalida")
+    ftype = body.file_type or (body.file_name.split(".")[-1].lower() if body.file_name else "manual")
+    resp = supabase.table("learning_materials").insert({
+        "school_id": school_id, "subject_id": body.subject_id, "title": body.title,
+        "file_name": body.file_name, "file_type": ftype, "processing_status": "ready",
+        "is_demo": False,
+    }).execute()
+    mid = resp.data[0].get("id") if resp.data else None
+    # preguntas de prototipo vinculadas al material (como hacia el front)
+    try:
+        supabase.table("question_bank").insert([
+            {"school_id": school_id, "subject_id": body.subject_id, "question": f"Cuál es la idea principal de «{body.title}»?", "options": ["El concepto central", "Un detalle secundario", "Un tema distinto", "Ninguna"], "correct_index": 0, "status": "review", "source": "prototype-ai", "is_demo": False},
+            {"school_id": school_id, "subject_id": body.subject_id, "question": f"Qué estrategia ayuda a comprender «{body.title}»?", "options": ["Relacionar sus ideas", "Ignorar ejemplos", "Memorizar sin leer", "Cambiar de tema"], "correct_index": 0, "status": "review", "source": "prototype-ai", "is_demo": False},
+        ]).execute()
+    except Exception:  # noqa: BLE001
+        pass
+    return Msg(id=mid, detail="Material creado")
+
+
+@router.delete("/materials/{material_id}", response_model=Msg)
+async def delete_material(material_id: str, uid: Annotated[str, Depends(_current_uid)]):
+    supabase = supabase_admin()
+    row = (supabase.table("learning_materials").select("school_id").eq("id", material_id).execute().data or [{}])[0]
+    await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
+    supabase.table("learning_materials").delete().eq("id", material_id).execute()
+    return Msg(detail="Material eliminado")
+
+
+# ---------- colegio (datos maestros y reglas) ----------
+
+class SchoolIn(BaseModel):
+    name: str = Field(min_length=3, max_length=120)
+    code: str | None = None
+    ugel: str | None = None
+    region: str | None = None
+    city: str | None = None
+    address: str | None = None
+    battle_rules: dict[str, Any] | None = None
+
+
+@router.patch("/{school_id}", response_model=Msg)
+async def update_school(school_id: str, body: SchoolIn, uid: Annotated[str, Depends(_current_uid)]):
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector"])
+    patch_data: dict[str, Any] = {"name": body.name}
+    if body.code is not None:
+        patch_data["code"] = body.code.upper()
+    for k in ("ugel", "region", "city", "address"):
+        v = getattr(body, k)
+        if v is not None:
+            patch_data[k] = v
+    supabase.table("schools").update(patch_data).eq("id", school_id).execute()
+    if body.battle_rules is not None:
+        existing = (supabase.table("school_settings").select("battle_rules").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+        rules = (existing.get("battle_rules") or {}) | body.battle_rules
+        exists = bool(existing.get("battle_rules") is not None or existing)
+        try:
+            supabase.table("school_settings").update({"battle_rules": rules}).eq("school_id", school_id).execute()
+        except Exception:  # noqa: BLE001
+            supabase.table("school_settings").insert({"school_id": school_id, "battle_rules": rules}).execute()
+    return Msg(detail="Colegio actualizado")
+
+
 # ---------- rangos y clases ----------
 
 @router.post("/{school_id}/ranks", response_model=Msg)
@@ -421,6 +572,7 @@ async def create_class(school_id: str, body: ClassIn, uid: Annotated[str, Depend
         subj = (supabase.table("subjects").select("name").eq("id", body.subject_id).execute().data or [{}])[0].get("name")
     # codigo unico CL-XXXX
     import random as rnd
+    import uuid as _uuid
     code = ""
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     for _ in range(12):
@@ -430,11 +582,12 @@ async def create_class(school_id: str, body: ClassIn, uid: Annotated[str, Depend
             code = cand
             break
     resp = supabase.table("classes").insert({
-        "school_id": school_id, "name": body.name, "subject": subj, "code": code,
-        "is_active": True, "academic_year_id": (year.data or [{}])[0].get("id"),
-        "section_id": body.section_id, "subject_id": body.subject_id,
-        "teacher_membership_id": member["id"],
-    }).execute()
+                "id": str(_uuid.uuid4()), "school_id": school_id, "name": body.name, "subject": subj, "code": code,
+                "is_active": True, "academic_year_id": (year.data or [{}])[0].get("id"),
+                "section_id": body.section_id, "subject_id": body.subject_id,
+                "teacher_membership_id": member["id"],
+                "created_at": "now()", "updated_at": "now()",
+            }).execute()
     return Msg(id=resp.data[0].get("id") if resp.data else None, detail="Clase creada con codigo " + code)
 
 

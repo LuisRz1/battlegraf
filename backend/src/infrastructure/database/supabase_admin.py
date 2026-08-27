@@ -71,6 +71,10 @@ class _Resp:
     def __init__(self, data):
         self.data = data
 
+    def execute(self):
+        """Compatibilidad: la API de supabase-py usa .insert(...).execute()."""
+        return self
+
 
 class _TableRef:
     def __init__(self, client, name: str):
@@ -80,6 +84,7 @@ class _TableRef:
         self._order = None
         self._limit_v = None
         self._select_cols = "*"
+        self._pending_mutation: tuple[str, dict | None] | None = None
 
     def select(self, cols: str = "*") -> "_TableRef":
         self._select_cols = cols
@@ -93,8 +98,8 @@ class _TableRef:
         self._filters.append((col, "in", vals))
         return self
 
-    def order(self, col: str) -> "_TableRef":
-        self._order = col
+    def order(self, col: str, ascending: bool = True) -> "_TableRef":
+        self._order = f"{col}.desc" if not ascending else col
         return self
 
     def limit(self, n: int) -> "_TableRef":
@@ -117,6 +122,18 @@ class _TableRef:
         return f"{self._client.url}/rest/v1/{self._name}?" + "&".join(parts)
 
     def execute(self) -> _Resp:
+        import httpx
+
+        if self._pending_mutation is not None:
+            method, payload = self._pending_mutation
+            if method == "PATCH":
+                resp = self._client._http().patch(self._url(), json=payload, headers={"Prefer": "return=minimal"})
+            else:
+                resp = self._client._http().delete(self._url(), headers={"Prefer": "return=minimal"})
+            if resp.status_code >= 400:
+                raise RuntimeError(resp.text[:200])
+            self._pending_mutation = None
+            return _Resp(None)
         resp = self._client._http().get(self._url())
         if resp.status_code >= 400:
             raise RuntimeError(resp.text[:200])
@@ -125,23 +142,22 @@ class _TableRef:
     def insert(self, payload: dict) -> _Resp:
         import httpx
 
-        resp = self._client._http().post(self._url().split("?")[0], json=payload)
+        resp = self._client._http().post(
+            self._url().split("?")[0],
+            json=payload,
+            headers={"Prefer": "return=representation"},
+        )
         if resp.status_code >= 400:
             raise RuntimeError(resp.text[:200])
-        return _Resp(resp.json())
+        try:
+            return _Resp(resp.json())
+        except Exception:  # noqa: BLE001 - cuerpo vacío en algunos casos
+            return _Resp([payload])
 
     def update(self, payload: dict) -> "_TableRef":
-        import httpx
-
-        resp = self._client._http().patch(self._url(), json=payload, headers={"Prefer": "return=minimal"})
-        if resp.status_code >= 400:
-            raise RuntimeError(resp.text[:200])
+        self._pending_mutation = ("PATCH", payload)
         return self
 
     def delete(self) -> "_TableRef":
-        import httpx
-
-        resp = self._client._http().delete(self._url(), headers={"Prefer": "return=minimal"})
-        if resp.status_code >= 400:
-            raise RuntimeError(resp.text[:200])
+        self._pending_mutation = ("DELETE", None)
         return self
