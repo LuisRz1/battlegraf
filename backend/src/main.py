@@ -13,6 +13,7 @@ from src.presentation.api.routes import (
     graphs,
     health,
     memberships,
+    panel,
     progression,
     questions,
     schools,
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
     app.include_router(public.router, prefix="/api/v1", tags=["Public"])
     app.include_router(classes.router, prefix="/api/v1", tags=["Classes"])
     app.include_router(memberships.router, prefix="/api/v1", tags=["Memberships"])
+    app.include_router(panel.router, prefix="/api/v1", tags=["Panel admin"])
     app.include_router(battle_ws.router, tags=["WebSocket"])
 
     return app

@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "materials"
     minio_secure: bool = False
+
+    # Supabase (usada por el router Panel y el endpoint público del juego)
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    supabase_secret_key: str = ""  # formato nuevo sb_secret_... (preferido)
+    supabase_jwt_secret: str = ""
     
     @model_validator(mode='after')
     def validate_production_settings(self) -> 'Settings':
