@@ -340,10 +340,38 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		return go(redirect, "saved=deleted", "progreso");
 	}
 	if (action === "delete_section") {
-			const id = clean(form.get("id"), 40);
-			await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
-			return go(redirect, "saved=deleted", "estructura");
-		}
+				const id = clean(form.get("id"), 40);
+				await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
+				return go(redirect, "saved=deleted", "estructura");
+			}
+			if (action === "update_section") {
+				const id = clean(form.get("id"), 40);
+				if (!id) return go(redirect, "error=validation", "estructura");
+				const grade = clean(form.get("grade"), 12);
+				const level = clean(form.get("level"), 30) || "Primaria";
+				const label = clean(form.get("section_label"), 8).toUpperCase();
+				const tutor = clean(form.get("tutor_name"), 80);
+				if (!grade || !label) return go(redirect, "error=validation", "estructura");
+				const displayName = `${grade}. ${level} ${label}`;
+				await supabase.from("sections").update({ grade, level, section_label: label, tutor_name: tutor || null, display_name: displayName }).eq("id", id).eq("school_id", schoolId);
+				return go(redirect, "saved=change", "estructura");
+			}
+			if (action === "update_subject") {
+				const id = clean(form.get("id"), 40);
+				if (!id) return go(redirect, "error=validation", "materias");
+				const name = clean(form.get("name"), 80);
+				const iconCode = clean(form.get("icon_code"), 3).toUpperCase();
+				const color = clean(form.get("color"), 9);
+				if (!name || !iconCode) return go(redirect, "error=validation", "materias");
+				const slug = slugify(name);
+				await supabase.from("subjects").update({ name, icon_code: iconCode, color: color || "#e6b84d", slug }).eq("id", id).eq("school_id", schoolId);
+				return go(redirect, "saved=change", "materias");
+			}
+			if (action === "delete_subject") {
+				const id = clean(form.get("id"), 40);
+				await supabase.from("subjects").delete().eq("id", id).eq("school_id", schoolId);
+				return go(redirect, "saved=deleted", "materias");
+			}
 		if (action === "class") {
 					const name = clean(form.get("name"), 140);
 					const subjectId = clean(form.get("subject_id"), 40) || null;

@@ -676,3 +676,14 @@
 .class-tab-pane strong small{display:block;color:#756b6e;font-size:.6rem}
 .class-tab-pane i{font-size:.62rem;color:#df8790;font-style:normal;text-transform:uppercase}
 .class-tab-pane small{color:#8d7d77;font-size:.66rem}
+/* --- Vista Mi perfil --- */
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
+.profile-head .profile-avatar{width:4rem;height:4rem;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:bold;color:#131120;background:linear-gradient(135deg,#f0cf7a,#b5852c);border:2px solid #8d6b2a;margin-bottom:.9rem}
+.profile-head label{display:grid;gap:.25rem;font-size:.8rem;color:#b9aa98;text-transform:uppercase;margin-bottom:.7rem;grid-template-columns:1fr}
+.profile-head input{width:100%;padding:.7rem .8rem;border:1px solid #3a3032;background:#09090c;color:#eee0c8;font-size:.9rem}
+.membership-row{display:grid;grid-template-columns:1fr auto auto;gap:.8rem;align-items:center;padding:.8rem 0;border-top:1px solid #302a2c}
+.membership-row strong{font-size:.95rem;color:#e6d9bd}
+.membership-row small{display:block;color:#756b6e;font-size:.72rem;margin-top:.15rem}
+.membership-row span{font-size:.75rem;color:#f0cf7a;text-transform:uppercase}
+.membership-row i{font-size:.68rem;color:#df8790;font-style:normal;text-transform:uppercase}
+@media(max-width:900px){.profile-grid{grid-template-columns:1fr}}
