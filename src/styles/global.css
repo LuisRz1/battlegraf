@@ -703,3 +703,8 @@
 .table-row:hover,.searchable:hover{background:rgba(200,154,55,.07)}
 .metric-grid article,.role-counts div{transition:transform .18s ease,border-color .18s ease}
 .metric-grid article:hover,.role-counts div:hover{transform:translateY(-2px);border-color:#c89a37}
+/* --- Modal de confirmacion de eliminacion --- */
+.confirm-dialog{max-width:22rem;text-align:center}
+.confirm-dialog p{font-size:.85rem;color:#e6d9bd;line-height:1.5;padding:.4rem 0 .8rem}
+.dialog-actions{display:flex;gap:.6rem;justify-content:center}
+.dialog-actions .command-btn{min-width:8rem}
