@@ -16,6 +16,8 @@ const slugify = (value: string) =>
 const go = (redirect: (path: string, status?: 301 | 302 | 303 | 307 | 308) => Response, value: string, anchor: string) =>
 	redirect(`/panel?${value}&view=${anchor}`, 303);
 
+const API_BASE = process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
+
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	if (!hasSupabaseConfig()) return new Response("Servicio no configurado", { status: 503 });
 
@@ -23,390 +25,305 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	const { data: userData } = await supabase.auth.getUser();
 	if (!userData.user) return redirect("/iniciar-sesion", 303);
 
-	const { data: membership } = await supabase
-		.from("memberships")
-		.select("school_id, role")
-		.eq("user_id", userData.user.id)
-		.in("role", ["owner", "director", "subdirector", "coordinator"])
-		.limit(1)
-		.maybeSingle();
-
-	if (!membership) return new Response("Sin permisos", { status: 403 });
+	const { data: sessionData } = await supabase.auth.getSession();
+	const apiToken = sessionData?.session?.access_token ?? "";
+	if (!apiToken) return new Response("Sin sesión", { status: 401 });
 
 	const form = await request.formData();
 	const action = clean(form.get("action"), 30);
-	const schoolId = membership.school_id;
-	const { data: subscription } = await supabase
-		.from("subscriptions")
-		.select("plan_slug, status, trial_ends_at")
-		.eq("school_id", schoolId)
-		.maybeSingle();
-	const trialActive = Boolean(
-		subscription?.status === "trialing" &&
-		subscription.trial_ends_at &&
-		new Date(subscription.trial_ends_at).getTime() > Date.now(),
-	);
-	const hasAdvancedAccess = Boolean(
-		subscription && (subscription.plan_slug !== "explorador" || trialActive),
-	);
 
-	if (action === "section") {
-		const level = clean(form.get("level"), 30) || "Primaria";
-		const grade = clean(form.get("grade"), 12);
-		const label = clean(form.get("section_label"), 8).toUpperCase();
-		if (!grade || !label) return go(redirect, "error=validation", "estructura");
+	// Llamada al backend FastAPI
+	const api = async (method: string, path: string, body?: Record<string, unknown>): Promise<{ ok: boolean; detail?: string }> => {
+		try {
+			const res = await fetch(`${API_BASE}/api/v1/panel${path}`, {
+				method,
+				headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+				body: body ? JSON.stringify(body) : undefined,
+			});
+			const data = await res.json().catch(() => ({}));
+			return { ok: res.ok, detail: data?.detail ?? (res.ok ? "ok" : "error") };
+		} catch (e) {
+			console.error("panel api error", action, e);
+			return { ok: false, detail: "api_down" };
+		}
+	};
 
-		const code = slugify(`${grade}-${level}-${label}`).toUpperCase();
-		const displayName = `${grade}. ${level} ${label}`;
-		const { data: year } = await supabase
-			.from("academic_years")
-			.select("id")
-			.eq("school_id", schoolId)
-			.eq("is_active", true)
+	// Parseo común de campos
+	const parseMember = async () => {
+		const { data: membership } = await supabase
+			.from("memberships")
+			.select("school_id, role")
+			.eq("user_id", userData.user.id)
 			.limit(1)
 			.maybeSingle();
-		const { data: section, error } = await supabase
-			.from("sections")
-			.insert({
-				school_id: schoolId,
-				academic_year_id: year?.id ?? null,
-				level,
-				grade,
-				section_label: label,
-				code,
-				display_name: displayName,
-				tutor_name: clean(form.get("tutor_name"), 100) || "Tutor por asignar",
-				is_demo: false,
-			})
-			.select("id")
-			.single();
-		if (error || !section) return go(redirect, "error=save", "estructura");
+		return membership?.school_id ?? "";
+	};
 
-		const { data: subjects } = await supabase.from("subjects").select("id").eq("school_id", schoolId);
-		if (subjects?.length) {
-			await supabase.from("section_subjects").insert(
-				subjects.map(({ id }) => ({ section_id: section.id, subject_id: id })),
-			);
-		}
-		await supabase.from("clans").insert([
-			{ school_id: schoolId, section_id: section.id, name: `${label} Rojos`, color: "#ef3340", is_demo: false },
-			{ school_id: schoolId, section_id: section.id, name: `${label} Morados`, color: "#9d55f5", is_demo: false },
-		]);
-		return go(redirect, "created=section", "estructura");
+	if (action === "section") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const r = await api("POST", `/${schoolId}/sections`, {
+			level: clean(form.get("level"), 30) || "Primaria",
+			grade: clean(form.get("grade"), 12),
+			section_label: clean(form.get("section_label"), 8),
+			tutor_name: clean(form.get("tutor_name"), 100) || null,
+		});
+		return go(redirect, r.ok ? "created=section" : "error=save", "estructura");
 	}
-
+	if (action === "update_section") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("PATCH", `/sections/${id}`, {
+			level: clean(form.get("level"), 30) || "Primaria",
+			grade: clean(form.get("grade"), 12),
+			section_label: clean(form.get("section_label"), 8),
+			tutor_name: clean(form.get("tutor_name"), 100) || null,
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "estructura");
+	}
+	if (action === "delete_section") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("DELETE", `/sections/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "estructura");
+	}
 	if (action === "subject") {
-		const name = clean(form.get("name"), 80);
-		if (name.length < 3) return go(redirect, "error=validation", "estructura");
-		const { data: subject, error } = await supabase
-			.from("subjects")
-			.insert({
-				school_id: schoolId,
-				slug: slugify(name),
-				name,
-				color: clean(form.get("color"), 12) || "#e6b84d",
-				icon_code: clean(form.get("icon_code"), 3).toUpperCase() || "LIB",
-				is_demo: false,
-			})
-			.select("id")
-			.single();
-		if (error || !subject) return go(redirect, "error=save", "estructura");
-		const { data: sections } = await supabase.from("sections").select("id").eq("school_id", schoolId).eq("status", "active");
-		if (sections?.length) {
-			await supabase.from("section_subjects").insert(
-				sections.map(({ id }) => ({ section_id: id, subject_id: subject.id })),
-			);
-		}
-		return go(redirect, "created=subject", "estructura");
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const r = await api("POST", `/${schoolId}/subjects`, {
+			name: clean(form.get("name"), 80),
+			icon_code: clean(form.get("icon_code"), 3),
+			color: clean(form.get("color"), 12) || "#e6b84d",
+		});
+		return go(redirect, r.ok ? "created=subject" : "error=save", "materias");
 	}
-
+	if (action === "update_subject") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("PATCH", `/subjects/${id}`, {
+			name: clean(form.get("name"), 80),
+			icon_code: clean(form.get("icon_code"), 3),
+			color: clean(form.get("color"), 12) || "#e6b84d",
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
+	}
+	if (action === "delete_subject") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("DELETE", `/subjects/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "materias");
+	}
 	if (action === "student") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
 		const fullName = clean(form.get("full_name"), 120);
 		const sectionId = clean(form.get("section_id"), 40);
 		if (fullName.length < 3 || !sectionId) return go(redirect, "error=validation", "personas");
-		const { data: section } = await supabase
-			.from("sections")
-			.select("id")
-			.eq("id", sectionId)
-			.eq("school_id", schoolId)
-			.maybeSingle();
-		if (!section) return go(redirect, "error=validation", "personas");
-		const { error } = await supabase.from("student_profiles").insert({
-			school_id: schoolId,
+		const r = await api("POST", `/${schoolId}/students`, {
 			full_name: fullName,
 			email: clean(form.get("email"), 160) || null,
-			section_id: section.id,
-			accessibility_preferences: { focus_mode: form.get("focus_mode") === "on" },
-			is_demo: false,
+			section_id: sectionId,
 		});
-		return go(redirect, error ? "error=save" : "created=student", "personas");
+		return go(redirect, r.ok ? "created=student" : "error=save", "personas");
 	}
-
+	if (action === "update_student") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("PATCH", `/students/${id}`, {
+			full_name: clean(form.get("full_name"), 120),
+			email: clean(form.get("email"), 160) || null,
+			section_id: clean(form.get("section_id"), 40) || null,
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "personas");
+	}
+	if (action === "delete_student") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("DELETE", `/students/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "personas");
+	}
+	if (action === "staff") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const role = clean(form.get("role"), 24);
+		const allowed = ["director", "subdirector", "coordinator", "tutor", "teacher"];
+		if (!allowed.includes(role)) return go(redirect, "error=validation", "personas");
+		const r = await api("POST", `/${schoolId}/staff`, {
+			full_name: clean(form.get("full_name"), 120),
+			email: clean(form.get("email"), 160) || null,
+			role,
+			scope_label: clean(form.get("scope_label"), 120) || null,
+			status: !!form.get("send_invite") ? "invited" : "active",
+		});
+		return go(redirect, r.ok ? "created=staff" : "error=save", "personas");
+	}
+	if (action === "update_staff") {
+		const id = clean(form.get("id"), 40);
+		const role = clean(form.get("role"), 24);
+		const allowed = ["director", "subdirector", "coordinator", "tutor", "teacher"];
+		if (!allowed.includes(role)) return go(redirect, "error=validation", "personas");
+		const r = await api("PATCH", `/staff/${id}`, {
+			full_name: clean(form.get("full_name"), 120),
+			email: clean(form.get("email"), 160) || null,
+			role,
+			scope_label: clean(form.get("scope_label"), 120) || null,
+			status: clean(form.get("status"), 20) || "active",
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "personas");
+	}
+	if (action === "delete_staff") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("DELETE", `/staff/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "personas");
+	}
 	if (action === "material") {
-		if (!hasAdvancedAccess) return go(redirect, "error=upgrade", "contenido");
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
 		const title = clean(form.get("title"), 120);
 		const subjectId = clean(form.get("subject_id"), 40);
 		const uploaded = form.get("file");
 		const fileName = uploaded instanceof File && uploaded.size > 0 ? uploaded.name.slice(0, 180) : null;
-		const fileType = fileName?.split(".").pop()?.toLowerCase() ?? "manual";
-		if (title.length < 3 || !subjectId) return go(redirect, "error=validation", "contenido");
-		const { data: subject } = await supabase
-			.from("subjects")
-			.select("id")
-			.eq("id", subjectId)
-			.eq("school_id", schoolId)
-			.maybeSingle();
-		if (!subject) return go(redirect, "error=validation", "contenido");
-		const { error } = await supabase.from("learning_materials").insert({
-			school_id: schoolId,
-			subject_id: subject.id,
+		if (title.length < 3 || !subjectId) return go(redirect, "error=validation", "materiales");
+		const r = await api("POST", `/${schoolId}/materials`, {
 			title,
+			subject_id: subjectId,
 			file_name: fileName,
-			file_type: fileType,
-			processing_status: "ready",
-			created_by: userData.user.id,
-			is_demo: false,
 		});
-		if (error) return go(redirect, "error=save", "contenido");
-		await supabase.from("question_bank").insert([
-			{ school_id: schoolId, subject_id: subject.id, question: `¿Cuál es la idea principal de «${title}»?`, options: ["El concepto central", "Un detalle secundario", "Un tema distinto", "Ninguna"], correct_index: 0, status: "review", source: "prototype-ai" },
-			{ school_id: schoolId, subject_id: subject.id, question: `¿Qué estrategia ayuda a comprender «${title}»?`, options: ["Relacionar sus ideas", "Ignorar ejemplos", "Memorizar sin leer", "Cambiar de tema"], correct_index: 0, status: "review", source: "prototype-ai" },
-		]);
-		return go(redirect, "created=material", "contenido");
+		return go(redirect, r.ok ? "created=material" : "error=save", "materiales");
 	}
-
+	if (action === "delete_material") {
+		const id = clean(form.get("id"), 40);
+		const r = await api("DELETE", `/materials/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "materiales");
+	}
 	if (action === "question") {
-		const subjectId = clean(form.get("subject_id"), 40);
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
 		const question = clean(form.get("question"), 300);
 		const options = [0, 1, 2, 3].map((index) => clean(form.get(`option_${index}`), 160));
 		const correctIndex = Number(clean(form.get("correct_index"), 1));
-		if (!subjectId || question.length < 8 || options.some((option) => option.length < 1) || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
-			return go(redirect, "error=validation", "contenido");
+		if (question.length < 8 || options.some((option) => option.length < 1) || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
+			return go(redirect, "error=validation", "preguntas");
 		}
-		const { data: subject } = await supabase
-			.from("subjects")
-			.select("id")
-			.eq("id", subjectId)
-			.eq("school_id", schoolId)
-			.maybeSingle();
-		if (!subject) return go(redirect, "error=validation", "contenido");
-		const { error } = await supabase.from("question_bank").insert({
-			school_id: schoolId,
-			subject_id: subject.id,
+		const r = await api("POST", `/${schoolId}/questions`, {
+			subject_id: clean(form.get("subject_id"), 40) || null,
 			question,
 			options,
 			correct_index: correctIndex,
 			status: "approved",
-			source: "manual",
-			is_demo: false,
 		});
-		return go(redirect, error ? "error=save" : "created=question", "contenido");
-	}
-
-	if (action === "staff") {
-		const fullName = clean(form.get("full_name"), 120);
-		const role = clean(form.get("role"), 24);
-		const allowed = ["director", "subdirector", "coordinator", "tutor", "teacher"];
-		if (fullName.length < 3 || !allowed.includes(role)) return go(redirect, "error=validation", "personas");
-		const { error } = await supabase.from("staff_profiles").insert({ school_id: schoolId, full_name: fullName, email: clean(form.get("email"), 160) || null, role, scope_label: clean(form.get("scope_label"), 160) || "Todo el colegio", status: "invited", is_demo: false });
-		if (!error) await supabase.from("audit_logs").insert({ school_id: schoolId, actor_name: "Direccion", action: "Invito a un miembro del equipo", target_label: fullName, category: "users" });
-		return go(redirect, error ? "error=save" : "created=staff", "personas");
-	}
-
-	if (action === "assignment") {
-		const title = clean(form.get("title"), 140);
-		const sectionId = clean(form.get("section_id"), 40);
-		const subjectId = clean(form.get("subject_id"), 40);
-		const deliveryType = clean(form.get("delivery_type"), 20);
-		const dueAt = clean(form.get("due_at"), 40);
-		const xpReward = Math.min(10000, Math.max(0, Number(clean(form.get("xp_reward"), 6)) || 80));
-		if (title.length < 3 || !sectionId || !subjectId || !["quiz", "written", "document"].includes(deliveryType)) return go(redirect, "error=validation", "tareas");
-		const { error } = await supabase.from("assignments").insert({ school_id: schoolId, section_id: sectionId, subject_id: subjectId, title, delivery_type: deliveryType, due_at: dueAt || null, xp_reward: xpReward, status: "scheduled", is_demo: false });
-		if (!error) await supabase.from("audit_logs").insert({ school_id: schoolId, actor_name: "Direccion", action: "Programo una tarea", target_label: title, category: "learning" });
-		return go(redirect, error ? "error=save" : "created=assignment", "tareas");
-	}
-
-	if (action === "battle") {
-		const title = clean(form.get("title"), 140);
-		const battleType = clean(form.get("battle_type"), 30);
-		const opponentA = clean(form.get("opponent_a"), 120);
-		const opponentB = clean(form.get("opponent_b"), 120);
-		const scheduledAt = clean(form.get("scheduled_at"), 40);
-		const graphLayers = Math.min(7, Math.max(4, Number(clean(form.get("graph_layers"), 1)) || 4));
-		const nodesPerLayer = Math.min(4, Math.max(3, Number(clean(form.get("nodes_per_layer"), 1)) || 4));
-		const allowed = ["student_vs_bot", "student_vs_student", "section_vs_section", "tournament"];
-		if (title.length < 3 || !opponentA || !opponentB || !allowed.includes(battleType)) return go(redirect, "error=validation", "batallas");
-		const { error } = await supabase.from("battle_events").insert({ school_id: schoolId, title, battle_type: battleType, opponent_a: opponentA, opponent_b: opponentB, scheduled_at: scheduledAt || null, status: "scheduled", graph_layers: graphLayers, nodes_per_layer: nodesPerLayer, is_demo: false });
-		if (!error) await supabase.from("audit_logs").insert({ school_id: schoolId, actor_name: "Direccion", action: "Programo una batalla", target_label: `${opponentA} vs ${opponentB}`, category: "battle" });
-		return go(redirect, error ? "error=save" : "created=battle", "batallas");
-	}
-
-	if (action === "rank") {
-		const name = clean(form.get("name"), 60);
-		const minXp = Math.max(0, Number(clean(form.get("min_xp"), 8)) || 0);
-		if (name.length < 3) return go(redirect, "error=validation", "progreso");
-		const { count } = await supabase.from("rank_definitions").select("id", { count: "exact", head: true }).eq("school_id", schoolId);
-		const { error } = await supabase.from("rank_definitions").insert({ school_id: schoolId, name, min_xp: minXp, position: (count ?? 0) + 1, is_demo: false });
-		return go(redirect, error ? "error=save" : "created=rank", "progreso");
-	}
-
-	if (action === "approve_question") {
-		const questionId = clean(form.get("question_id"), 40);
-		const { error } = await supabase.from("question_bank").update({ status: "approved" }).eq("id", questionId).eq("school_id", schoolId);
-		if (!error) await supabase.from("audit_logs").insert({ school_id: schoolId, actor_name: "Docente", action: "Aprobo una pregunta", target_label: questionId.slice(0, 8), category: "content" });
-		return go(redirect, error ? "error=save" : "created=approval", "preguntas");
-	}
-
-	// ── EDITAR (update) ──
-	if (action === "update_student") {
-		const id = clean(form.get("id"), 40);
-		const fullName = clean(form.get("full_name"), 120);
-		const sectionId = clean(form.get("section_id"), 40);
-		if (!id || fullName.length < 3) return go(redirect, "error=validation", "personas");
-		const patch: Record<string, unknown> = { full_name: fullName, email: clean(form.get("email"), 160) || null, section_id: sectionId || null };
-		await supabase.from("student_profiles").update(patch).eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=change", "personas");
-	}
-	if (action === "delete_student") {
-		const id = clean(form.get("id"), 40);
-		const { error } = await supabase.from("student_profiles").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, error ? "error=save" : "saved=deleted", "personas");
-	}
-	if (action === "update_staff") {
-		const id = clean(form.get("id"), 40);
-		const fullName = clean(form.get("full_name"), 120);
-		const role = clean(form.get("role"), 24);
-		const allowed = ["director", "subdirector", "coordinator", "tutor", "teacher"];
-		if (!id || fullName.length < 3 || !allowed.includes(role)) return go(redirect, "error=validation", "personas");
-		const patch: Record<string, unknown> = { full_name: fullName, email: clean(form.get("email"), 160) || null, role, scope_label: clean(form.get("scope_label"), 160) || "Todo el colegio", status: clean(form.get("status"), 16) || "active" };
-		await supabase.from("staff_profiles").update(patch).eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=change", "personas");
-	}
-	if (action === "delete_staff") {
-		const id = clean(form.get("id"), 40);
-		await supabase.from("staff_profiles").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "personas");
-	}
-	if (action === "delete_material") {
-		const id = clean(form.get("id"), 40);
-		await supabase.from("learning_materials").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "materiales");
+		return go(redirect, r.ok ? "created=question" : "error=save", "preguntas");
 	}
 	if (action === "update_question") {
 		const id = clean(form.get("id"), 40);
-		const subjectId = clean(form.get("subject_id"), 40);
 		const question = clean(form.get("question"), 300);
 		const options = [0, 1, 2, 3].map((index) => clean(form.get(`option_${index}`), 160));
 		const correctIndex = Number(clean(form.get("correct_index"), 1));
-		const status = clean(form.get("status"), 16) === "approved" ? "approved" : "review";
-		if (!id || !subjectId || question.length < 8 || options.some((option) => option.length < 1) || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
+		if (question.length < 8 || options.some((option) => option.length < 1) || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
 			return go(redirect, "error=validation", "preguntas");
 		}
-		await supabase.from("question_bank").update({ subject_id: subjectId, question, options, correct_index: correctIndex, status }).eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=change", "preguntas");
+		const r = await api("PATCH", `/questions/${id}`, {
+			subject_id: clean(form.get("subject_id"), 40) || null,
+			question,
+			options,
+			correct_index: correctIndex,
+			status: clean(form.get("status"), 20) || "review",
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "preguntas");
 	}
 	if (action === "delete_question") {
 		const id = clean(form.get("id"), 40);
-		await supabase.from("question_bank").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "preguntas");
+		const r = await api("DELETE", `/questions/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "preguntas");
+	}
+	if (action === "approve_question") {
+		const id = clean(form.get("question_id"), 40);
+		const r = await api("POST", `/questions/${id}/approve`);
+		return go(redirect, r.ok ? "created=approval" : "error=save", "preguntas");
+	}
+	if (action === "assignment") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const r = await api("POST", `/${schoolId}/assignments`, {
+			title: clean(form.get("title"), 140),
+			section_id: clean(form.get("section_id"), 40) || null,
+			subject_id: clean(form.get("subject_id"), 40) || null,
+			delivery_type: clean(form.get("delivery_type"), 20) || "quiz",
+			due_at: clean(form.get("due_at"), 40) || null,
+			xp_reward: Number(clean(form.get("xp_reward"), 6)) || 80,
+			status: clean(form.get("status"), 20) || "scheduled",
+		});
+		return go(redirect, r.ok ? "created=assignment" : "error=save", "tareas");
 	}
 	if (action === "update_assignment") {
 		const id = clean(form.get("id"), 40);
-		if (!id) return go(redirect, "error=validation", "tareas");
-		const patch: Record<string, unknown> = { title: clean(form.get("title"), 140), section_id: clean(form.get("section_id"), 40), subject_id: clean(form.get("subject_id"), 40), delivery_type: clean(form.get("delivery_type"), 20), due_at: clean(form.get("due_at"), 40) || null, xp_reward: Math.min(10000, Math.max(0, Number(clean(form.get("xp_reward"), 6)) || 80)), status: clean(form.get("status"), 16) || "scheduled" };
-		await supabase.from("assignments").update(patch).eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=change", "tareas");
+		const r = await api("PATCH", `/assignments/${id}`, {
+			title: clean(form.get("title"), 140),
+			section_id: clean(form.get("section_id"), 40) || null,
+			subject_id: clean(form.get("subject_id"), 40) || null,
+			delivery_type: clean(form.get("delivery_type"), 20) || "quiz",
+			due_at: clean(form.get("due_at"), 40) || null,
+			xp_reward: Number(clean(form.get("xp_reward"), 6)) || 80,
+			status: clean(form.get("status"), 20) || "scheduled",
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "tareas");
 	}
 	if (action === "delete_assignment") {
 		const id = clean(form.get("id"), 40);
-		await supabase.from("assignments").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "tareas");
+		const r = await api("DELETE", `/assignments/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "tareas");
+	}
+	if (action === "battle") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const r = await api("POST", `/${schoolId}/battles`, {
+			title: clean(form.get("title"), 140),
+			battle_type: clean(form.get("battle_type"), 30) || "student_vs_bot",
+			opponent_a: clean(form.get("opponent_a"), 80) || "Equipo Rojo",
+			opponent_b: clean(form.get("opponent_b"), 80) || "Equipo Morado",
+			scheduled_at: clean(form.get("scheduled_at"), 40) || null,
+			status: clean(form.get("status"), 20) || "scheduled",
+		});
+		return go(redirect, r.ok ? "created=battle" : "error=save", "batallas");
 	}
 	if (action === "update_battle") {
 		const id = clean(form.get("id"), 40);
-		if (!id) return go(redirect, "error=validation", "batallas");
-		const patch: Record<string, unknown> = { title: clean(form.get("title"), 140), opponent_a: clean(form.get("opponent_a"), 120), opponent_b: clean(form.get("opponent_b"), 120), scheduled_at: clean(form.get("scheduled_at"), 40) || null, status: clean(form.get("status"), 16) || "scheduled" };
-		await supabase.from("battle_events").update(patch).eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=change", "batallas");
+		const r = await api("PATCH", `/battles/${id}`, {
+			title: clean(form.get("title"), 140),
+			battle_type: clean(form.get("battle_type"), 30) || "student_vs_bot",
+			opponent_a: clean(form.get("opponent_a"), 80) || "Equipo Rojo",
+			opponent_b: clean(form.get("opponent_b"), 80) || "Equipo Morado",
+			scheduled_at: clean(form.get("scheduled_at"), 40) || null,
+			status: clean(form.get("status"), 20) || "scheduled",
+		});
+		return go(redirect, r.ok ? "saved=change" : "error=save", "batallas");
 	}
 	if (action === "delete_battle") {
 		const id = clean(form.get("id"), 40);
-		await supabase.from("battle_events").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "batallas");
+		const r = await api("DELETE", `/battles/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "batallas");
+	}
+	if (action === "rank") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const r = await api("POST", `/${schoolId}/ranks`, {
+			name: clean(form.get("name"), 80),
+			min_xp: Number(clean(form.get("min_xp"), 6)) || 0,
+			position: Number(clean(form.get("position"), 3)) || 0,
+		});
+		return go(redirect, r.ok ? "created=rank" : "error=save", "progreso");
 	}
 	if (action === "delete_rank") {
 		const id = clean(form.get("id"), 40);
-		await supabase.from("rank_definitions").delete().eq("id", id).eq("school_id", schoolId);
-		return go(redirect, "saved=deleted", "progreso");
+		const r = await api("DELETE", `/ranks/${id}`);
+		return go(redirect, r.ok ? "saved=deleted" : "error=save", "progreso");
 	}
-	if (action === "delete_section") {
-				const id = clean(form.get("id"), 40);
-				await supabase.from("sections").delete().eq("id", id).eq("school_id", schoolId);
-				return go(redirect, "saved=deleted", "estructura");
-			}
-			if (action === "update_section") {
-				const id = clean(form.get("id"), 40);
-				if (!id) return go(redirect, "error=validation", "estructura");
-				const grade = clean(form.get("grade"), 12);
-				const level = clean(form.get("level"), 30) || "Primaria";
-				const label = clean(form.get("section_label"), 8).toUpperCase();
-				const tutor = clean(form.get("tutor_name"), 80);
-				if (!grade || !label) return go(redirect, "error=validation", "estructura");
-				const displayName = `${grade}. ${level} ${label}`;
-				await supabase.from("sections").update({ grade, level, section_label: label, tutor_name: tutor || null, display_name: displayName }).eq("id", id).eq("school_id", schoolId);
-				return go(redirect, "saved=change", "estructura");
-			}
-			if (action === "update_subject") {
-				const id = clean(form.get("id"), 40);
-				if (!id) return go(redirect, "error=validation", "materias");
-				const name = clean(form.get("name"), 80);
-				const iconCode = clean(form.get("icon_code"), 3).toUpperCase();
-				const color = clean(form.get("color"), 9);
-				if (!name || !iconCode) return go(redirect, "error=validation", "materias");
-				const slug = slugify(name);
-				await supabase.from("subjects").update({ name, icon_code: iconCode, color: color || "#e6b84d", slug }).eq("id", id).eq("school_id", schoolId);
-				return go(redirect, "saved=change", "materias");
-			}
-			if (action === "delete_subject") {
-				const id = clean(form.get("id"), 40);
-				await supabase.from("subjects").delete().eq("id", id).eq("school_id", schoolId);
-				return go(redirect, "saved=deleted", "materias");
-			}
-		if (action === "class") {
-					const name = clean(form.get("name"), 140);
-					const subjectId = clean(form.get("subject_id"), 40) || null;
-					const sectionId = clean(form.get("section_id"), 40) || null;
-					if (!name || name.length < 3) return go(redirect, "error=validation", "clases");
-					const { data: year } = await supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_active", true).limit(1).maybeSingle();
-					// materia: resuelve el nombre para la columna subject (texto)
-					let subjectName: string | null = null;
-					if (subjectId) {
-						const { data: subj } = await supabase.from("subjects").select("name").eq("id", subjectId).maybeSingle();
-						subjectName = subj?.name ?? null;
-					}
-					// Código único de la clase: CL-XXXX (letras y números)
-					let code = "";
-					for (let attempt = 0; attempt < 12 && !code; attempt++) {
-						const candidate =
-							"CL-" + Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
-						const { data: existing } = await supabase.from("classes").select("id").eq("code", candidate).maybeSingle();
-						if (!existing) code = candidate;
-					}
-					const { data: myMemberships } = await supabase.from("memberships").select("id").eq("user_id", userData.user.id).eq("school_id", schoolId).eq("role", "teacher").limit(1).maybeSingle();
-					const teacherMembershipId = myMemberships?.id ?? null;
-					const { error } = await supabase.from("classes").insert({
-						school_id: schoolId,
-						name,
-						subject: subjectName,
-						code,
-						is_active: true,
-						academic_year_id: year?.id ?? null,
-						section_id: sectionId,
-						subject_id: subjectId,
-						teacher_membership_id: teacherMembershipId,
-					});
-					return go(redirect, error ? "error=save" : "created=class", "clases");
-				}
+	if (action === "class") {
+		const schoolId = await parseMember();
+		if (!schoolId) return new Response("Sin permisos", { status: 403 });
+		const name = clean(form.get("name"), 140);
+		if (name.length < 3) return go(redirect, "error=validation", "clases");
+		const r = await api("POST", `/${schoolId}/classes`, {
+			name,
+			subject_id: clean(form.get("subject_id"), 40) || null,
+			section_id: clean(form.get("section_id"), 40) || null,
+		});
+		return go(redirect, r.ok ? "created=class" : "error=save", "clases");
+	}
 
-		return go(redirect, "error=unknown_action", "configuracion");
-	};
+	return go(redirect, "error=unknown_action", "configuracion");
+};

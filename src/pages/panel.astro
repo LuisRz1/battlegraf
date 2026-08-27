@@ -23,26 +23,65 @@ const schoolId = membership.school_id;
 const myRole = membership.role;
 const myMembershipId = membership.id;
 const multiSchool = membershipsList.length > 1;
-const [subscriptionResult, studentsResult, sectionsResult, subjectsResult, clansResult, materialsResult, questionsResult, staffResult, assignmentsResult, battlesResult, ranksResult, auditResult, settingsResult, classesResult, enrollmentsResult] = await Promise.all([
-	supabase.from("subscriptions").select("plan_slug, status, student_limit, ai_credits_monthly, trial_plan_slug, trial_started_at, trial_ends_at").eq("school_id", schoolId).maybeSingle(),
-	supabase.from("student_profiles").select("id, full_name, email, section_id, status, is_demo", { count: "exact" }).eq("school_id", schoolId).order("created_at"),
-	supabase.from("sections").select("id, display_name, code, level, grade, section_label, tutor_name, status, is_demo").eq("school_id", schoolId).order("display_name"),
-	supabase.from("subjects").select("id, name, color, icon_code, is_demo").eq("school_id", schoolId).eq("is_enabled", true).order("name"),
-	supabase.from("clans").select("id, name, color, rank_name, section_id, is_demo").eq("school_id", schoolId).order("created_at"),
-	supabase.from("learning_materials").select("id, title, file_name, file_type, processing_status, is_demo, subjects(name)").eq("school_id", schoolId).order("created_at", { ascending: false }),
-	supabase.from("question_bank").select("id, question, options, status, source, is_demo, subjects(name)", { count: "exact" }).eq("school_id", schoolId).order("created_at", { ascending: false }),
-	supabase.from("staff_profiles").select("id, full_name, email, role, scope_label, status, is_demo").eq("school_id", schoolId).order("created_at"),
-	supabase.from("assignments").select("id, title, delivery_type, due_at, xp_reward, status, is_demo, sections(display_name), subjects(name)").eq("school_id", schoolId).order("due_at"),
-	supabase.from("battle_events").select("id, title, battle_type, opponent_a, opponent_b, scheduled_at, status, graph_layers, nodes_per_layer, is_demo").eq("school_id", schoolId).order("scheduled_at"),
-	supabase.from("rank_definitions").select("id, name, min_xp, position, is_demo").eq("school_id", schoolId).order("position"),
-	supabase.from("audit_logs").select("id, actor_name, action, target_label, category, created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(30),
-	supabase.from("school_settings").select("battle_rules, rank_rules, ai_preferences, accessibility").eq("school_id", schoolId).maybeSingle(),
-		supabase.from("classes").select("id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, teacher_membership_id, academic_years(label, is_active), subjects(name), sections(display_name, level, grade, section_label)").eq("school_id", schoolId).order("created_at", { ascending: false }),
-		supabase.from("class_enrollments").select("id, class_id, status, academic_year_id, student_profile_id, student_profiles(id, full_name, email)").in("class_id", (await supabase.from("classes").select("id").eq("school_id", schoolId)).data?.map((c: any) => c.id) ?? []),
+// Datos del panel desde el backend FastAPI (Railway) — una sola llamada
+const API_BASE = process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
+const { data: sessionData } = await supabase.auth.getSession();
+const apiToken = sessionData?.session?.access_token ?? "";
+let dashboard: any = {};
+try {
+	const res = apiToken
+		? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/dashboard`, {
+				headers: { Authorization: `Bearer ${apiToken}`, "User-Agent": "battlegraf-panel" },
+		  })
+		: null;
+	if (res?.ok) dashboard = await res.json();
+} catch (e) {
+	console.error("panel dashboard error", e);
+}
+// Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
+if (!dashboard.school_id) {
+	const fb = await Promise.all([
+		supabase.from("subscriptions").select("plan_slug, status, student_limit, ai_credits_monthly, trial_plan_slug, trial_started_at, trial_ends_at").eq("school_id", schoolId).maybeSingle(),
+		supabase.from("student_profiles").select("id, full_name, email, section_id, status, is_demo").eq("school_id", schoolId),
+		supabase.from("sections").select("id, display_name, code, level, grade, section_label, tutor_name, status, is_demo").eq("school_id", schoolId),
+		supabase.from("subjects").select("id, name, color, icon_code, is_demo").eq("school_id", schoolId).eq("is_enabled", true),
+		supabase.from("clans").select("id, name, color, rank_name, section_id, is_demo").eq("school_id", schoolId),
+		supabase.from("learning_materials").select("id, title, file_name, file_type, processing_status, is_demo, subjects(name)").eq("school_id", schoolId),
+		supabase.from("question_bank").select("id, question, options, status, source, is_demo, subjects(name)").eq("school_id", schoolId),
+		supabase.from("staff_profiles").select("id, full_name, email, role, scope_label, status, is_demo").eq("school_id", schoolId),
+		supabase.from("assignments").select("id, title, delivery_type, due_at, xp_reward, status, is_demo, sections(display_name), subjects(name)").eq("school_id", schoolId),
+		supabase.from("battle_events").select("id, title, battle_type, opponent_a, opponent_b, scheduled_at, status, graph_layers, nodes_per_layer, is_demo").eq("school_id", schoolId),
+		supabase.from("rank_definitions").select("id, name, min_xp, position, is_demo").eq("school_id", schoolId),
+		supabase.from("audit_logs").select("id, actor_name, action, target_label, category, created_at").eq("school_id", schoolId).limit(30),
+		supabase.from("school_settings").select("battle_rules, rank_rules, ai_preferences, accessibility").eq("school_id", schoolId).maybeSingle(),
+		supabase.from("classes").select("id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, teacher_membership_id, academic_years(label, is_active), subjects(name), sections(display_name, level, grade, section_label)").eq("school_id", schoolId),
+		supabase.from("class_enrollments").select("id, class_id, status, academic_year_id, student_profile_id, student_profiles(id, full_name, email)"),
 	]);
+	dashboard = {
+		subscription: fb[0].data ?? {}, students: fb[1].data ?? [], sections: fb[2].data ?? [],
+		subjects: fb[3].data ?? [], clans: fb[4].data ?? [], materials: fb[5].data ?? [],
+		questions: fb[6].data ?? [], staff: fb[7].data ?? [], assignments: fb[8].data ?? [],
+		battles: fb[9].data ?? [], ranks: fb[10].data ?? [], audits: fb[11].data ?? [],
+		settings: fb[12].data ?? {}, classes: fb[13].data ?? [], enrollments: fb[14].data ?? [],
+	};
+}
+const subscription = dashboard.subscription ?? {};
+const studentsResult = { data: dashboard.students ?? [] as any[], count: (dashboard.students ?? []).length };
+const sectionsResult = { data: dashboard.sections ?? [] as any[] };
+const subjectsResult = { data: dashboard.subjects ?? [] as any[] };
+const clansResult = { data: dashboard.clans ?? [] as any[] };
+const materialsResult = { data: dashboard.materials ?? [] as any[] };
+const questionsResult = { data: dashboard.questions ?? [] as any[], count: (dashboard.questions ?? []).length };
+const staffResult = { data: dashboard.staff ?? [] as any[] };
+const assignmentsResult = { data: dashboard.assignments ?? [] as any[] };
+const battlesResult = { data: dashboard.battles ?? [] as any[] };
+const ranksResult = { data: dashboard.ranks ?? [] as any[] };
+const auditResult = { data: dashboard.audits ?? [] as any[] };
+const settingsResult = { data: dashboard.settings ?? {} as any };
+const classesResult = { data: dashboard.classes ?? [] as any[] };
+const enrollmentsResult = { data: dashboard.enrollments ?? [] as any[] };
 const schoolRaw = Array.isArray(membership.schools) ? membership.schools[0] : membership.schools;
 const school = (schoolRaw ?? {}) as any;
-const subscription = subscriptionResult.data;
 const basePlan = getPlan(subscription?.plan_slug);
 const trialEnd = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
 const trialActive = Boolean(subscription?.status === "trialing" && trialEnd && trialEnd.getTime() > Date.now());
