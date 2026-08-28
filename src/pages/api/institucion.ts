@@ -38,30 +38,31 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	if (!apiToken) return new Response("Sin sesión", { status: 401 });
 
 	const battleRules = {
-		mode: "turn_based",
-		first_team: "red",
-		cross_section_battles: form.get("cross_section_battles") === "on",
-		task_progress: form.get("task_progress") === "on",
-		review_required: form.get("review_required") === "on",
-		turn_seconds: Math.min(120, Math.max(10, Number(clean(form.get("turn_seconds"), 3)) || 30)),
-		min_layers: 4,
-		max_layers: 7,
-		nodes_per_layer: { min: 3, max: 4 },
-		capture_rule: "fastest_correct_time",
-	};
+			mode: "turn_based",
+			first_team: "red",
+			cross_section_battles: form.get("cross_section_battles") === "on",
+			task_progress: form.get("task_progress") === "on",
+			review_required: form.get("review_required") === "on",
+			turn_seconds: Math.min(120, Math.max(10, Number(clean(form.get("turn_seconds"), 3)) || 30)),
+			min_layers: 4,
+			max_layers: 7,
+			nodes_per_layer: { min: 3, max: 4 },
+			capture_rule: "fastest_correct_time",
+		};
+		const battleGrades = form.getAll("battle_grades").map((g) => String(g));
 
-	let ok = false;
-	try {
-		const res = await fetch(`${API_BASE}/api/v1/panel/${membership.school_id}`, {
-			method: "PATCH",
-			headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-			body: JSON.stringify({ name, code, region, city, ugel, address, battle_rules: battleRules }),
-		});
-		ok = res.ok;
-		if (!ok) console.error("update school api error", await res.text());
-	} catch (e) {
-		console.error("update school api down", e);
-	}
+		let ok = false;
+		try {
+			const res = await fetch(`${API_BASE}/api/v1/panel/${membership.school_id}`, {
+				method: "PATCH",
+				headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ name, code, region, city, ugel, address, battle_rules: battleRules, battle_grades: battleGrades.length ? battleGrades : undefined }),
+			});
+			ok = res.ok;
+			if (!ok) console.error("update school api error", await res.text());
+		} catch (e) {
+			console.error("update school api down", e);
+		}
 
 	return redirect(ok ? "/panel?saved=1" : "/panel?error=save", 303);
 };

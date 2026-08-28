@@ -104,6 +104,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		});
 		return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
 	}
+	if (action === "toggle_subject") {
+			const id = clean(form.get("id"), 40);
+			const enabled = clean(form.get("is_enabled"), 5) === "true";
+			const r = await api("PATCH", `/subjects/${id}`, { is_enabled: enabled } as any);
+			return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
+		}
 	if (action === "delete_subject") {
 		const id = clean(form.get("id"), 40);
 		const r = await api("DELETE", `/subjects/${id}`);

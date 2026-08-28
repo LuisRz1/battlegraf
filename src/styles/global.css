@@ -708,6 +708,13 @@
 .confirm-dialog p{font-size:.85rem;color:#e6d9bd;line-height:1.5;padding:.4rem 0 .8rem}
 .dialog-actions{display:flex;gap:.6rem;justify-content:center}
 .dialog-actions .command-btn{min-width:8rem}
+/* --- Chips de grados participantes (Entidad colegio) --- */
+.battle-grades{display:flex;flex-wrap:wrap;gap:.5rem;margin:.3rem 0 .8rem}
+.grade-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border:1px solid #4a3a1c;background:#14100a;font-size:.85rem;cursor:pointer}
+.grade-chip input{width:1.1rem;height:1.1rem;accent-color:#c89a37}
+.grade-chip:has(input:checked){border-color:#c89a37;background:#251d0d;color:#f0cf7a}
+.battle-grades-label strong{color:#f8e6b7;font-size:.95rem}
+.battle-grades-label small{display:block;color:#8d7d77;font-size:.72rem;margin-top:.2rem}
 /* --- Barra de desplazamiento con el tema del sistema --- */
 *{scrollbar-width:thin;scrollbar-color:#5a4a3a #121014}
 ::-webkit-scrollbar{width:12px;height:12px}
