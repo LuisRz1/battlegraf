@@ -99,6 +99,78 @@ class ClassCodeIn(BaseModel):
     class_code: str = Field(min_length=4, max_length=10)
 
 
+# ---------- modelos de ACTUALIZACION (PATCH parcial: solo los campos enviados) ----------
+
+class SectionUpdate(BaseModel):
+    level: str | None = None
+    grade: str | None = Field(default=None, min_length=1, max_length=12)
+    section_label: str | None = Field(default=None, min_length=1, max_length=8)
+    tutor_name: str | None = None
+
+
+class SubjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=80)
+    icon_code: str | None = Field(default=None, min_length=1, max_length=3)
+    color: str | None = None
+    is_enabled: bool | None = None
+
+
+class StaffUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=3, max_length=140)
+    email: str | None = None
+    role: str | None = None
+    scope_label: str | None = None
+    status: str | None = None
+
+
+class StudentUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=3, max_length=140)
+    email: str | None = None
+    section_id: str | None = None
+
+
+class QuestionUpdate(BaseModel):
+    subject_id: str | None = None
+    question: str | None = Field(default=None, min_length=8, max_length=400)
+    options: list[str] | None = Field(default=None, min_length=4, max_length=4)
+    correct_index: int | None = Field(default=None, ge=0, le=3)
+    status: str | None = None
+
+
+class AssignmentUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=140)
+    section_id: str | None = None
+    subject_id: str | None = None
+    delivery_type: str | None = None
+    due_at: str | None = None
+    xp_reward: int | None = None
+    status: str | None = None
+
+
+class BattleUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=140)
+    battle_type: str | None = None
+    subject_id: str | None = None
+    grade: str | None = None
+    opponent_a: str | None = None
+    opponent_b: str | None = None
+    scheduled_at: str | None = None
+    graph_layers: int | None = None
+    nodes_per_layer: int | None = None
+    status: str | None = None
+
+
+class SchoolUpdate(BaseModel):
+    name: str | None = None
+    code: str | None = None
+    ugel: str | None = None
+    region: str | None = None
+    city: str | None = None
+    address: str | None = None
+    battle_rules: dict | None = None
+    battle_grades: list[str] | None = None
+
+
 # ---------- utilidades ----------
 
 def _fail(detail: str) -> HTTPException:
@@ -226,15 +298,25 @@ async def create_section(school_id: str, body: SectionIn, uid: Annotated[str, De
 
 
 @router.patch("/sections/{section_id}", response_model=Msg)
-async def update_section(section_id: str, body: SectionIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_section(section_id: str, body: SectionUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
-    row = (supabase.table("sections").select("school_id").eq("id", section_id).execute().data or [{}])[0]
+    row = (supabase.table("sections").select("school_id, level, grade, section_label").eq("id", section_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    label = body.section_label.upper()
-    supabase.table("sections").update({
-        "level": body.level, "grade": body.grade, "section_label": label,
-        "tutor_name": body.tutor_name, "display_name": f"{body.grade}. {body.level} {label}",
-    }).eq("id", section_id).execute()
+    patch: dict[str, Any] = {}
+    if body.section_label is not None:
+        patch["section_label"] = body.section_label.upper()
+    if body.level is not None:
+        patch["level"] = body.level
+    if body.grade is not None:
+        patch["grade"] = body.grade
+    if body.tutor_name is not None:
+        patch["tutor_name"] = body.tutor_name
+    if "grade" in patch or "level" in patch or "section_label" in patch:
+        grade = patch.get("grade", row.get("grade", ""))
+        level = patch.get("level", row.get("level", "Primaria"))
+        label = patch.get("section_label", row.get("section_label", "")).upper()
+        patch["display_name"] = f"{grade}. {level} {label}"
+    supabase.table("sections").update(patch).eq("id", section_id).execute()
     return Msg(detail="Seccion actualizada")
 
 
@@ -277,11 +359,17 @@ async def create_subject(school_id: str, body: SubjectIn, uid: Annotated[str, De
 
 
 @router.patch("/subjects/{subject_id}", response_model=Msg)
-async def update_subject(subject_id: str, body: SubjectIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_subject(subject_id: str, body: SubjectUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("subjects").select("school_id").eq("id", subject_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    patch_data: dict[str, Any] = {"name": body.name, "icon_code": body.icon_code.upper(), "color": body.color}
+    patch_data: dict[str, Any] = {}
+    if body.name is not None:
+        patch_data["name"] = body.name
+    if body.icon_code is not None:
+        patch_data["icon_code"] = body.icon_code.upper()
+    if body.color is not None:
+        patch_data["color"] = body.color
     if body.is_enabled is not None:
         patch_data["is_enabled"] = body.is_enabled
     supabase.table("subjects").update(patch_data).eq("id", subject_id).execute()
@@ -311,11 +399,12 @@ async def create_staff(school_id: str, body: StaffIn, uid: Annotated[str, Depend
 
 
 @router.patch("/staff/{staff_id}", response_model=Msg)
-async def update_staff(staff_id: str, body: StaffIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_staff(staff_id: str, body: StaffUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("staff_profiles").select("school_id").eq("id", staff_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector"])
-    supabase.table("staff_profiles").update(body.model_dump()).eq("id", staff_id).execute()
+    payload = body.model_dump(exclude_none=True)
+    supabase.table("staff_profiles").update(payload).eq("id", staff_id).execute()
     return Msg(detail="Perfil actualizado")
 
 
@@ -340,11 +429,13 @@ async def create_student(school_id: str, body: StudentIn, uid: Annotated[str, De
 
 
 @router.patch("/students/{student_id}", response_model=Msg)
-async def update_student(student_id: str, body: StudentIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_student(student_id: str, body: StudentUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("student_profiles").select("school_id").eq("id", student_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    patch: dict[str, Any] = {"full_name": body.full_name}
+    patch: dict[str, Any] = {}
+    if body.full_name is not None:
+        patch["full_name"] = body.full_name
     if body.email is not None:
         patch["email"] = body.email
     if body.section_id is not None:
@@ -377,11 +468,12 @@ async def create_question(school_id: str, body: QuestionIn, uid: Annotated[str, 
 
 
 @router.patch("/questions/{question_id}", response_model=Msg)
-async def update_question(question_id: str, body: QuestionIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_question(question_id: str, body: QuestionUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("question_bank").select("school_id").eq("id", question_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    supabase.table("question_bank").update(body.model_dump()).eq("id", question_id).execute()
+    payload = body.model_dump(exclude_none=True)
+    supabase.table("question_bank").update(payload).eq("id", question_id).execute()
     return Msg(detail="Pregunta actualizada")
 
 
@@ -418,11 +510,12 @@ async def create_assignment(school_id: str, body: AssignmentIn, uid: Annotated[s
 
 
 @router.patch("/assignments/{assignment_id}", response_model=Msg)
-async def update_assignment(assignment_id: str, body: AssignmentIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_assignment(assignment_id: str, body: AssignmentUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("assignments").select("school_id").eq("id", assignment_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    supabase.table("assignments").update(body.model_dump()).eq("id", assignment_id).execute()
+    payload = body.model_dump(exclude_none=True)
+    supabase.table("assignments").update(payload).eq("id", assignment_id).execute()
     return Msg(detail="Tarea actualizada")
 
 
@@ -450,7 +543,7 @@ async def create_battle(school_id: str, body: BattleIn, uid: Annotated[str, Depe
 
 
 @router.patch("/battles/{battle_id}", response_model=Msg)
-async def update_battle(battle_id: str, body: BattleIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_battle(battle_id: str, body: BattleUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     row = (supabase.table("battle_events").select("school_id").eq("id", battle_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
@@ -525,10 +618,12 @@ class SchoolIn(BaseModel):
 
 
 @router.patch("/{school_id}", response_model=Msg)
-async def update_school(school_id: str, body: SchoolIn, uid: Annotated[str, Depends(_current_uid)]):
+async def update_school(school_id: str, body: SchoolUpdate, uid: Annotated[str, Depends(_current_uid)]):
     supabase = supabase_admin()
     await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector"])
-    patch_data: dict[str, Any] = {"name": body.name}
+    patch_data: dict[str, Any] = {}
+    if body.name is not None:
+        patch_data["name"] = body.name
     if body.code is not None:
         patch_data["code"] = body.code.upper()
     for k in ("ugel", "region", "city", "address"):
