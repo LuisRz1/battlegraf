@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '20260828|v7-conexiones-demo';
+const CACHE_VERSION = '20260828|v8-layout-demo';
 /** @type {string} */
 const CACHE_PREFIX = 'BattleGraph-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
