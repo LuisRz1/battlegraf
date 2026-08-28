@@ -708,6 +708,8 @@
 .confirm-dialog p{font-size:.85rem;color:#e6d9bd;line-height:1.5;padding:.4rem 0 .8rem}
 .dialog-actions{display:flex;gap:.6rem;justify-content:center}
 .dialog-actions .command-btn{min-width:8rem}
+.question-list .approved-tag{color:#8fd694;font-size:.85rem;letter-spacing:.08em;white-space:nowrap}
+.question-list small{color:#8d7d77}
 /* --- Chips de grados participantes (Entidad colegio) --- */
 .battle-grades{display:flex;flex-wrap:wrap;gap:.5rem;margin:.3rem 0 .8rem}
 .grade-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border:1px solid #4a3a1c;background:#14100a;font-size:.85rem;cursor:pointer}
