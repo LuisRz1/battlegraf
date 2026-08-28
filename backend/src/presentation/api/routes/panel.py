@@ -160,6 +160,14 @@ class BattleUpdate(BaseModel):
     status: str | None = None
 
 
+class TeacherAssignIn(BaseModel):
+    staff_id: str = Field(min_length=8, max_length=64)
+
+
+class StudentTrackIn(BaseModel):
+    pass
+
+
 class SchoolUpdate(BaseModel):
     name: str | None = None
     code: str | None = None
@@ -256,6 +264,7 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         out["students"] = rows(t("student_profiles").select("id, school_id, full_name, email, section_id, membership_id, status, is_demo, created_at").eq("school_id", school_id).execute())
         out["sections"] = rows(t("sections").select("*").eq("school_id", school_id).execute())
         out["subjects"] = rows(t("subjects").select("id, school_id, slug, name, color, icon_code, is_enabled, is_demo, created_at").eq("school_id", school_id).eq("is_enabled", True).execute())
+        out["subject_teachers"] = rows(t("subject_teachers").select("id, subject_id, staff_id, staff_profiles(full_name, role)").eq("school_id", school_id).execute())
         out["clans"] = rows(t("clans").select("id, name, color, rank_name, section_id, is_demo, created_at").eq("school_id", school_id).execute())
         out["materials"] = rows(t("learning_materials").select("id, school_id, title, file_name, file_type, processing_status, subject_id, created_at").eq("school_id", school_id).order("created_at", True).execute())
         out["questions"] = rows(t("question_bank").select("id, school_id, question, options, status, subject_id, source, is_demo, created_at").eq("school_id", school_id).order("created_at", True).execute())
@@ -405,7 +414,174 @@ async def delete_subject(subject_id: str, uid: Annotated[str, Depends(_current_u
     row = (supabase.table("subjects").select("school_id").eq("id", subject_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
     supabase.table("subjects").delete().eq("id", subject_id).execute()
+    # limpiar asignaciones de profesores del curso
+    supabase.table("subject_teachers").delete().eq("subject_id", subject_id).execute()
     return Msg(detail="Materia eliminada")
+
+
+# ---------- trazabilidad: profesores por curso (materia) ----------
+
+@router.post("/{school_id}/subjects/{subject_id}/teachers", response_model=Msg)
+async def assign_teacher_to_subject(school_id: str, subject_id: str, body: TeacherAssignIn,
+                                    uid: Annotated[str, Depends(_current_uid)]):
+    """Asigna un profesor (staff) a un curso. Un curso puede tener varios profesores."""
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor"])
+    # profesor debe pertenecer al colegio
+    staff = supabase.table("staff_profiles").select("id, school_id").eq("id", body.staff_id).execute().data
+    if not staff or staff[0].get("school_id") != school_id:
+        raise HTTPException(status_code=404, detail="Profesor no encontrado en este colegio")
+    # el curso debe pertenecer al colegio
+    subj = supabase.table("subjects").select("id, school_id").eq("id", subject_id).execute().data
+    if not subj or subj[0].get("school_id") != school_id:
+        raise HTTPException(status_code=404, detail="Curso no encontrado en este colegio")
+    # evitar duplicados
+    dupe = supabase.table("subject_teachers").select("id").eq("subject_id", subject_id).eq("staff_id", body.staff_id).execute().data
+    if not dupe:
+        supabase.table("subject_teachers").insert({
+            "school_id": school_id, "subject_id": subject_id, "staff_id": body.staff_id,
+        }).execute()
+    return Msg(detail="Profesor asignado al curso")
+
+
+@router.delete("/{school_id}/subjects/{subject_id}/teachers/{staff_id}", response_model=Msg)
+async def remove_teacher_from_subject(school_id: str, subject_id: str, staff_id: str,
+                                      uid: Annotated[str, Depends(_current_uid)]):
+    """Quita un profesor del curso."""
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor"])
+    supabase.table("subject_teachers").delete().eq("subject_id", subject_id).eq("staff_id", staff_id).execute()
+    return Msg(detail="Profesor removido del curso")
+
+
+# ---------- trazabilidad: progreso completo de un alumno ----------
+
+@router.get("/{school_id}/students/{student_id}/tracking")
+async def student_tracking(school_id: str, student_id: str,
+                           uid: Annotated[str, Depends(_current_uid)]):
+    """Todo el recorrido de un alumno: perfil, seccion, cursos con profesores,
+    rango, xp, tareas entregadas y batallas participadas."""
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
+
+    student = supabase.table("student_profiles").select(
+        "id, full_name, email, section_id, status, membership_id"
+    ).eq("id", student_id).eq("school_id", school_id).execute().data
+    if not student:
+        raise HTTPException(status_code=404, detail="Alumno no encontrado")
+    st = student[0]
+
+    # seccion del alumno
+    section = None
+    if st.get("section_id"):
+        sec = supabase.table("sections").select(
+            "id, display_name, grade, level"
+        ).eq("id", st["section_id"]).execute().data
+        if sec:
+            section = sec[0]
+
+    # cursos (materias) del colegio con sus profesores
+    subjects = supabase.table("subjects").select(
+        "id, name, color, icon_code, is_enabled"
+    ).eq("school_id", school_id).order("name", ascending=True).execute().data
+    teachers_by_subject = {}
+    st_rows = supabase.table("subject_teachers").select(
+        "subject_id, staff_profiles(id, full_name, role)"
+    ).eq("school_id", school_id).execute().data or []
+    for row in st_rows:
+        tid = row.get("subject_id")
+        rel = row.get("staff_profiles") or {}
+        teachers_by_subject.setdefault(tid, []).append({
+            "id": rel.get("id"), "full_name": rel.get("full_name"), "role": rel.get("role"),
+        })
+    courses = []
+    for sbj in subjects:
+        courses.append({
+            "id": sbj["id"], "name": sbj["name"], "color": sbj.get("color"),
+            "icon_code": sbj.get("icon_code"), "is_enabled": sbj.get("is_enabled", True),
+            "teachers": teachers_by_subject.get(sbj["id"], []),
+        })
+
+    # xp total del alumno (xp_transactions.user_id = membership.user_id del alumno)
+    xp_total = 0
+    membership_id = st.get("membership_id")
+    if membership_id:
+        mem = supabase.table("memberships").select("user_id").eq("id", membership_id).execute().data
+        if mem:
+            xq = supabase.table("xp_transactions").select("amount").eq("user_id", mem[0]["user_id"]).execute().data or []
+            xp_total = sum(int(r.get("amount") or 0) for r in xq)
+
+    # rango segun xp (rank_definitions del colegio)
+    rank = None
+    ranks = supabase.table("rank_definitions").select(
+        "id, name, min_xp, position"
+    ).eq("school_id", school_id).order("min_xp", ascending=True).execute().data or []
+    for r in ranks:
+        if xp_total >= int(r.get("min_xp") or 0):
+            rank = {"id": r["id"], "name": r["name"], "position": r.get("position")}
+
+    # tareas entregadas por el alumno (task_submissions.student_id = student_profiles.id)
+    submissions = supabase.table("task_submissions").select(
+        "task_id, score, is_graded, xp_awarded, submitted_at, tasks(title, subject, due_date, status)"
+    ).eq("student_id", student_id).execute().data or []
+    tasks_done = []
+    for sub in submissions:
+        t = sub.get("tasks") or {}
+        tasks_done.append({
+            "task_id": sub.get("task_id"),
+            "title": t.get("title") or "Sin titulo",
+            "subject": t.get("subject"),
+            "due_date": t.get("due_date"),
+            "score": sub.get("score"),
+            "is_graded": sub.get("is_graded"),
+            "xp_awarded": sub.get("xp_awarded"),
+            "submitted_at": sub.get("submitted_at"),
+        })
+
+    # batallas en las que el alumno participo (battle_moves no tiene student_id:
+    # se infieren desde el juego por player_index; las batallas del colegio se listan
+    # con su materia y estado para trazabilidad del contexto)
+    battles = supabase.table("battle_events").select(
+        "id, title, battle_type, status, scheduled_at, subject_id, grade, subjects(name)"
+    ).eq("school_id", school_id).order("scheduled_at", ascending=False).limit(20).execute().data or []
+    battle_list = []
+    for b in battles:
+        battle_list.append({
+            "id": b["id"], "title": b.get("title"), "battle_type": b.get("battle_type"),
+            "status": b.get("status"), "scheduled_at": b.get("scheduled_at"),
+            "subject": (b.get("subjects") or {}).get("name"),
+            "grade": b.get("grade"),
+        })
+
+    # clases donde participa (class_enrollments no tiene school_id; se filtran por
+    # las clases del colegio)
+    cls_rows = supabase.table("classes").select(
+        "id, name, code, is_active, subject_id, subjects(name)"
+    ).eq("school_id", school_id).execute().data or []
+    enroll = supabase.table("class_enrollments").select(
+        "class_id, status"
+    ).eq("student_profile_id", student_id).execute().data or []
+    enrolled_ids = {e["class_id"] for e in enroll}
+    enrolled_classes = []
+    for c in cls_rows:
+        if c["id"] in enrolled_ids:
+            enrolled_classes.append({
+                "id": c["id"], "name": c.get("name"), "code": c.get("code"),
+                "is_active": c.get("is_active"),
+                "subject": (c.get("subjects") or {}).get("name"),
+            })
+
+    return {
+        "student": {"id": st["id"], "full_name": st["full_name"], "email": st.get("email"),
+                    "status": st.get("status")},
+        "section": section,
+        "xp_total": xp_total,
+        "rank": rank,
+        "courses": courses,
+        "tasks_done": tasks_done,
+        "battles": battle_list,
+        "enrolled_classes": enrolled_classes,
+    }
 
 
 # ---------- personas ----------
