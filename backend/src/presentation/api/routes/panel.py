@@ -177,25 +177,48 @@ def _fail(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
-async def _current_uid(authorization: Annotated[str | None, Header()] = None) -> str:
-    """Valida el JWT de Supabase y devuelve el uid del usuario."""
+async def _current_uid(authorization: str | None = Header(default=None)) -> str:
+    """Valida el JWT de Supabase y devuelve el uid del usuario.
+
+    El proyecto usa ES256 (clave EC publicada en SUPABASE_JWKS_URL). Se valida
+    con la JWKS publica (sin necesidad del JWT_SECRET, que en Vercel llega
+    encriptado). Fallback HS256 con supabase_jwt_secret para proyectos legacy.
+    """
     if not authorization or " " not in authorization:
         raise HTTPException(status_code=401, detail="Token requerido")
     token = authorization.split(" ", 1)[1]
     try:
-        from jose import jwt  # PyJWT-compatible: python-jose
         settings = get_settings()
+        # 1) Validar con la JWKS publica (proyectos modernos ES256/RS256)
+        #    Se prefiere PyJWT (jwt.PyJWKClient) porque python-jose no lo trae.
+        if settings.supabase_jwks_url:
+            try:
+                import jwt as pyjwt  # PyJWT con PyJWKClient
+
+                jwks_client = pyjwt.PyJWKClient(settings.supabase_jwks_url)
+                signing_key = jwks_client.get_signing_key_from_jwt(token)
+                payload = pyjwt.decode(
+                    token, signing_key.key,
+                    algorithms=["ES256", "RS256"],
+                    options={"verify_aud": False},
+                )
+                if "sub" in payload:
+                    return payload["sub"]
+            except Exception:
+                pass  # si PyJWT falla (token HS256), seguimos con jose
+        # 2) Fallback: python-jose con HS256 (proyectos legacy)
+        from jose import jwt  # python-jose
         secret = settings.supabase_jwt_secret
-        payload = jwt.decode(
-            token, secret, algorithms=["HS256"],
-            options={"verify_aud": False},
-        )
-        if "sub" not in payload:
-            raise ValueError("sin sub")
-        return payload["sub"]
+        if secret:
+            payload = jwt.decode(
+                token, secret, algorithms=["HS256"],
+                options={"verify_aud": False},
+            )
+            if "sub" in payload:
+                return payload["sub"]
+        raise ValueError("sin sub valido")
     except Exception:
         raise HTTPException(status_code=401, detail="Token invalido o expirado")
-
 
 async def _require_member(supabase: Any, uid: str, school_id: str, roles: list[str]) -> dict:
     """Verifica que el usuario sea miembro del colegio con uno de los roles."""

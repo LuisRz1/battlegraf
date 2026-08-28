@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_secret_key: str = ""  # formato nuevo sb_secret_... (preferido)
     supabase_jwt_secret: str = ""
+    supabase_jwks_url: str = ""
     
     @model_validator(mode='after')
     def validate_production_settings(self) -> 'Settings':
