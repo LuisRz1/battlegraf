@@ -715,6 +715,15 @@
 .grade-chip:has(input:checked){border-color:#c89a37;background:#251d0d;color:#f0cf7a}
 .battle-grades-label strong{color:#f8e6b7;font-size:.95rem}
 .battle-grades-label small{display:block;color:#8d7d77;font-size:.72rem;margin-top:.2rem}
+/* --- Modal del juego (batalla vs bot) --- */
+.game-modal-dialog{width:min(1100px,96vw);height:min(720px,92vh);max-width:none;padding:0;background:#0a090b;border:2px solid #9f7130;overflow:hidden}
+.game-modal-dialog form{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.2rem;background:#141019;border-bottom:1px solid #4a3a29}
+.game-modal-dialog header{display:contents}
+.game-modal-dialog header div{margin:0}
+.game-modal-dialog header h2{font-size:1.05rem;color:#f8e6b7}
+.game-modal-dialog header span{color:#e64752;font-size:.6rem;letter-spacing:.1em}
+.game-modal-frame{width:100%;height:calc(100% - 3.2rem);background:#000}
+.game-modal-frame iframe{width:100%;height:100%;border:0;background:#000}
 /* --- Barra de desplazamiento con el tema del sistema --- */
 *{scrollbar-width:thin;scrollbar-color:#5a4a3a #121014}
 ::-webkit-scrollbar{width:12px;height:12px}

@@ -118,11 +118,11 @@ import Footer from "../components/Footer.astro";
 			function openGame() {
 							if (!gameModal || !gameIframe) return;
 							const sp = new URLSearchParams(window.location.search);
-							const schoolId = sp.get("school_id") || "b8a8b81b-4501-449f-9f24-d33736be8692";
+							const schoolId = sp.get("school_id");
 							const subject = sp.get("subject");
 							let src = (gameIframe.getAttribute("data-src") || "/game/BattleGraph.html").split("?")[0];
-							src += "?school_id=" + encodeURIComponent(schoolId);
-							if (subject) src += "&subject=" + encodeURIComponent(subject);
+							if (schoolId) src += "?school_id=" + encodeURIComponent(schoolId);
+							if (subject) src += (src.includes("?") ? "&" : "?") + "subject=" + encodeURIComponent(subject);
 							gameIframe.src = src;
 							gameModal.classList.remove("hidden");
 							gameModal.classList.add("flex");
