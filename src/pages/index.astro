@@ -116,21 +116,18 @@ import Footer from "../components/Footer.astro";
 			const openGameTriggers = document.querySelectorAll("[data-open-game]");
 
 			function openGame() {
-				if (!gameModal || !gameIframe) return;
-				let src = gameIframe.getAttribute("data-src") || "/game/BattleGraph.html";
-				// Propagar school_id de la URL de la landing al juego (preguntas IA por colegio)
-				const sp = new URLSearchParams(window.location.search);
-				const schoolId = sp.get("school_id");
-				if (schoolId && !/[?&]school_id=/.test(src)) {
-					src += (src.includes("?") ? "&" : "?") + "school_id=" + encodeURIComponent(schoolId);
-				}
-				if (!gameIframe.src || gameIframe.src === "about:blank" || !/[?&]school_id=/.test(gameIframe.src)) {
-					gameIframe.src = src;
-				}
-				gameModal.classList.remove("hidden");
-				gameModal.classList.add("flex");
-				document.body.style.overflow = "hidden";
-			}
+							if (!gameModal || !gameIframe) return;
+							const sp = new URLSearchParams(window.location.search);
+							const schoolId = sp.get("school_id") || "b8a8b81b-4501-449f-9f24-d33736be8692";
+							const subject = sp.get("subject");
+							let src = (gameIframe.getAttribute("data-src") || "/game/BattleGraph.html").split("?")[0];
+							src += "?school_id=" + encodeURIComponent(schoolId);
+							if (subject) src += "&subject=" + encodeURIComponent(subject);
+							gameIframe.src = src;
+							gameModal.classList.remove("hidden");
+							gameModal.classList.add("flex");
+							document.body.style.overflow = "hidden";
+						}
 
 			function closeGame() {
 				if (!gameModal || !gameIframe) return;
@@ -147,6 +144,10 @@ import Footer from "../components/Footer.astro";
 			}
 
 			gameCloseBtn?.addEventListener("click", closeGame);
+			// Auto-abrir el juego si la URL pide ?jugar=1 (enlazado desde el panel: JUGAR)
+			if (new URLSearchParams(window.location.search).get("jugar") === "1") {
+				openGame();
+			}
 
 			gameModal?.addEventListener("click", (e) => {
 				if (e.target === gameModal) closeGame();
