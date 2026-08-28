@@ -710,6 +710,12 @@
 .dialog-actions .command-btn{min-width:8rem}
 .question-list .approved-tag{color:#8fd694;font-size:.85rem;letter-spacing:.08em;white-space:nowrap}
 .question-list small{color:#8d7d77}
+/* --- Alternativas en tabla de 4 (crear/editar pregunta) --- */
+.options-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin:.3rem 0 .2rem}
+.option-cell{display:flex;flex-direction:column;gap:.25rem;padding:.7rem;border:1px solid #4a3a1c;border-radius:.5rem;background:linear-gradient(180deg,rgba(202,164,62,.07),rgba(18,16,20,.6));text-align:left}
+.option-cell span{font-size:.78rem;letter-spacing:.06em;color:#caa43e;font-weight:600}
+.option-cell input{width:100%;box-sizing:border-box}
+@media(max-width:640px){.options-grid{grid-template-columns:repeat(2,1fr)}}
 /* --- Chips de grados participantes (Entidad colegio) --- */
 .battle-grades{display:flex;flex-wrap:wrap;gap:.5rem;margin:.3rem 0 .8rem}
 .grade-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border:1px solid #4a3a1c;background:#14100a;font-size:.85rem;cursor:pointer}
