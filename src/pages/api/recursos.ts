@@ -104,6 +104,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		});
 		return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
 	}
+	if (action === "assign_teacher") {
+		const subject_id = clean(form.get("subject_id"), 40);
+		const staff_id = clean(form.get("staff_id"), 40);
+		const r = await api("POST", `/subjects/${subject_id}/teachers`, { staff_id });
+		return go(redirect, r.ok ? "saved=assigned" : "error=assign", "materias");
+	}
+	if (action === "remove_teacher") {
+		const subject_id = clean(form.get("subject_id"), 40);
+		const staff_id = clean(form.get("staff_id"), 40);
+		const r = await api("DELETE", `/subjects/${subject_id}/teachers/${staff_id}`);
+		return go(redirect, r.ok ? "saved=removed" : "error=assign", "materias");
+	}
 	if (action === "toggle_subject") {
 			const id = clean(form.get("id"), 40);
 			const enabled = clean(form.get("is_enabled"), 5) === "true";
