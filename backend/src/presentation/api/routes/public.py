@@ -2,40 +2,46 @@
 
 Estos endpoints sirven datos de solo lectura que el JUEGO (web y movil)
 consume directamente sin login del estudiante: las preguntas aprobadas
-del colegio en el formato compacto {topic, question, answers, correct}.
+del colegio en el formato compacto {t, q, a, c} que espera Godot.
+
+Fuente de datos: la tabla `question_bank` de Supabase (la misma que usa
+el panel y la IA generadora), NO la tabla ORM `questions` que esta vacia
+para los colegios reales.
 """
 
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, Query, status
 
-from src.infrastructure.database import repositories
-from src.infrastructure.database.session import get_db
+from src.infrastructure.config import get_settings
+from src.infrastructure.database.supabase_admin import supabase_admin
 
 router = APIRouter(prefix="/public", tags=["Public"])
 
+SUBJECT_ALIASES = {
+    "matematica": "Matemática",
+    "matematicas": "Matemática",
+    "comunicacion": "Comunicación",
+    "ciencia y tecnologia": "Ciencia y Tecnología",
+    "ciencia": "Ciencia y Tecnología",
+    "personal social": "Personal Social",
+    "arte y cultura": "Arte y Cultura",
+    "ingles": "Inglés",
+    "historia": "Historia",
+    "fisica": "Física",
+    "quimica": "Química",
+    "literatura": "Literatura",
+    "geografia": "Geografía",
+    "educacion fisica": "Educación Física",
+    "religion": "Religión",
+}
 
-def _question_to_game(question) -> dict:
-    """Convierte una Question aprobada al formato del juego Godot:
-    {"t": materia, "q": texto, "a": [4 opciones], "c": indice correcto}
-    """
-    answers = [
-        question.option_a,
-        question.option_b,
-        question.option_c,
-        question.option_d,
-    ]
-    correct_map = {"A": 0, "B": 1, "C": 2, "D": 3}
-    correct = correct_map.get((question.correct_option or "A").upper(), 0)
-    subject = question.subject
-    return {
-        "t": subject.value if hasattr(subject, "value") else str(subject),
-        "q": question.text,
-        "a": answers,
-        "c": correct,
-    }
+
+def _normalize_subject(name: str) -> str:
+    """Normaliza el nombre de la materia para que coincida con los topics del juego."""
+    key = name.strip().lower().replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+    return SUBJECT_ALIASES.get(key, name.strip())
 
 
 @router.get("/questions")
@@ -43,19 +49,12 @@ async def school_questions(
     school_id: Optional[str] = Query(default=None, description="ID del colegio"),
     subject: Optional[str] = Query(default=None, description="Materia (opcional)"),
     limit: int = Query(default=100, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Devuelve las preguntas APROBADAS de un colegio en formato juego.
 
-    Sin autenticacion: el juego web/movil solo necesita el school_id.
+    Lee de la tabla `question_bank` (Supabase) — las preguntas que el
+    panel y la IA generadora escriben. Solo status=approved.
     """
-    if subject:
-        from src.domain.enums.subject import Subject
-
-        subject_value = Subject(subject).value
-    else:
-        subject_value = None
-
     if not school_id:
         return {"questions": [], "school_id": None, "count": 0}
 
@@ -67,23 +66,68 @@ async def school_questions(
             detail="school_id debe ser un UUID valido",
         )
 
-    questions_repo = repositories.SQLAlchemyQuestionRepository(db)
-    all_questions = await questions_repo.list_by_school(school_uuid)
+    try:
+        supabase = supabase_admin()
+        # materias del colegio para resolver el nombre
+        subjects_rows = (
+            supabase.table("subjects")
+            .select("id, name")
+            .eq("school_id", str(school_uuid))
+            .execute()
+            .data
+            or []
+        )
+        name_by_id = {str(s["id"]): s["name"] for s in subjects_rows}
 
-    approved = [
-        q
-        for q in all_questions
-        if q.is_approved
-        and (subject_value is None or q.subject.value == subject_value)
-    ]
+        # preguntas aprobadas del colegio (mas recientes primero)
+        q_rows = (
+            supabase.table("question_bank")
+            .select("id, subject_id, question, options, correct_index, status, created_at")
+            .eq("school_id", str(school_uuid))
+            .eq("status", "approved")
+            .order("created_at", False)
+            .limit(limit)
+            .execute()
+            .data
+            or []
+        )
 
-    approved = sorted(
-        approved, key=lambda q: getattr(q, "created_at", None) or "", reverse=True
-    )
-    approved = approved[:limit]
+        subject_filter = None
+        if subject:
+            subject_filter = _normalize_subject(subject).lower()
 
-    return {
-        "questions": [_question_to_game(q) for q in approved],
-        "school_id": str(school_uuid),
-        "count": len(approved),
-    }
+        questions = []
+        for q in q_rows:
+            raw_name = name_by_id.get(str(q.get("subject_id")), "")
+            topic = _normalize_subject(raw_name or "General")
+            if subject_filter and topic.lower() != subject_filter:
+                continue
+            try:
+                options = q.get("options") or []
+                if isinstance(options, str):
+                    options = __import__("json").loads(options)
+                if not isinstance(options, list) or len(options) < 2:
+                    continue
+                correct = int(q.get("correct_index") or 0)
+                correct = max(0, min(correct, len(options) - 1))
+                questions.append(
+                    {
+                        "t": topic,
+                        "q": (q.get("question") or "").strip(),
+                        "a": [str(o) for o in options[:4]],
+                        "c": correct,
+                    }
+                )
+            except Exception:  # noqa: BLE001 - fila malformada, se omite
+                continue
+
+        return {
+            "questions": questions,
+            "school_id": str(school_uuid),
+            "count": len(questions),
+        }
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cargando preguntas: {exc}",
+        )

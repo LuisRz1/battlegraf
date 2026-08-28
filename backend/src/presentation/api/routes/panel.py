@@ -35,6 +35,7 @@ class SubjectIn(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     icon_code: str = Field(min_length=1, max_length=3)
     color: str = "#e6b84d"
+    is_enabled: bool | None = None
 
 
 class StaffIn(BaseModel):
@@ -72,6 +73,8 @@ class AssignmentIn(BaseModel):
 class BattleIn(BaseModel):
     title: str = Field(min_length=3, max_length=140)
     battle_type: str = "student_vs_bot"
+    subject_id: str | None = None
+    grade: str | None = None
     opponent_a: str = ""
     opponent_b: str = ""
     scheduled_at: str | None = None
@@ -163,10 +166,10 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         out["questions"] = rows(t("question_bank").select("id, school_id, question, options, status, subject_id, source, is_demo, created_at").eq("school_id", school_id).order("created_at", True).execute())
         out["staff"] = rows(t("staff_profiles").select("id, school_id, full_name, email, role, scope_label, status, is_demo, created_at").eq("school_id", school_id).execute())
         out["assignments"] = rows(t("assignments").select("id, school_id, title, section_id, subject_id, delivery_type, due_at, xp_reward, status").eq("school_id", school_id).execute())
-        out["battles"] = rows(t("battle_events").select("id, school_id, title, battle_type, opponent_a, opponent_b, scheduled_at, graph_layers, nodes_per_layer, status").eq("school_id", school_id).execute())
+        out["battles"] = rows(t("battle_events").select("id, school_id, title, battle_type, subject_id, grade, opponent_a, opponent_b, scheduled_at, graph_layers, nodes_per_layer, status").eq("school_id", school_id).execute())
         out["ranks"] = rows(t("rank_definitions").select("id, school_id, name, min_xp, position, is_demo").eq("school_id", school_id).execute())
         out["audits"] = rows(t("audit_logs").select("id, actor_name, action, target_label, category, created_at").eq("school_id", school_id).order("created_at", True).limit(30).execute())
-        out["settings"] = (t("school_settings").select("battle_rules, rank_rules, ai_preferences, accessibility").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+        out["settings"] = (t("school_settings").select("battle_rules, rank_rules, ai_preferences, accessibility, battle_grades").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
         out["classes"] = rows(t("classes").select("id, school_id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, teacher_membership_id").eq("school_id", school_id).order("created_at", True).execute())
         class_ids = [str(c["id"]) for c in out["classes"]]
         out["enrollments"] = rows(t("class_enrollments").select("id, class_id, student_profile_id, academic_year_id, status, enrolled_at").in_("class_id", class_ids).execute()) if class_ids else []
@@ -278,9 +281,10 @@ async def update_subject(subject_id: str, body: SubjectIn, uid: Annotated[str, D
     supabase = supabase_admin()
     row = (supabase.table("subjects").select("school_id").eq("id", subject_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    supabase.table("subjects").update({
-        "name": body.name, "icon_code": body.icon_code.upper(), "color": body.color,
-    }).eq("id", subject_id).execute()
+    patch_data: dict[str, Any] = {"name": body.name, "icon_code": body.icon_code.upper(), "color": body.color}
+    if body.is_enabled is not None:
+        patch_data["is_enabled"] = body.is_enabled
+    supabase.table("subjects").update(patch_data).eq("id", subject_id).execute()
     return Msg(detail="Materia actualizada")
 
 
@@ -437,6 +441,7 @@ async def create_battle(school_id: str, body: BattleIn, uid: Annotated[str, Depe
     await _require_member(supabase, uid, school_id, ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
     resp = supabase.table("battle_events").insert({
         "school_id": school_id, "title": body.title, "battle_type": body.battle_type,
+        "subject_id": body.subject_id, "grade": body.grade,
         "opponent_a": body.opponent_a, "opponent_b": body.opponent_b, "scheduled_at": body.scheduled_at,
         "graph_layers": body.graph_layers, "nodes_per_layer": body.nodes_per_layer,
         "status": body.status, "is_demo": False,
@@ -449,7 +454,8 @@ async def update_battle(battle_id: str, body: BattleIn, uid: Annotated[str, Depe
     supabase = supabase_admin()
     row = (supabase.table("battle_events").select("school_id").eq("id", battle_id).execute().data or [{}])[0]
     await _require_member(supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"])
-    supabase.table("battle_events").update(body.model_dump()).eq("id", battle_id).execute()
+    payload = body.model_dump(exclude_none=True)
+    supabase.table("battle_events").update(payload).eq("id", battle_id).execute()
     return Msg(detail="Batalla actualizada")
 
 
@@ -515,6 +521,7 @@ class SchoolIn(BaseModel):
     city: str | None = None
     address: str | None = None
     battle_rules: dict[str, Any] | None = None
+    battle_grades: list[str] | None = None
 
 
 @router.patch("/{school_id}", response_model=Msg)
@@ -529,14 +536,17 @@ async def update_school(school_id: str, body: SchoolIn, uid: Annotated[str, Depe
         if v is not None:
             patch_data[k] = v
     supabase.table("schools").update(patch_data).eq("id", school_id).execute()
-    if body.battle_rules is not None:
-        existing = (supabase.table("school_settings").select("battle_rules").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
-        rules = (existing.get("battle_rules") or {}) | body.battle_rules
-        exists = bool(existing.get("battle_rules") is not None or existing)
+    if body.battle_rules is not None or body.battle_grades is not None:
+        existing = (supabase.table("school_settings").select("battle_rules, battle_grades").eq("school_id", school_id).limit(1).execute().data or [{}])[0]
+        settings_patch: dict[str, Any] = {}
+        if body.battle_rules is not None:
+            settings_patch["battle_rules"] = (existing.get("battle_rules") or {}) | body.battle_rules
+        if body.battle_grades is not None:
+            settings_patch["battle_grades"] = body.battle_grades
         try:
-            supabase.table("school_settings").update({"battle_rules": rules}).eq("school_id", school_id).execute()
+            supabase.table("school_settings").update(settings_patch).eq("school_id", school_id).execute()
         except Exception:  # noqa: BLE001
-            supabase.table("school_settings").insert({"school_id": school_id, "battle_rules": rules}).execute()
+            supabase.table("school_settings").insert({"school_id": school_id, **settings_patch}).execute()
     return Msg(detail="Colegio actualizado")
 
 
