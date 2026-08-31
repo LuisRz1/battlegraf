@@ -1,0 +1,63 @@
+---
+const topics = [
+	{ name: "Matemática", code: "MAT" },
+	{ name: "Física", code: "FIS" },
+	{ name: "Química", code: "QUI" },
+	{ name: "Historia", code: "HIS" },
+	{ name: "Literatura", code: "LIT" },
+	{ name: "Comunicación", code: "COM" },
+	{ name: "Geografía", code: "GEO" },
+	{ name: "Inglés", code: "ING" },
+];
+---
+
+<section id="tematicas" class="relative py-24 sm:py-32">
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<div class="reveal mb-12 flex flex-col gap-4">
+			<div class="section-tag">DOMINIOS DEL GRAFO</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				Cada nodo tiene su <span class="text-oro-300 drop-shadow-[0_0_12px_rgba(240,207,122,0.4)]">materia</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				Las preguntas de cada nodo pertenecen a su materia respectiva. Si deseas conquistar la provincia de Historia o la frontera de Física, demuestra tu conocimiento.
+			</p>
+		</div>
+
+		<!-- Insignias de Dominios de Materias -->
+		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+			{
+				topics.map((t, i) => (
+					<div class="reveal">
+						<a
+							href="#jugar"
+							class="pixel-panel pixel-card flex items-center gap-3 !border-[12px] p-4 text-sm font-bold text-crema-100 transition-all hover:text-oro-300 hover:border-oro-700/60 no-underline"
+						>
+							<span class="topic-code" aria-hidden="true">{t.code}</span>
+							<div class="flex flex-col">
+								<span class="text-[0.6rem] text-oro-500 font-bold uppercase tracking-wider">DOMINIO #0{i + 1}</span>
+								<span>{t.name}</span>
+							</div>
+						</a>
+					</div>
+				))
+			}
+		</div>
+
+		<!-- Banner de Modo Educativo / Retención de Conocimiento -->
+		<div class="reveal mt-14">
+			<div class="game-hud rounded-lg p-6 sm:p-8 border-l-4 border-l-violeta-400 border-t border-r border-b border-piedra-700 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+				<div class="space-y-2 max-w-2xl">
+					<div class="flex items-center gap-2">
+						<span class="game-badge text-violeta-400">APRENDIZAJE ACTIVO</span>
+						<h3 class="text-lg font-bold text-crema-100">Modo de Aprendizaje por Conquista</h3>
+					</div>
+					<p class="text-sm text-crema-300 leading-relaxed">
+						Fallar no te expulsa del juego: se marca la opción incorrecta para que razones tu respuesta y vuelvas a la carga. Es un entorno diseñado para aprender jugando.
+					</p>
+				</div>
+				<a href="#jugar" class="pixel-btn shrink-0 !py-3 !px-6">Probar Ahora</a>
+			</div>
+		</div>
+	</div>
+</section>
+

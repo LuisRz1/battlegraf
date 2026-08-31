@@ -1,0 +1,20 @@
+---
+import PlanCards from "./PlanCards.astro";
+---
+
+<section id="planes" class="relative overflow-hidden py-24 sm:py-32">
+	<div class="absolute inset-0 -z-10 pricing-grid" aria-hidden="true"></div>
+	<div class="mx-auto max-w-7xl px-4 sm:px-6">
+		<div class="mx-auto mb-12 max-w-3xl text-center reveal">
+			<p class="section-tag justify-center">PLANES PARA CADA MISIÓN</p>
+			<h2 class="display mt-5 text-crema-100">Empieza con un aula.<br /><span class="text-oro-300">Escala a toda la red.</span></h2>
+			<p class="mt-5 text-crema-300">Empieza gratis con 7 días del nivel Red Educativa: IA, archivos, asistentes y reportes completos. Después conserva el núcleo de batalla por nodos para 30 estudiantes sin costo.</p>
+		</div>
+		<div class="reveal">
+			<PlanCards compact />
+		</div>
+		<div class="mt-8 text-center">
+			<a href="/planes" class="text-sm font-bold text-oro-300 underline decoration-oro-700 underline-offset-8 hover:text-crema-100">Comparar planes y capacidades</a>
+		</div>
+	</div>
+</section>

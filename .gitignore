@@ -20,6 +20,11 @@ env/
 .env.*.local
 *.env
 
+# JavaScript / Astro
+node_modules/
+.astro/
+.vercel/
+
 # IDEs
 .vscode/
 .idea/
@@ -53,6 +58,7 @@ mobile/ios/Flutter/Flutter.podspec
 mobile/.pub-cache/
 mobile/.pub/
 mobile/coverage/
+mobile/dart_defines.local.json
 
 # MinIO data
 data/

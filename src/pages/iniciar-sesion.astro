@@ -1,0 +1,75 @@
+---
+import PortalLayout from "../layouts/PortalLayout.astro";
+import { hasSupabaseConfig } from "../lib/supabase";
+
+const authReady = hasSupabaseConfig();
+const error = Astro.url.searchParams.get("error");
+
+const errorMap: Record<string, string> = {
+	not_found: "Esta cuenta todavía no tiene una institución BattleGraph. Crea una cuenta gratuita para comenzar.",
+	email_exists: "Ya existe una cuenta con ese correo. Inicia sesión con tu contraseña o con Google.",
+	invalid: "El correo o la contraseña no son correctos.",
+	email_not_confirmed: "Todavía no confirmas tu correo. Abre el enlace que te enviamos o vuelve a registrarte.",
+	confirm: "No pudimos confirmar tu correo. Pide un nuevo enlace desde el registro.",
+	oauth: "No pudimos completar el acceso con Google. Inténtalo nuevamente.",
+	config: "El acceso está listo pero falta la conexión con Supabase.",
+};
+const errorMessage = error && errorMap[error] ? errorMap[error] : error ? "No pudimos completar el acceso. Inténtalo nuevamente." : null;
+---
+
+<PortalLayout
+	title="Iniciar sesión | BattleGraph"
+	description="Acceda a su institución BattleGraph con Google o con su correo."
+>
+	<section class="auth-shell auth-shell-login">
+		<div class="auth-copy">
+			<div class="portal-kicker">ACCESO AL CUARTEL</div>
+			<h1>Continúa tu<br /><span>campaña</span></h1>
+			<p>Vuelve al panel de tu colegio, conserva la estructura creada y continúa administrando secciones, docentes, estudiantes, contenidos y batallas.</p>
+			<div class="login-benefits">
+				<span>Tu institución no se vuelve a crear</span>
+				<span>La prueba mantiene su fecha original</span>
+				<span>Los permisos y datos permanecen aislados</span>
+			</div>
+		</div>
+
+		<div class="auth-card">
+			<div class="auth-plan-line"><span>CUENTA EXISTENTE</span><a href="/registro">Crear cuenta</a></div>
+			<h2>Inicia sesión</h2>
+			<p class="auth-helper">Usa el correo y la contraseña de tu cuenta, o la misma cuenta de Google con la que registraste tu institución.</p>
+
+			{errorMessage && <div class="auth-config-warning" role="alert"><strong>Acceso no completado</strong><span>{errorMessage}</span></div>}
+
+			<form method="post" action="/api/iniciar-sesion-email" class="auth-form">
+				<label class="auth-field">
+					<span>Correo electrónico</span>
+					<input type="email" name="email" placeholder="EJ: maria@colegio.edu.pe" required autocomplete="email" />
+				</label>
+
+				<label class="auth-field">
+					<span>Contraseña</span>
+					<input type="password" name="password" placeholder="Tu contraseña" required autocomplete="current-password" />
+				</label>
+
+				<button class="email-submit" type="submit">Entrar con correo</button>
+
+				<div class="auth-divider"><span>o continúa con</span></div>
+
+				{authReady ? (
+					<a class="google-button" href="/auth/google?mode=login">
+						<span class="google-mark" aria-hidden="true">G</span>
+						Continuar con Google
+					</a>
+				) : (
+					<div class="auth-config-warning" role="status"><strong>Conexión pendiente</strong><span>Supabase todavía no está disponible.</span></div>
+				)}
+			</form>
+
+			<div class="auth-security">
+				<span class="security-glyph" aria-hidden="true"></span>
+				<div><strong>Acceso seguro</strong><small>Tu contraseña se guarda cifrada en Supabase y nunca se comparte.</small></div>
+			</div>
+			<p class="auth-existing">¿Primera vez? <a href="/planes">Empieza con 7 días del nivel máximo</a></p>
+		</div>
+	</section>
+</PortalLayout>

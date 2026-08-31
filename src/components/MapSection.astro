@@ -1,0 +1,158 @@
+---
+const edges = [
+	[12, 22, 10, 76],
+	[12, 22, 42, 10],
+	[42, 10, 72, 42],
+	[72, 42, 40, 82],
+	[40, 82, 10, 76],
+	[72, 42, 84, 80],
+	[72, 42, 88, 16],
+	[88, 16, 84, 80],
+];
+
+const nodes = [
+	{ id: "b1", team: "Aliados", x: 12, y: 22, frame: "node-blue", state: "shield", label: "Aliados Base", topic: "Matemática" },
+	{ id: "b2", team: "Aliados", x: 10, y: 76, frame: "node-blue", state: "owned", label: "Nodo Aliado", topic: "Física" },
+	{ id: "r1", team: "Imperio Rojo", x: 42, y: 10, frame: "node-red", state: "owned", label: "Imperio Norte", topic: "Historia" },
+	{ id: "r2", team: "Imperio Rojo", x: 40, y: 82, frame: "node-red", state: "owned", label: "Imperio Sur", topic: "Química" },
+	{ id: "d", team: "en disputa", x: 72, y: 42, frame: "node-dispute", state: "disputing", label: "Nodo Central", topic: "Literatura", timer: "12 s" },
+	{ id: "n", team: "Neutral", x: 88, y: 16, frame: "node-neutral", state: "owned", label: "Nodo Libre", topic: "Geografía" },
+	{ id: "g", team: "Legión Verde", x: 84, y: 80, frame: "node-green", state: "owned", label: "Base Legión", topic: "Inglés" },
+];
+---
+
+<section id="mapa" class="relative overflow-hidden py-24 sm:py-32">
+	<div class="absolute inset-0 -z-10 opacity-30" aria-hidden="true">
+		<img src="/assets/ui/map_bg.webp" alt="" class="px h-full w-full object-cover filter blur-[2px]" />
+		<div class="absolute inset-0 bg-piedra-950/80" aria-hidden="true"></div>
+	</div>
+
+	<div class="mx-auto max-w-6xl px-4 sm:px-6">
+		<div class="reveal mb-12 flex flex-col gap-4">
+			<div class="section-tag">EL CAMPO DE BATALLA</div>
+			<h2 class="display max-w-2xl text-crema-100">
+				Todo es un <span class="text-violeta-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">grafo de territorios</span>
+			</h2>
+			<p class="max-w-xl text-crema-300">
+				Sin casillas ni dados: cada territorio es un nodo en una red interactiva.
+				Conquista nodos vecinos para conectar tus dominios y cortar los caminos del enemigo.
+			</p>
+		</div>
+
+		<div class="grid items-center gap-8 lg:grid-cols-12">
+			<!-- Consola Táctica del Mapa -->
+			<div class="reveal relative lg:col-span-7">
+				<div class="pixel-panel pixel-card relative aspect-[4/3] w-full overflow-hidden p-2 sm:aspect-[16/11]">
+					<div class="absolute top-4 left-4 z-20 flex items-center gap-2">
+						<span class="game-badge shadow-md">RADAR TÁCTICO</span>
+					</div>
+
+					<img src="/assets/ui/map_bg.webp" alt="" aria-hidden="true" class="px absolute inset-0 h-full w-full object-cover" />
+					<div class="absolute inset-0 bg-piedra-950/30" aria-hidden="true"></div>
+
+					<!-- SVG de Grafo con Animación de Rutas -->
+					<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute inset-0 h-full w-full" aria-hidden="true">
+						{edges.map(([x1, y1, x2, y2]) => (
+							<line
+								x1={x1}
+								y1={y1}
+								x2={x2}
+								y2={y2}
+								stroke="var(--color-oro-500)"
+								stroke-width="0.8"
+								stroke-dasharray="2 1.5"
+								opacity="0.65"
+							/>
+						))}
+					</svg>
+
+					<!-- Nodos del Mapa -->
+					{
+						nodes.map((n) => (
+							<div
+								class="group absolute cursor-pointer transition-transform hover:scale-125 z-10"
+								style={`left:${n.x}%;top:${n.y}%;transform:translate(-50%,-50%)`}
+								title={`${n.label} (${n.topic})`}
+							>
+								{n.state === "disputing" ? (
+									<img
+										src="/assets/ui/icon_clock.webp"
+										alt=""
+										aria-hidden="true"
+										class="px absolute -top-4 left-1/2 -translate-x-1/2 animate-bounce"
+										width="16"
+										height="16"
+									/>
+								) : null}
+								{n.state === "shield" ? (
+									<img
+										src="/assets/ui/icon_shield.webp"
+										alt=""
+										aria-hidden="true"
+										class="px absolute -top-4 left-1/2 -translate-x-1/2"
+										width="20"
+										height="20"
+									/>
+								) : null}
+								{n.state === "disputing" ? (
+									<img
+										src="/assets/nodes/node_dispute.webp"
+										alt={`Nodo ${n.label}`}
+										class="px disputing"
+										width="32"
+										height="32"
+										loading="lazy"
+									/>
+								) : (
+									<img
+										src="/assets/nodes/node_team.webp"
+										alt={`Nodo ${n.label}`}
+										class={`px node-frame ${n.frame}`}
+										width="32"
+										height="32"
+										loading="lazy"
+									/>
+								)}
+								<div class="mt-1 rounded bg-piedra-950/90 px-1.5 py-0.5 text-center text-[0.6rem] font-bold text-crema-100 shadow border border-piedra-700 whitespace-nowrap">
+									{n.state === "disputing" ? `EN DISPUTA · ${n.label} (${n.timer})` : n.label}
+								</div>
+							</div>
+						))
+					}
+				</div>
+			</div>
+
+			<!-- Reglas de Control Territorial -->
+			<div class="reveal flex flex-col gap-5 lg:col-span-5">
+				<div class="pixel-panel p-6">
+					<h3 class="mb-4 text-xl font-bold text-oro-300 flex items-center gap-2">
+						La Geografía es Estrategia
+					</h3>
+					<ul class="flex flex-col gap-3.5 text-sm text-crema-300">
+						<li class="flex items-start gap-2.5">
+							<span class="text-aliados font-bold">◆</span>
+							<span><strong class="text-crema-100">Fronteras Conectadas:</strong> Solo puedes atacar nodos adyacentes a tu territorio.</span>
+						</li>
+						<li class="flex items-start gap-2.5">
+							<span class="text-imperio font-bold">◆</span>
+							<span><strong class="text-crema-100">Corte de Rutas:</strong> Aislar un nodo rompe la línea de suministro del enemigo.</span>
+						</li>
+						<li class="flex items-start gap-2.5">
+							<span class="text-violeta-400 font-bold">◆</span>
+							<span><strong class="text-crema-100">Protección de Escudo:</strong> Al conquistar un territorio obtienes invulnerabilidad temporal.</span>
+						</li>
+						<li class="flex items-start gap-2.5">
+							<span class="text-oro-300 font-bold">◆</span>
+							<span><strong class="text-crema-100">Destrucción de Base:</strong> Elimina las bases rivales para ganar la guerra.</span>
+						</li>
+					</ul>
+				</div>
+
+				<div class="game-hud rounded p-4 text-xs text-crema-300 leading-relaxed">
+					<span class="text-oro-300 font-bold">CONSEJO TÁCTICO:</span> Fortifica tus esquinas fronterizas antes de adentrarte en el centro del grafo para evitar ser flanqueado.
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
