@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "https://battlegraf-landing-five.vercel.app",
+    ]
+    cors_origin_regex: str = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
     # Agente IA generador de preguntas (compatible con la API de OpenAI)
     # openai_base_url vacio = endpoint oficial de OpenAI
