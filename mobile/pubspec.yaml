@@ -1,19 +1,58 @@
-name: battlegraf_mobile
-description: BattleGraph mobile app - retro Balatro-like school battle platform.
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^4.0.0
-
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/fonts/
-  fonts:
-    - family: PressStart2P
-      fonts:
-        - asset: assets/fonts/PressStart2P-Regular.ttf
-    - family: SpaceMono
-      fonts:
-        - asset: assets/fonts/SpaceMono-Regular.ttf
-        - asset: assets/fonts/SpaceMono-Bold.ttf
-          weight: 700
+name: battlegraf_mobile
+description: BattleGraph para estudiantes, docentes, tutores y directivos.
+publish_to: "none"
+version: 0.4.0+4
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.10.0
+  flutter_animate: ^4.5.2
+  flutter_native_splash: ^2.4.8
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: 10.0.0
+  go_router: ^14.8.1
+  shared_preferences: ^2.5.5
+  supabase_flutter: ^2.17.2
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "../public/game/BattleGraph.icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  background_color_ios: "#1B0733"
+
+flutter_native_splash:
+  color: "#13041F"
+  image: "../public/game/BattleGraph.icon.png"
+  android: true
+  ios: true
+  web: false
+  android_12:
+    color: "#13041F"
+    image: "../public/game/BattleGraph.icon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/fonts/
+  fonts:
+    - family: PressStart2P
+      fonts:
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+    - family: SpaceMono
+      fonts:
+        - asset: assets/fonts/SpaceMono-Regular.ttf
+        - asset: assets/fonts/SpaceMono-Bold.ttf
+          weight: 700

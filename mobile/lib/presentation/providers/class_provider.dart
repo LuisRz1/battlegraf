@@ -39,7 +39,7 @@ class ClassNotifier extends StateNotifier<ClassState> {
 
   Future<void> fetchClasses() async {
     if (authState.token == null) return;
-    
+
     state = state.copyWith(isLoading: true, error: null);
     try {
       final client = ApiClient(token: authState.token);

@@ -107,10 +107,35 @@ class _GraphBoardState extends State<GraphBoard>
             ),
             child: child,
           ),
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTapUp: (details) =>
-                _handleTap(details.localPosition, layout, availableNodeIds),
+          child: Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.none,
+            children: [
+              ExcludeSemantics(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTapUp: (details) => _handleTap(
+                    details.localPosition,
+                    layout,
+                    availableNodeIds,
+                  ),
+                ),
+              ),
+              for (final node in widget.graph.nodes)
+                if (availableNodeIds.contains(node.id))
+                  Positioned.fromRect(
+                    rect: layout.nodes[node]!.inflate(3),
+                    child: Semantics(
+                      button: true,
+                      label: 'Nodo ${node.label}, ${node.subject}, disponible',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => widget.onNodeTap(node),
+                        child: const ColoredBox(color: Colors.transparent),
+                      ),
+                    ),
+                  ),
+            ],
           ),
         );
       },

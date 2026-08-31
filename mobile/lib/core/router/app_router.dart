@@ -5,26 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
-import '../../presentation/views/battle/battle_view.dart';
 import '../../presentation/views/battle/bot_battle_demo_view.dart';
-import '../../presentation/views/battle_lobby/battle_lobby_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
-import '../../presentation/views/progression/progression_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
-import '../../presentation/views/tasks/task_list_view.dart';
-import '../../presentation/widgets/retro_ui.dart';
 import '../../presentation/views/auth/register_view.dart';
-import '../../presentation/views/classes/class_list_view.dart';
-import '../../presentation/views/classes/join_class_view.dart';
+import '../../presentation/views/academics/academic_overview_view.dart';
+import '../../features/institution/presentation/views/institution_hub_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authRefresh = GoRouterRefreshStream(
     ref.read(authProvider.notifier).stream,
   );
+  final browserInitialLocation = initialLocationFromBaseUri(Uri.base);
 
   final router = GoRouter(
-    initialLocation: '/splash',
+    initialLocation: browserInitialLocation,
+    overridePlatformDefaultLocation: browserInitialLocation != null,
     refreshListenable: authRefresh,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
@@ -32,37 +29,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         isLoading: authState.isLoading,
         isAuthenticated: authState.isAuthenticated,
         location: state.uri.path,
+        intendedLocation:
+            state.uri.queryParameters['from'] ?? browserInitialLocation,
       );
     },
+    routes: [
+      GoRoute(path: '/', builder: (context, state) => const SplashView()),
       GoRoute(path: '/splash', builder: (context, state) => const SplashView()),
       GoRoute(path: '/login', builder: (context, state) => const LoginView()),
-      GoRoute(path: '/register', builder: (context, state) => const RegisterView()),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterView(),
+      ),
       GoRoute(path: '/lobby', builder: (context, state) => const LobbyView()),
-      GoRoute(path: '/classes', builder: (context, state) => const ClassListView()),
-      GoRoute(path: '/classes/join', builder: (context, state) => const JoinClassView()),
+      GoRoute(
+        path: '/academics',
+        builder: (context, state) => const AcademicOverviewView(),
+      ),
+      GoRoute(
+        path: '/institution/:area',
+        builder: (context, state) => InstitutionHubView(
+          area: InstitutionArea.parse(state.pathParameters['area']),
+        ),
+      ),
       GoRoute(
         path: '/battle/demo-bot',
         builder: (context, state) => const BotBattleDemoView(),
-      ),
-      GoRoute(
-        path: '/battle-lobby',
-        builder: (context, state) => const BattleLobbyView(),
-      ),
-      GoRoute(
-        path: '/tasks',
-        builder: (context, state) => const TaskListView(),
-      ),
-      GoRoute(
-        path: '/progression',
-        builder: (context, state) => const ProgressionView(),
-      ),
-      GoRoute(
-        path: '/battle/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'];
-          if (id == null || id.isEmpty) return const _NotFoundView();
-          return BattleView(battleId: id);
-        },
       ),
     ],
   );
@@ -74,22 +66,54 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
+/// Flutter web stores the route after `#`; native deep links remain managed by
+/// the platform router because they normally have no fragment.
+String? initialLocationFromBaseUri(Uri baseUri) {
+  final fragment = Uri.decodeComponent(baseUri.fragment).trim();
+  return fragment.startsWith('/') ? fragment : null;
+}
+
 /// Pure redirect policy kept separate so offline access can be regression-tested.
 String? resolveAppRedirect({
   required bool isLoading,
   required bool isAuthenticated,
   required String location,
+  String? intendedLocation,
 }) {
   final isLoginRoute = location == '/login';
   final isRegisterRoute = location == '/register';
   final isSplashRoute = location == '/splash';
+  final isRootRoute = location == '/';
   final isPrototypeRoute = location == '/battle/demo-bot';
+  final safeIntended =
+      intendedLocation != null &&
+          intendedLocation.startsWith('/') &&
+          intendedLocation != '/' &&
+          intendedLocation != '/splash' &&
+          intendedLocation != '/login'
+      ? intendedLocation
+      : null;
 
   if (isPrototypeRoute) return null;
-  if (isLoading) return isSplashRoute ? null : '/splash';
-  if (isSplashRoute) return isAuthenticated ? '/lobby' : '/login';
+  if (isLoading) {
+    return isSplashRoute || isRootRoute
+        ? null
+        : Uri(path: '/splash', queryParameters: {'from': location}).toString();
+  }
+  if (isRootRoute) return isAuthenticated ? '/lobby' : '/login';
+  if (isSplashRoute) {
+    if (isAuthenticated) return safeIntended ?? '/lobby';
+    return safeIntended == null
+        ? '/login'
+        : Uri(
+            path: '/login',
+            queryParameters: {'from': safeIntended},
+          ).toString();
+  }
   if (!isAuthenticated && !isLoginRoute && !isRegisterRoute) return '/login';
-  if (isAuthenticated && (isLoginRoute || isRegisterRoute)) return '/lobby';
+  if (isAuthenticated && (isLoginRoute || isRegisterRoute)) {
+    return safeIntended ?? '/lobby';
+  }
   return null;
 }
 
@@ -104,19 +128,5 @@ class GoRouterRefreshStream extends ChangeNotifier {
   void dispose() {
     _subscription.cancel();
     super.dispose();
-  }
-}
-
-class _NotFoundView extends StatelessWidget {
-  const _NotFoundView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('NO ENCONTRADO')),
-      body: const BattleBackdrop(
-        child: Center(child: HudLabel('RUTA INVÁLIDA')),
-      ),
-    );
   }
 }

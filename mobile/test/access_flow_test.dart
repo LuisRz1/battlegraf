@@ -16,6 +16,19 @@ void main() {
   });
 
   group('App redirect policy', () {
+    test('reads a Flutter web hash route without affecting native starts', () {
+      expect(
+        initialLocationFromBaseUri(
+          Uri.parse('http://localhost:5054/#/institution/personas'),
+        ),
+        '/institution/personas',
+      );
+      expect(
+        initialLocationFromBaseUri(Uri.parse('https://app.example.test/')),
+        isNull,
+      );
+    });
+
     test('prototype stays public while auth is loading', () {
       expect(
         resolveAppRedirect(
@@ -46,6 +59,33 @@ void main() {
       );
     });
 
+    test('root waits for bootstrap and then resolves by session', () {
+      expect(
+        resolveAppRedirect(
+          isLoading: true,
+          isAuthenticated: false,
+          location: '/',
+        ),
+        isNull,
+      );
+      expect(
+        resolveAppRedirect(
+          isLoading: false,
+          isAuthenticated: false,
+          location: '/',
+        ),
+        '/login',
+      );
+      expect(
+        resolveAppRedirect(
+          isLoading: false,
+          isAuthenticated: true,
+          location: '/',
+        ),
+        '/lobby',
+      );
+    });
+
     test('protected routes still require authentication', () {
       expect(
         resolveAppRedirect(
@@ -56,6 +96,29 @@ void main() {
         '/login',
       );
     });
+
+    test(
+      'reload preserves the protected destination while auth initializes',
+      () {
+        expect(
+          resolveAppRedirect(
+            isLoading: true,
+            isAuthenticated: false,
+            location: '/institution/personas',
+          ),
+          '/splash?from=%2Finstitution%2Fpersonas',
+        );
+        expect(
+          resolveAppRedirect(
+            isLoading: false,
+            isAuthenticated: true,
+            location: '/splash',
+            intendedLocation: '/institution/personas',
+          ),
+          '/institution/personas',
+        );
+      },
+    );
   });
 
   testWidgets('splash offers direct offline prototype access', (tester) async {

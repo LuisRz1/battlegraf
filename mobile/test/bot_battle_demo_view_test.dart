@@ -5,6 +5,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('exposes every legal graph node as an accessible button', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.darkTheme, home: const BotBattleDemoView()),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.bySemanticsLabel(RegExp(r'^Nodo .+, .+, disponible$')),
+      findsWidgets,
+    );
+    expect(find.bySemanticsLabel('Nodo M1, math, disponible'), findsOneWidget);
+    semantics.dispose();
+  });
+
   testWidgets('plays one complete red and purple turn on a phone viewport', (
     tester,
   ) async {

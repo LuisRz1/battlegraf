@@ -26,15 +26,12 @@ class _LoginViewState extends ConsumerState<LoginView> {
   }
 
   Future<void> _login() async {
-    final success = await ref
+    await ref
         .read(authProvider.notifier)
         .login(
           _usernameController.text.trim(),
           _passwordController.text.trim(),
         );
-    if (success && mounted) {
-      context.go('/lobby');
-    }
   }
 
   @override
@@ -128,9 +125,14 @@ class _LoginViewState extends ConsumerState<LoginView> {
                                   controller: _usernameController,
                                   textInputAction: TextInputAction.next,
                                   autofillHints: const [AutofillHints.username],
-                                  decoration: const InputDecoration(
-                                    labelText: 'Usuario',
-                                    prefixIcon: Icon(Icons.person),
+                                  keyboardType: authState.usesSupabase
+                                      ? TextInputType.emailAddress
+                                      : TextInputType.text,
+                                  decoration: InputDecoration(
+                                    labelText: authState.usesSupabase
+                                        ? 'Correo institucional'
+                                        : 'Usuario',
+                                    prefixIcon: const Icon(Icons.person),
                                   ),
                                 ),
                                 const SizedBox(height: 14),
@@ -177,6 +179,21 @@ class _LoginViewState extends ConsumerState<LoginView> {
                                         : const Text('ENTRAR AL GRAFO'),
                                   ),
                                 ),
+                                if (authState.usesSupabase) ...[
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: authState.isLoading
+                                          ? null
+                                          : () => ref
+                                                .read(authProvider.notifier)
+                                                .loginWithGoogle(),
+                                      icon: const Icon(Icons.login),
+                                      label: const Text('CONTINUAR CON GOOGLE'),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 14),
                                 SizedBox(
                                   width: double.infinity,

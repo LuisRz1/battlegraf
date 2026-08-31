@@ -1,4 +1,4 @@
-package com.battlegraf.battlegraf_mobile
+package io.battlegraf.app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -36,9 +36,7 @@ class _JoinClassViewState extends ConsumerState<JoinClassView> {
     final classState = ref.watch(classProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('UNIRSE A CLASE'),
-      ),
+      appBar: AppBar(title: const Text('UNIRSE A CLASE')),
       body: BattleBackdrop(
         child: SafeArea(
           child: Center(

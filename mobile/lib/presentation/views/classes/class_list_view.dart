@@ -17,46 +17,44 @@ class ClassListView extends ConsumerWidget {
     final classState = ref.watch(classProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('MIS CLASES'),
-      ),
+      appBar: AppBar(title: const Text('MIS CLASES')),
       body: BattleBackdrop(
         child: classState.isLoading
             ? const Center(child: CircularProgressIndicator())
             : classState.error != null
-                ? Center(
-                    child: Text(
-                      classState.error!,
-                      style: const TextStyle(color: AppColors.brightRed),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: classState.classes.length,
-                    itemBuilder: (context, index) {
-                      final cls = classState.classes[index];
-                      return Card(
-                        color: AppColors.panelBackground,
-                        child: ListTile(
-                          title: Text(
-                            cls['name'] ?? '',
-                            style: const TextStyle(
-                              fontFamily: 'PressStart2P',
-                              color: AppColors.gold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            cls['code'] ?? '',
-                            style: const TextStyle(
-                              color: AppColors.cyan,
-                              fontFamily: 'SpaceMono',
-                            ),
-                          ),
+            ? Center(
+                child: Text(
+                  classState.error!,
+                  style: const TextStyle(color: AppColors.brightRed),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: classState.classes.length,
+                itemBuilder: (context, index) {
+                  final cls = classState.classes[index];
+                  return Card(
+                    color: AppColors.panelBackground,
+                    child: ListTile(
+                      title: Text(
+                        cls['name'] ?? '',
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          color: AppColors.gold,
+                          fontSize: 14,
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                      subtitle: Text(
+                        cls['code'] ?? '',
+                        style: const TextStyle(
+                          color: AppColors.cyan,
+                          fontFamily: 'SpaceMono',
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.neonPurple,

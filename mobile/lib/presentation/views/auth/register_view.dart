@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 
+import '../../../core/config/mobile_config.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/retro_ui.dart';
 
-class RegisterView extends StatefulWidget {
+class RegisterView extends ConsumerStatefulWidget {
   const RegisterView({super.key});
 
   @override
-  State<RegisterView> createState() => _RegisterViewState();
+  ConsumerState<RegisterView> createState() => _RegisterViewState();
 }
 
-class _RegisterViewState extends State<RegisterView> {
+class _RegisterViewState extends ConsumerState<RegisterView> {
   String? _selectedRole;
   bool _isLoading = false;
   String? _error;
@@ -46,7 +49,7 @@ class _RegisterViewState extends State<RegisterView> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() => _error = 'Las contraseñas no coinciden');
       return;
@@ -58,6 +61,47 @@ class _RegisterViewState extends State<RegisterView> {
     });
 
     try {
+      if (MobileConfig.hasSupabase) {
+        final result = await ref
+            .read(authProvider.notifier)
+            .register(
+              fullName:
+                  '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
+              email: _emailController.text,
+              password: _passwordController.text,
+              role: _selectedRole!,
+              schoolCode: _schoolCodeController.text,
+              schoolName: _schoolNameController.text,
+              region: _regionController.text,
+            );
+        if (!mounted) return;
+        if (result == null) {
+          setState(() {
+            _error =
+                ref.read(authProvider).error ?? 'No se pudo crear la cuenta';
+          });
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.deepBackground,
+            title: const Text('Registro recibido'),
+            content: Text(result),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('CONTINUAR'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        context.go(
+          ref.read(authProvider).isAuthenticated ? '/lobby' : '/login',
+        );
+        return;
+      }
       final client = ApiClient();
       final data = {
         'first_name': _firstNameController.text.trim(),
@@ -73,7 +117,7 @@ class _RegisterViewState extends State<RegisterView> {
         data['school_name'] = _schoolNameController.text.trim();
         data['region'] = _regionController.text.trim();
       } else {
-        endpoint = '/auth/register/${_selectedRole}';
+        endpoint = '/auth/register/$_selectedRole';
         data['school_code'] = _schoolCodeController.text.trim();
       }
 
@@ -88,16 +132,24 @@ class _RegisterViewState extends State<RegisterView> {
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             backgroundColor: AppColors.deepBackground,
-            title: const Text('Registro exitoso', style: TextStyle(color: AppColors.offWhite)),
-            content: Text('Tu código de colegio es:\n$schoolCode\nGuárdalo para tus profesores y alumnos.', 
-                style: const TextStyle(color: AppColors.gold)),
+            title: const Text(
+              'Registro exitoso',
+              style: TextStyle(color: AppColors.offWhite),
+            ),
+            content: Text(
+              'Tu código de colegio es:\n$schoolCode\nGuárdalo para tus profesores y alumnos.',
+              style: const TextStyle(color: AppColors.gold),
+            ),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                   context.go('/login');
                 },
-                child: const Text('ENTENDIDO', style: TextStyle(color: AppColors.cyan)),
+                child: const Text(
+                  'ENTENDIDO',
+                  style: TextStyle(color: AppColors.cyan),
+                ),
               ),
             ],
           ),
@@ -150,7 +202,10 @@ class _RegisterViewState extends State<RegisterView> {
         const SizedBox(height: 32),
         TextButton(
           onPressed: () => context.go('/login'),
-          child: const Text('VOLVER AL LOGIN', style: TextStyle(color: AppColors.offWhite)),
+          child: const Text(
+            'VOLVER AL LOGIN',
+            style: TextStyle(color: AppColors.offWhite),
+          ),
         ),
       ],
     );
@@ -204,13 +259,15 @@ class _RegisterViewState extends State<RegisterView> {
             controller: _passwordController,
             obscureText: true,
             decoration: const InputDecoration(labelText: 'Contraseña'),
-            validator: (v) => v!.length < 6 ? 'Mínimo 6 caracteres' : null,
+            validator: (v) => v!.length < 8 ? 'Mínimo 8 caracteres' : null,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: 'Confirmar contraseña'),
+            decoration: const InputDecoration(
+              labelText: 'Confirmar contraseña',
+            ),
             validator: (v) => v!.isEmpty ? 'Requerido' : null,
           ),
           if (_selectedRole == 'director') ...[
@@ -219,7 +276,9 @@ class _RegisterViewState extends State<RegisterView> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _schoolNameController,
-              decoration: const InputDecoration(labelText: 'Nombre del colegio'),
+              decoration: const InputDecoration(
+                labelText: 'Nombre del colegio',
+              ),
               validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 12),
@@ -261,7 +320,10 @@ class _RegisterViewState extends State<RegisterView> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: AppColors.offWhite, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: AppColors.offWhite,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text('REGISTRAR'),
             ),
@@ -287,9 +349,13 @@ class _RegisterViewState extends State<RegisterView> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 520),
                       child: PixelPanel(
-                        accent: _selectedRole == null ? AppColors.gold : AppColors.neonPurple,
+                        accent: _selectedRole == null
+                            ? AppColors.gold
+                            : AppColors.neonPurple,
                         glow: true,
-                        child: _selectedRole == null ? _buildRoleSelection() : _buildForm(),
+                        child: _selectedRole == null
+                            ? _buildRoleSelection()
+                            : _buildForm(),
                       ),
                     ),
                   ),
