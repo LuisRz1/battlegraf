@@ -1,4 +1,10 @@
-# BattleGraph
+# BattleGraph
+
+El panel institucional Astro y la aplicación Flutter comparten las cuentas de
+Supabase y el seguimiento de cursos, docentes, asistencia, notas,
+observaciones, tareas, XP y alertas por riesgo. Consulta la
+[`guía de pruebas piloto`](docs/GUIA_PRUEBAS_PILOTO.md) para ejecutar los flujos
+de director, tutor, profesor y alumno.
 
 Plataforma escolar de aprendizaje gamificado en la que los estudiantes avanzan
 por un grafo de materias mediante preguntas, tareas y batallas por turnos.
