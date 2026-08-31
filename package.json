@@ -11,6 +11,8 @@
     "check": "astro check",
     "db:migrate": "bun scripts/migrate.mjs",
     "db:verify": "bun scripts/verify-db.mjs",
+    "db:seed-pilot": "bun scripts/seed-pilot.mjs",
+    "test:pilot": "bun scripts/verify-pilot.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -24,7 +26,10 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/node": "^26.4.0",
     "postgres": "^3.4.7",
+    "prettier": "3.6.2",
+    "prettier-plugin-astro": "0.14.1",
     "typescript": "^6.0.0"
   }
 }

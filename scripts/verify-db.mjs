@@ -22,7 +22,9 @@ try {
 			'plans', 'profiles', 'schools', 'memberships',
 			'subscriptions', 'student_profiles', 'academic_years',
 			'subjects', 'sections', 'section_subjects', 'clans',
-			'learning_materials', 'question_bank', 'school_settings'
+			'learning_materials', 'question_bank', 'school_settings',
+			'attendance_records', 'grade_items', 'student_grades',
+			'student_observations', 'subject_teachers'
 		  )
 		order by table_name
 	`;
@@ -40,7 +42,9 @@ try {
 			'plans', 'profiles', 'schools', 'memberships',
 			'subscriptions', 'student_profiles', 'academic_years',
 			'subjects', 'sections', 'section_subjects', 'clans',
-			'learning_materials', 'question_bank', 'school_settings'
+			'learning_materials', 'question_bank', 'school_settings',
+			'attendance_records', 'grade_items', 'student_grades',
+			'student_observations', 'subject_teachers'
 		  )
 		order by tablename
 	`;

@@ -1,0 +1,6 @@
+Este es un texto de ejemplo para generar preguntas de matematicas.
+
+La suma es una operacion basica. Si tenemos 2 manzanas y compramos 3 mas, tendremos 5 manzanas.
+La resta es la operacion inversa. Si tenemos 10 monedas y gastamos 4, quedan 6.
+La multiplicacion es una suma repetida. 3 por 4 significa sumar 3 cuatro veces: 3 + 3 + 3 + 3 = 12.
+La division reparte en partes iguales. 12 dividido entre 4 es 3.

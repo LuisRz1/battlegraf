@@ -1,0 +1,65 @@
+"""Request schemas for authentication."""
+
+from pydantic import BaseModel, EmailStr
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class CreateDirectorRequest(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str
+    last_name: str = ""
+    phone: str = ""
+    password: str
+    school_name: str
+    region: str = ""
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str
+    password: str
+    role: str
+    school_id: str | None = None
+    section_id: str | None = None
+
+
+class CreateStaffRequest(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str
+    password: str
+    role: str
+    school_id: str | None = None
+    section_id: str | None = None
+
+
+class UpdateUserRequest(BaseModel):
+    full_name: str | None = None
+    email: EmailStr | None = None
+    section_id: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+
+
+class RegisterProfessorRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    school_code: str
+
+
+class RegisterStudentRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    password: str
+    school_code: str

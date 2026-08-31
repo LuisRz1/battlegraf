@@ -1,42 +1,95 @@
-# build output
+# .gitignore — BattleGraph monorepo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
 dist/
-.vercel/
-# generated types
-.astro/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+*.so
 
-# dependencies
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# JavaScript / Astro
 node_modules/
-
-# logs
+.astro/
+.vercel/
+package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 bun-debug.log*
 
-# environment variables
-.env
-.env.production
-.env.*.local
-
-# macOS-specific files
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
-
-# Windows-specific files
 Thumbs.db
 Desktop.ini
 
-# jetbrains setting folder
-.idea/
+# Alembic
+backend/src/infrastructure/database/migrations/versions/*.pyc
 
-# vscode (keep launch.json/extensions.json if you want them shared; uncomment to ignore)
-# .vscode/
+# Docker
+docker-compose.override.yml
+.docker/
 
-# local tooling state
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/*.iml
+mobile/.idea/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.podspec
+mobile/.pub-cache/
+mobile/.pub/
+mobile/coverage/
+mobile/dart_defines.local.json
+
+# MinIO data
+data/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Local development
+.local/
 .opencode/
-.vercel
-.env*
 .agents/
 skills-lock.json
-# npm local (el proyecto usa bun)
-package-lock.json
+landing-sites-*.tar.gz
+
+# SQLite
+*.db
+*.sqlite3
+.tox/
+
+# OS
+*.log
+*.tmp
+
+# Scripts de diagnostico local (no se suben)
+diag_db.py
