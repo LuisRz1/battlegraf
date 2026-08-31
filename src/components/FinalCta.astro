@@ -1,8 +1,10 @@
 ---
+import { mobileRelease } from "../lib/downloads";
+
 const platforms = [
-	{ name: "Windows", icon: "PC" },
-	{ name: "Android", icon: "AND" },
-	{ name: "iOS", icon: "IOS" },
+	{ name: "Web", icon: "WEB", status: "Demo disponible" },
+	{ name: "Android", icon: "AND", status: "APK disponible" },
+	{ name: "iOS", icon: "IOS", status: "Próximamente" },
 ];
 ---
 
@@ -32,19 +34,31 @@ const platforms = [
 				Forma tu imperio, responde sin miedo y domina la red territorial. ¿Estás listo para reclamar tu primer nodo?
 			</p>
 
-			<div class="flex flex-col items-center gap-5 w-full sm:w-auto">
+			<div class="flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
 				<button type="button" data-open-game class="pixel-btn w-full sm:w-auto !text-sm sm:!text-lg !px-6 sm:!px-10 !py-3.5 sm:!py-4 shadow-[0_0_25px_rgba(240,207,122,0.4)] cursor-pointer">
 					Cargar Demo en Vivo (Web)
 				</button>
+				<a
+					href={mobileRelease.androidUrl}
+					download={mobileRelease.androidFileName}
+					class="pixel-btn pixel-btn-secondary w-full sm:w-auto !text-sm sm:!text-lg !px-6 sm:!px-10 !py-3.5 sm:!py-4"
+					aria-describedby="android-download-details"
+				>
+					Descargar App Android
+				</a>
 			</div>
+
+			<p id="android-download-details" class="max-w-xl text-xs leading-relaxed text-crema-400 sm:text-sm">
+				Versión piloto {mobileRelease.version} · APK universal · {mobileRelease.androidSize}. La versión para iOS se distribuirá mediante TestFlight cuando esté firmada.
+			</p>
 
 			<!-- Badges de Plataformas Disponibles -->
 			<div class="mt-2 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
 				<span class="text-xs uppercase tracking-widest text-crema-500 font-bold">DISPONIBLE EN:</span>
 				{
 					platforms.map((p) => (
-						<span class="game-badge !py-1 !px-2.5 sm:!px-3 font-bold border-oro-700/50">
-							<span>{p.icon}</span> {p.name}
+						<span class="game-badge !py-1 !px-2.5 sm:!px-3 font-bold border-oro-700/50" title={p.status}>
+							<span>{p.icon}</span> {p.name} · {p.status}
 						</span>
 					))
 				}

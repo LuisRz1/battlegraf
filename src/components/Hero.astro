@@ -1,4 +1,5 @@
 ---
+import { mobileRelease } from "../lib/downloads";
 ---
 
 <section id="inicio" class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-28 pb-20 text-center">
@@ -47,6 +48,14 @@
 			<button type="button" data-open-game class="pixel-btn pixel-btn-secondary w-full sm:w-auto !px-5 sm:!px-6 !py-3.5 sm:!py-4 text-sm sm:text-base">
 				Probar batalla web
 			</button>
+			<a
+				href={mobileRelease.androidUrl}
+				download={mobileRelease.androidFileName}
+				class="pixel-btn pixel-btn-secondary w-full sm:w-auto !px-5 sm:!px-6 !py-3.5 sm:!py-4 text-sm sm:text-base"
+				aria-label={`Descargar BattleGraph ${mobileRelease.version} para Android`}
+			>
+				Descargar Android
+			</a>
 		</div>
 
 		<!-- Muestra Principal del Juego (hero.webp con Botón de Play Overlay) -->
