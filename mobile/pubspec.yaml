@@ -1,7 +1,7 @@
 name: battlegraf_mobile
 description: BattleGraph para estudiantes, docentes, tutores y directivos.
 publish_to: "none"
-version: 0.4.0+4
+version: 0.4.1+5
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
