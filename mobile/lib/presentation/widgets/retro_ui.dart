@@ -92,8 +92,8 @@ class _BattleBackdropPainter extends CustomPainter {
         center: const Alignment(-1.05, .9),
         radius: 1.05,
         colors: [
-          AppColors.brightRed.withAlpha(intense ? 115 : 65),
-          AppColors.crimsonRed.withAlpha(intense ? 40 : 24),
+          AppColors.oro500.withAlpha(intense ? 70 : 38),
+          AppColors.oro700.withAlpha(intense ? 30 : 16),
           Colors.transparent,
         ],
         stops: const [0, .38, 1],
@@ -103,8 +103,8 @@ class _BattleBackdropPainter extends CustomPainter {
         center: const Alignment(1.05, -.85),
         radius: 1.05,
         colors: [
-          AppColors.neonPurple.withAlpha(intense ? 125 : 72),
-          AppColors.shadowPurple.withAlpha(intense ? 45 : 26),
+          AppColors.aliados.withAlpha(intense ? 55 : 30),
+          AppColors.piedra600.withAlpha(intense ? 40 : 22),
           Colors.transparent,
         ],
         stops: const [0, .4, 1],
@@ -114,7 +114,7 @@ class _BattleBackdropPainter extends CustomPainter {
       ..drawRect(bounds, purpleGlow);
 
     final gridPaint = Paint()
-      ..color = AppColors.neonPurple.withAlpha(intense ? 34 : 22)
+      ..color = AppColors.bordeOro.withAlpha(intense ? 60 : 34)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     const radius = 34.0;
@@ -138,8 +138,8 @@ class _BattleBackdropPainter extends CustomPainter {
             center.dy / math.max(size.height, 1) >
             center.dx / math.max(size.width, 1);
         gridPaint.color =
-            (redTerritory ? AppColors.brightRed : AppColors.neonPurple)
-                .withAlpha(intense ? 34 : 22);
+            (redTerritory ? AppColors.oro700 : AppColors.piedra600)
+                .withAlpha(intense ? 60 : 34);
         canvas.drawPath(_hexPath(center, radius), gridPaint);
       }
     }
@@ -152,7 +152,7 @@ class _BattleBackdropPainter extends CustomPainter {
       final x = (seedX * size.width + drift * 40) % size.width;
       final y = seedY * size.height;
       starPaint.color =
-          (i % 5 == 0 ? AppColors.brightRed : AppColors.neonPurple).withAlpha(
+          (i % 5 == 0 ? AppColors.oro500 : AppColors.crema500).withAlpha(
             70 + (i % 4) * 28,
           );
       final unit = i % 3 == 0 ? 2.0 : 1.0;
@@ -164,9 +164,9 @@ class _BattleBackdropPainter extends CustomPainter {
         begin: Alignment.bottomLeft,
         end: Alignment.topRight,
         colors: [
-          AppColors.brightRed.withAlpha(intense ? 34 : 18),
+          AppColors.oro500.withAlpha(intense ? 30 : 16),
           Colors.transparent,
-          AppColors.neonPurple.withAlpha(intense ? 38 : 20),
+          AppColors.aliados.withAlpha(intense ? 26 : 14),
         ],
       ).createShader(bounds)
       ..strokeWidth = intense ? 2 : 1;

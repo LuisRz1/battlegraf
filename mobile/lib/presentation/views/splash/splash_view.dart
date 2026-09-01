@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../widgets/retro_ui.dart';
 
+/// Pantalla de inicio con la identidad visual de la landing web:
+/// logo real del juego, fondo piedra/oro y tipografia VCR OSD Mono.
 class SplashView extends StatelessWidget {
   const SplashView({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.deepPurple,
+      backgroundColor: AppColors.fondoGame,
       body: BattleBackdrop(
         intense: true,
         child: SafeArea(
@@ -20,38 +22,38 @@ class SplashView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SchoolTower(color: AppColors.brightRed, size: 78),
-                        SizedBox(width: 8),
-                        AcademicHexBadge(
-                          label: 'Σ',
-                          color: AppColors.brightRed,
-                          size: 44,
-                        ),
-                        AcademicHexBadge(
-                          label: 'LAB',
-                          color: AppColors.cyan,
-                          size: 44,
-                        ),
-                        AcademicHexBadge(
-                          label: 'ABC',
-                          color: AppColors.neonPurple,
-                          size: 44,
-                        ),
-                        SizedBox(width: 8),
-                        SchoolTower(
-                          color: AppColors.neonPurple,
-                          size: 78,
-                          flagRight: false,
+                  // Logo real (misma imagen que la landing /game/)
+                  Container(
+                    width: 132,
+                    height: 132,
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.piedra900,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.bordeOro, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.oro500.withAlpha(70),
+                          blurRadius: 22,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset(
+                        'assets/images/battlegraph_logo.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stack) => const ColoredBox(
+                          color: AppColors.fondoPanel,
+                          child: Center(
+                            child: Icon(Icons.games, color: AppColors.oro500, size: 48),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 26),
                   const FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Column(
@@ -60,32 +62,40 @@ class SplashView extends StatelessWidget {
                           'BATTLE',
                           style: TextStyle(
                             fontFamily: AppTheme.displayFont,
-                            color: AppColors.gold,
+                            color: AppColors.crema100,
                             fontSize: 48,
+                            letterSpacing: 3,
+                            shadows: [
+                              Shadow(color: AppColors.oro700, offset: Offset(3, 3)),
+                            ],
                           ),
                         ),
                         Text(
-                          'GRAF',
+                          'GRAPH',
                           style: TextStyle(
                             fontFamily: AppTheme.displayFont,
-                            color: AppColors.brightRed,
+                            color: AppColors.oro500,
                             fontSize: 64,
+                            letterSpacing: 3,
+                            shadows: [
+                              Shadow(color: AppColors.oro700, offset: Offset(3, 3)),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   const HudLabel(
                     'APRENDER ES CONQUISTAR',
-                    color: AppColors.gold,
+                    color: AppColors.oro300,
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                   const SizedBox(
                     width: 180,
                     child: LinearProgressIndicator(
-                      color: AppColors.brightRed,
-                      backgroundColor: AppColors.shadowPurple,
+                      color: AppColors.oro500,
+                      backgroundColor: AppColors.piedra700,
                       minHeight: 6,
                     ),
                   ),
@@ -106,7 +116,7 @@ class SplashView extends StatelessWidget {
                   const SizedBox(height: 10),
                   const HudLabel(
                     'JUGAR VS BOT · SIN CREDENCIALES',
-                    color: AppColors.cyan,
+                    color: AppColors.crema500,
                   ),
                 ],
               ),
