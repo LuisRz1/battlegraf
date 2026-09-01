@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,9 +6,10 @@ import '../../../core/auth/role_labels.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/institution/presentation/views/institution_hub_view.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/retro_controls.dart';
+import '../../widgets/panel_ui.dart';
 import '../../widgets/retro_ui.dart';
 
+/// Centro de mando del estudiante — mismo lenguaje visual del panel web.
 class LobbyView extends ConsumerWidget {
   const LobbyView({super.key});
 
@@ -18,93 +18,154 @@ class LobbyView extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final role = authState.role;
-    final menuItems = <_LobbyItem>[
-      _LobbyItem(
-        sigil: role == 'student' ? 'MIS' : 'ACA',
-        title: role == 'student' ? 'MI AVANCE' : 'ACADEMIA',
-        accent: AppColors.neonPurple,
-        route: '/academics',
-      ),
-      ...institutionAreasForRole(role).map(
-        (area) => _LobbyItem(
-          sigil: _sigil(area),
-          title: area.label,
-          accent: _areaColor(area),
-          route: '/institution/${area.slug}',
-        ),
-      ),
-    ];
+    final isStudent = role == 'student';
 
     return Scaffold(
+      backgroundColor: AppColors.fondoGame,
       body: BattleBackdrop(
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                RetroScreenHeader(
-                  title: 'LOBBY',
-                  accent: AppColors.brightRed,
-                  actionLabel: 'SALIR',
-                  onAction: () async {
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PanelHeader(
+                span: 'CENTRO DE MANDO',
+                title: 'BATTLEGRAPH',
+                description: '${user?['full_name'] ?? 'Guerrero'} · ${roleLabel(user?['role']?.toString() ?? role)}',
+                action: PanelButton(
+                  label: 'SALIR',
+                  ghost: true,
+                  onTap: () async {
                     await ref.read(authProvider.notifier).logout();
                     if (context.mounted) context.go('/login');
                   },
                 ),
-                const SizedBox(height: 14),
-                PixelPanel(
-                  accent: AppColors.brightRed,
-                  glow: true,
-                  child: Row(
-                    children: [
-                      const SchoolTower(color: AppColors.brightRed, size: 60),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const HudLabel('CENTRO DE MANDO'),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${user?['full_name'] ?? 'Guerrero'}',
-                              style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+                  children: [
+                    // Perfil del estudiante
+                    PanelBox(
+                      span: 'IDENTIDAD',
+                      title: 'MI PERFIL',
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: AppColors.piedra900,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.bordeOro, width: 1.3),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              roleLabel(user?['role']?.toString() ?? role),
-                              style: Theme.of(context).textTheme.bodySmall,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: Image.asset(
+                                'assets/images/battlegraph_logo.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stack) =>
+                                    const Icon(Icons.games, color: AppColors.oro500, size: 30),
+                              ),
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  user?['full_name'] ?? 'Guerrero',
+                                  style: const TextStyle(
+                                    fontFamily: AppTheme.displayFont,
+                                    color: AppColors.oro300,
+                                    fontSize: 14,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  roleLabel(user?['role']?.toString() ?? role),
+                                  style: const TextStyle(
+                                    fontFamily: AppTheme.bodyFont,
+                                    color: AppColors.crema500,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Acciones principales del estudiante
+                    PanelBox(
+                      span: 'MISIONES',
+                      title: '¿QUE QUIERES HACER?',
+                      child: Column(
+                        children: [
+                          _LobbyTile(
+                            icon: Icons.sports_esports,
+                            title: 'JUGAR',
+                            subtitle: 'Batalla por turnos · responde y conquista',
+                            accent: AppColors.oro500,
+                            onTap: () => context.go('/battle/demo-bot'),
+                          ),
+                          _LobbyTile(
+                            icon: Icons.assignment,
+                            title: 'TAREAS',
+                            subtitle: 'Revisa lo que debes entregar',
+                            accent: AppColors.aliados,
+                            onTap: () => context.go('/institution/tasks'),
+                          ),
+                          _LobbyTile(
+                            icon: Icons.school,
+                            title: 'CLASES',
+                            subtitle: 'Tus cursos y codigos de clase',
+                            accent: AppColors.imperio,
+                            onTap: () => context.go('/institution/classes'),
+                          ),
+                          _LobbyTile(
+                            icon: Icons.insights,
+                            title: 'MI AVANCE',
+                            subtitle: 'XP, rango y progreso por curso',
+                            accent: AppColors.legion,
+                            onTap: () => context.go('/academics'),
+                          ),
+                          if (!isStudent)
+                            ...institutionAreasForRole(role).map(
+                              (area) => _LobbyTile(
+                                icon: Icons.dashboard,
+                                title: area.label,
+                                subtitle: 'Panel de ${area.label.toLowerCase()}',
+                                accent: AppColors.neonPurple,
+                                onTap: () => context.go('/institution/${area.slug}'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const PanelBox(
+                      span: 'HUD',
+                      title: 'ESTADO',
+                      child: Text(
+                        'Conectado al centro de mando. Las batallas usan las preguntas '
+                        'aprobadas por tus docentes y el avance se registra por curso.',
+                        style: TextStyle(
+                          fontFamily: AppTheme.bodyFont,
+                          color: AppColors.crema500,
+                          fontSize: 12.5,
+                          height: 1.45,
                         ),
                       ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.12),
-                const SizedBox(height: 18),
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: .95,
-                        ),
-                    itemCount: menuItems.length,
-                    itemBuilder: (context, index) {
-                      final item = menuItems[index];
-                      return _MenuCard(
-                        sigil: item.sigil,
-                        title: item.title,
-                        accent: item.accent,
-                        onTap: () => context.go(item.route),
-                      );
-                    },
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -112,58 +173,17 @@ class LobbyView extends ConsumerWidget {
   }
 }
 
-class _LobbyItem {
-  const _LobbyItem({
-    required this.sigil,
-    required this.title,
-    required this.accent,
-    required this.route,
-  });
-
-  final String sigil;
+class _LobbyTile extends StatelessWidget {
+  final IconData icon;
   final String title;
-  final Color accent;
-  final String route;
-}
-
-String _sigil(InstitutionArea area) => switch (area) {
-  InstitutionArea.overview => 'CMD',
-  InstitutionArea.profile => 'YO',
-  InstitutionArea.school => 'IE',
-  InstitutionArea.people => 'USR',
-  InstitutionArea.sections => 'SEC',
-  InstitutionArea.subjects => 'CUR',
-  InstitutionArea.classes => 'CLS',
-  InstitutionArea.content => 'IA',
-  InstitutionArea.tasks => 'TXT',
-  InstitutionArea.battles => 'VS',
-  InstitutionArea.progress => 'XP',
-  InstitutionArea.activity => 'LOG',
-};
-
-Color _areaColor(InstitutionArea area) => switch (area) {
-  InstitutionArea.overview || InstitutionArea.battles => AppColors.brightRed,
-  InstitutionArea.profile => AppColors.cyan,
-  InstitutionArea.people ||
-  InstitutionArea.subjects ||
-  InstitutionArea.content => AppColors.cyan,
-  InstitutionArea.sections ||
-  InstitutionArea.classes ||
-  InstitutionArea.progress => AppColors.gold,
-  InstitutionArea.school ||
-  InstitutionArea.tasks ||
-  InstitutionArea.activity => AppColors.neonPurple,
-};
-
-class _MenuCard extends StatelessWidget {
-  final String sigil;
-  final String title;
+  final String subtitle;
   final Color accent;
   final VoidCallback onTap;
 
-  const _MenuCard({
-    required this.sigil,
+  const _LobbyTile({
+    required this.icon,
     required this.title,
+    required this.subtitle,
     required this.accent,
     required this.onTap,
   });
@@ -171,21 +191,56 @@ class _MenuCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-          onTap: onTap,
-          child: PixelPanel(
-            accent: accent,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AcademicHexBadge(label: sigil, color: accent, size: 72),
-                const SizedBox(height: 12),
-                HudLabel(title, color: accent),
-              ],
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.bordeOro, width: 1)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: accent.withAlpha(26),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: accent.withAlpha(160), width: 1.1),
+              ),
+              child: Icon(icon, color: accent, size: 20),
             ),
-          ),
-        )
-        .animate()
-        .fadeIn(duration: 500.ms)
-        .scale(begin: const Offset(.88, .88), curve: Curves.easeOutBack);
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: AppTheme.displayFont,
+                      color: AppColors.crema100,
+                      fontSize: 13,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontFamily: AppTheme.bodyFont,
+                      color: AppColors.crema500,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.bordeOro, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 }

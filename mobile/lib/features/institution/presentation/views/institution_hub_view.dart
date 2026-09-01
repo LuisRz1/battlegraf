@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../presentation/providers/auth_provider.dart';
 import '../../../../presentation/widgets/retro_controls.dart';
 import '../../../../presentation/widgets/retro_ui.dart';
+import '../../../../presentation/widgets/panel_ui.dart';
 import '../../domain/entities/institution_dashboard.dart';
 import '../../domain/repositories/institution_repository.dart';
 import '../providers/institution_provider.dart';
@@ -124,12 +125,14 @@ class InstitutionHubView extends ConsumerWidget {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   sliver: SliverToBoxAdapter(
-                    child: RetroScreenHeader(
+                    child: PanelHeader(
+                      span: 'MODULO INSTITUCIONAL',
                       title: effectiveArea.label,
-                      accent: _accent(effectiveArea),
-                      onBack: () => context.go('/lobby'),
-                      actionLabel: 'MÓDULOS',
-                      onAction: () => _showModules(context, auth.role),
+                      action: PanelButton(
+                        label: 'MODULOS',
+                        ghost: true,
+                        onTap: () => _showModules(context, auth.role),
+                      ),
                     ),
                   ),
                 ),

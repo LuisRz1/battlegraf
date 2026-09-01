@@ -8,6 +8,7 @@ import '../../../domain/models/battle.dart';
 import '../../providers/battle_provider.dart';
 import '../../widgets/retro_controls.dart';
 import '../../widgets/retro_ui.dart';
+import '../../widgets/panel_ui.dart';
 
 /// List of active battles that the player can join or watch.
 class BattleLobbyView extends ConsumerStatefulWidget {
@@ -37,16 +38,18 @@ class _BattleLobbyViewState extends ConsumerState<BattleLobbyView> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: RetroScreenHeader(
-                  title: 'BATALLAS',
-                  onBack: () => context.go('/lobby'),
-                  actionLabel: 'NUEVA',
-                  onAction: () => _showCreateBattleDialog(context),
-                  accent: AppColors.brightRed,
-                ),
-              ),
-              const SizedBox(height: 10),
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: PanelHeader(
+                                span: 'CONTENDIAS',
+                                title: 'BATALLAS',
+                                action: PanelButton(
+                                  label: 'NUEVA',
+                                  ghost: true,
+                                  onTap: () => _showCreateBattleDialog(context),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
               Expanded(
                 child: battleState.isLoading
                     ? const Center(

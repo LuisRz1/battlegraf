@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/progression_provider.dart';
 import '../../widgets/retro_controls.dart';
 import '../../widgets/retro_ui.dart';
+import '../../widgets/panel_ui.dart';
 
 class ProgressionView extends ConsumerStatefulWidget {
   const ProgressionView({super.key});
@@ -34,12 +34,14 @@ class _ProgressionViewState extends ConsumerState<ProgressionView> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: RetroScreenHeader(
-                  title: 'PROGRESIÓN',
-                  onBack: () => context.go('/lobby'),
-                  actionLabel: 'ACTUALIZAR',
-                  onAction: () => ref.read(progressionProvider.notifier).load(),
-                  accent: AppColors.gold,
+                child: PanelHeader(
+                  span: 'PROGRESION',
+                  title: 'MI AVANCE',
+                  action: PanelButton(
+                    label: 'ACTUALIZAR',
+                    ghost: true,
+                    onTap: () => ref.read(progressionProvider.notifier).load(),
+                  ),
                 ),
               ),
               const SizedBox(height: 10),

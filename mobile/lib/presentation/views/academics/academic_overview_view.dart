@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/academic_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/retro_controls.dart';
 import '../../widgets/retro_ui.dart';
+import '../../widgets/panel_ui.dart';
 
 class AcademicOverviewView extends ConsumerWidget {
   const AcademicOverviewView({super.key});
@@ -33,13 +33,16 @@ class AcademicOverviewView extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                RetroScreenHeader(
+                PanelHeader(
+                  span: 'SEGUIMIENTO ACADEMICO',
                   title: auth.role == 'student' ? 'MI AVANCE' : 'SEGUIMIENTO',
-                  accent: AppColors.cyan,
-                  actionLabel: canManage ? 'ACCIONES' : 'ACTUALIZAR',
-                  onAction: canManage
-                      ? () => _showActions(context, ref, state)
-                      : () => ref.read(academicProvider.notifier).load(),
+                  action: PanelButton(
+                    label: canManage ? 'ACCIONES' : 'ACTUALIZAR',
+                    ghost: true,
+                    onTap: canManage
+                        ? () => _showActions(context, ref, state)
+                        : () => ref.read(academicProvider.notifier).load(),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 if (state.isLoading && state.overview == null)
@@ -617,8 +620,13 @@ class _Metrics extends StatelessWidget {
       childAspectRatio: 1.75,
       children: rows
           .map(
-            (row) => PixelPanel(
-              accent: row.$3,
+            (row) => Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.fondoPanel,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.bordeOro, width: 1.3),
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
