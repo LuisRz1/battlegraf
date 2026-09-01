@@ -56,7 +56,7 @@ class _BattleBackdropState extends State<BattleBackdrop>
           center: Alignment(0.65, -0.65),
           radius: 1.25,
           colors: [
-            Color(0xFF4A126E),
+            AppColors.piedra700,
             AppColors.deepPurple,
             AppColors.voidBlack,
           ],

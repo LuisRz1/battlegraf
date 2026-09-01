@@ -39,7 +39,7 @@ class ClassListView extends ConsumerWidget {
                       title: Text(
                         cls['name'] ?? '',
                         style: const TextStyle(
-                          fontFamily: 'PressStart2P',
+                          fontFamily: 'VcrOsdMono',
                           color: AppColors.gold,
                           fontSize: 14,
                         ),
@@ -48,7 +48,7 @@ class ClassListView extends ConsumerWidget {
                         cls['code'] ?? '',
                         style: const TextStyle(
                           color: AppColors.cyan,
-                          fontFamily: 'SpaceMono',
+                          fontFamily: 'VcrOsdMono',
                         ),
                       ),
                     ),

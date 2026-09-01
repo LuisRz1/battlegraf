@@ -1,182 +1,197 @@
 import 'package:flutter/material.dart';
 
-/// Pixel-fantasy palette shared by the BattleGraph game and landing.
+/// Paleta del sistema web (global.css) replicada en el aplicativo móvil.
 class AppColors {
-  static const Color voidBlack = Color(0xFF07030E);
-  static const Color deepPurple = Color(0xFF10061F);
-  static const Color royalPurple = Color(0xFF24103F);
-  static const Color crimsonRed = Color(0xFFB40F35);
-  static const Color brightRed = Color(0xFFFF315D);
-  static const Color magenta = Color(0xFFFF2BD6);
-  static const Color neonPurple = Color(0xFFA855F7);
-  static const Color cyan = Color(0xFF38E8F5);
-  static const Color gold = Color(0xFFFFC857);
-  static const Color offWhite = Color(0xFFFFF4D6);
-  static const Color darkCard = Color(0xFF160B27);
+  // Fondos piedra (web: --color-piedra-900/950 y paneles)
+  static const Color piedra950 = Color(0xFF0D0C14);
+  static const Color piedra900 = Color(0xFF131120);
+  static const Color piedra800 = Color(0xFF1B1830);
+  static const Color piedra700 = Color(0xFF262142);
+  static const Color piedra600 = Color(0xFF342D58);
+  static const Color fondoPanel = Color(0xFF14100A); // tarjetas oscuras del panel web
+  static const Color fondoGame = Color(0xFF09090C); // fondo general web
+  static const Color fondoCard = Color(0xFF100D12);
 
-  static const Color deepBackground = voidBlack;
+  // Crema (web: --color-crema-*)
+  static const Color crema100 = Color(0xFFF7EED6);
+  static const Color crema300 = Color(0xFFE9D9AE);
+  static const Color crema500 = Color(0xFFCDB888);
 
-  static const Color panelBackground = darkCard;
-  static const Color shadowPurple = Color(0xFF4D1C78);
-  static const Color mutedInk = Color(0xFFBCA8CF);
+  // Oro (web: --color-oro-*)
+  static const Color oro300 = Color(0xFFF0CF7A);
+  static const Color oro500 = Color(0xFFE6B84D);
+  static const Color oro700 = Color(0xFFB5852C);
+  static const Color bordeOro = Color(0xFF4A3A1C); // bordes de tarjetas del panel
 
-  // Subject colors for graph nodes
-  static const Color math = Color(0xFFE63946);
-  static const Color language = Color(0xFFF4A261);
-  static const Color science = Color(0xFF2A9D8F);
-  static const Color physics = Color(0xFF264653);
-  static const Color chemistry = Color(0xFFE76F51);
-  static const Color biology = Color(0xFF06A77D);
-  static const Color history = Color(0xFF9B5DE5);
-  static const Color geography = Color(0xFF00B4D8);
-  static const Color english = Color(0xFFF15BB5);
-  static const Color art = Color(0xFF8338EC);
-  static const Color civics = Color(0xFF3A86FF);
-  static const Color physicalEducation = Color(0xFFFB5607);
-  static const Color technology = Color(0xFF38B000);
-  static const Color philosophy = Color(0xFFFFBE0B);
-  static const Color religion = Color(0xFF8AC926);
-  static const Color computing = Color(0xFFFF006E);
-}
+  // Acentos (web: aliados / imperio / legion)
+  static const Color aliados = Color(0xFF4D99FF);
+  static const Color imperio = Color(0xFFFF4D4D);
+  static const Color legion = Color(0xFF4DCC66);
+
+  // Sangre (rojo UI web) y estados
+  static const Color rojoAccion = Color(0xFFB3202C);
+  static const Color textoSeco = Color(0xFF9A8870); // small del panel
+
+  // Compatibilidad: nombres antiguos re-mapeados a la paleta web actual
+    // (las vistas usan estos nombres; asi TODO el aplicativo adopta el look web)
+    static const Color voidBlack = piedra950;
+    static const Color deepPurple = piedra800;
+    static const Color royalPurple = piedra700;
+    static const Color darkCard = fondoCard;
+    static const Color panelBackground = fondoPanel;
+    static const Color deepBackground = fondoGame;
+    static const Color shadowPurple = piedra600;
+    static const Color mutedInk = crema500;
+    static const Color crimsonRed = oro700; // sombras y bordes dorados
+    static const Color brightRed = oro500; // botones y acentos -> ORO (como la web)
+    static const Color magenta = oro300;
+    static const Color neonPurple = Color(0xFF7C5CD6); // violeta-600 web
+    static const Color cyan = aliados;
+    static const Color gold = oro500;
+    static const Color offWhite = crema100;
+  }
 
 class AppTheme {
-  static const String displayFont = 'PressStart2P';
-  static const String bodyFont = 'SpaceMono';
+  /// Una sola tipografía en todo el aplicativo, igual que el sistema web.
+  static const String displayFont = 'VcrOsdMono';
+  static const String bodyFont = 'VcrOsdMono';
 
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
-      scaffoldBackgroundColor: AppColors.deepPurple,
+      scaffoldBackgroundColor: AppColors.fondoGame,
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.brightRed,
-        onPrimary: AppColors.offWhite,
-        secondary: AppColors.gold,
-        onSecondary: AppColors.deepPurple,
-        surface: AppColors.darkCard,
-        onSurface: AppColors.offWhite,
-        error: AppColors.brightRed,
-        onError: AppColors.offWhite,
+        primary: AppColors.oro500,
+        onPrimary: AppColors.piedra950,
+        secondary: AppColors.oro300,
+        onSecondary: AppColors.piedra950,
+        surface: AppColors.fondoPanel,
+        onSurface: AppColors.crema100,
+        error: AppColors.rojoAccion,
+        onError: AppColors.crema100,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.voidBlack,
-        foregroundColor: AppColors.offWhite,
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.piedra950,
+        foregroundColor: AppColors.crema100,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.offWhite,
-          fontSize: 14,
-          letterSpacing: 1.5,
+          color: AppColors.oro300,
+          fontSize: 16,
+          letterSpacing: 2,
         ),
       ),
-      cardTheme: const CardThemeData(
-        color: Color(0xEE160B27),
-        elevation: 12,
-        shadowColor: AppColors.voidBlack,
+      cardTheme: CardThemeData(
+        color: AppColors.fondoPanel,
+        elevation: 4,
+        shadowColor: AppColors.piedra950,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
-          side: BorderSide(color: AppColors.shadowPurple, width: 2),
+          borderRadius: BorderRadius.circular(6),
+          side: const BorderSide(color: AppColors.bordeOro, width: 1.4),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brightRed,
-          foregroundColor: AppColors.offWhite,
-          disabledBackgroundColor: AppColors.shadowPurple,
-          disabledForegroundColor: AppColors.mutedInk,
-          elevation: 8,
-          shadowColor: AppColors.crimsonRed,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          backgroundColor: AppColors.oro500,
+          foregroundColor: AppColors.piedra950,
+          disabledBackgroundColor: AppColors.piedra700,
+          disabledForegroundColor: AppColors.crema500,
+          elevation: 2,
+          shadowColor: AppColors.piedra950,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
           textStyle: const TextStyle(
             fontFamily: displayFont,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.bold,
-            letterSpacing: 1,
+            letterSpacing: 1.4,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(2),
-            side: const BorderSide(color: AppColors.offWhite, width: 2),
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: AppColors.oro700, width: 1.4),
           ),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.brightRed,
-        foregroundColor: AppColors.offWhite,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: AppColors.oro500,
+        foregroundColor: AppColors.piedra950,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
-          side: BorderSide(color: AppColors.offWhite, width: 2),
+          borderRadius: BorderRadius.circular(6),
+          side: const BorderSide(color: AppColors.oro700, width: 1.4),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.voidBlack.withAlpha(190),
+        fillColor: AppColors.piedra900,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
-          borderSide: const BorderSide(color: AppColors.neonPurple, width: 2),
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.bordeOro, width: 1.2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
-          borderSide: const BorderSide(color: AppColors.shadowPurple, width: 2),
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.bordeOro, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
-          borderSide: const BorderSide(color: AppColors.cyan, width: 2),
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.oro500, width: 1.6),
         ),
-        labelStyle: const TextStyle(color: AppColors.mutedInk),
-        prefixIconColor: AppColors.gold,
+        labelStyle: const TextStyle(color: AppColors.crema500, fontFamily: bodyFont),
+        hintStyle: const TextStyle(color: AppColors.crema500, fontFamily: bodyFont),
+        prefixIconColor: AppColors.oro500,
       ),
-      dialogTheme: const DialogThemeData(
-        backgroundColor: AppColors.darkCard,
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.piedra900,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
-          side: BorderSide(color: AppColors.neonPurple, width: 2),
+          borderRadius: BorderRadius.circular(6),
+          side: const BorderSide(color: AppColors.bordeOro, width: 1.4),
         ),
       ),
-      chipTheme: const ChipThemeData(
-        backgroundColor: AppColors.voidBlack,
-        selectedColor: AppColors.crimsonRed,
-        side: BorderSide(color: AppColors.shadowPurple, width: 2),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.piedra900,
+        selectedColor: AppColors.oro500,
+        side: const BorderSide(color: AppColors.bordeOro, width: 1.2),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
+          borderRadius: BorderRadius.circular(4),
         ),
-        labelStyle: TextStyle(fontFamily: bodyFont, color: AppColors.offWhite),
+        labelStyle: TextStyle(fontFamily: bodyFont, color: AppColors.crema100, fontSize: 13),
       ),
+      dividerTheme: const DividerThemeData(color: AppColors.bordeOro, thickness: 1),
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.offWhite,
-          fontSize: 28,
+          color: AppColors.crema100,
+          fontSize: 26,
           height: 1.2,
-          shadows: [Shadow(color: AppColors.crimsonRed, offset: Offset(3, 3))],
+          letterSpacing: 1,
         ),
         displayMedium: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.offWhite,
+          color: AppColors.crema100,
           fontSize: 20,
-          shadows: [
-            Shadow(color: AppColors.shadowPurple, offset: Offset(2, 2)),
-          ],
+          letterSpacing: 1,
         ),
         headlineMedium: TextStyle(
           fontFamily: displayFont,
-          color: AppColors.offWhite,
+          color: AppColors.oro300,
           fontSize: 16,
+          letterSpacing: 1.2,
         ),
         bodyLarge: TextStyle(
           fontFamily: bodyFont,
-          color: AppColors.offWhite,
+          color: AppColors.crema100,
           fontSize: 16,
         ),
         bodyMedium: TextStyle(
           fontFamily: bodyFont,
-          color: AppColors.mutedInk,
+          color: AppColors.crema500,
           fontSize: 14,
         ),
         labelLarge: TextStyle(
           fontFamily: bodyFont,
-          color: AppColors.gold,
+          color: AppColors.oro300,
           fontWeight: FontWeight.bold,
+          fontSize: 13,
         ),
       ),
     );
