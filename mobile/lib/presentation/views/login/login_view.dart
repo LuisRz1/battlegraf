@@ -184,21 +184,31 @@ class _LoginViewState extends ConsumerState<LoginView> {
                                         : const Text('ENTRAR AL GRAFO'),
                                   ),
                                 ),
-                                if (authState.usesSupabase) ...[
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: authState.isLoading
-                                          ? null
-                                          : () => ref
-                                                .read(authProvider.notifier)
-                                                .loginWithGoogle(),
-                                      icon: const Icon(Icons.login),
-                                      label: const Text('CONTINUAR CON GOOGLE'),
-                                    ),
-                                  ),
-                                ],
+                                const SizedBox(height: 10),
+                                                                SizedBox(
+                                                                  width: double.infinity,
+                                                                  child: OutlinedButton.icon(
+                                                                    onPressed: authState.isLoading
+                                                                        ? null
+                                                                        : () => ref
+                                                                              .read(authProvider.notifier)
+                                                                              .loginWithGoogle(),
+                                                                    icon: const Icon(Icons.login),
+                                                                    label: const Text('CONTINUAR CON GOOGLE'),
+                                                                    style: OutlinedButton.styleFrom(
+                                                                      foregroundColor: AppColors.oro300,
+                                                                      side: const BorderSide(color: AppColors.bordeOro, width: 1.3),
+                                                                      shape: RoundedRectangleBorder(
+                                                                        borderRadius: BorderRadius.circular(4),
+                                                                      ),
+                                                                      textStyle: const TextStyle(
+                                                                        fontFamily: AppTheme.displayFont,
+                                                                        fontSize: 11,
+                                                                        letterSpacing: 1.4,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ),
                                 const SizedBox(height: 14),
                                 SizedBox(
                                   width: double.infinity,

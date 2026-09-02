@@ -6,15 +6,27 @@ import '../../../core/auth/role_labels.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/institution/presentation/views/institution_hub_view.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/progression_provider.dart';
 import '../../widgets/panel_ui.dart';
 import '../../widgets/retro_ui.dart';
 
 /// Centro de mando del estudiante — mismo lenguaje visual del panel web.
-class LobbyView extends ConsumerWidget {
+class LobbyView extends ConsumerStatefulWidget {
   const LobbyView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LobbyView> createState() => _LobbyViewState();
+}
+
+class _LobbyViewState extends ConsumerState<LobbyView> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(progressionProvider.notifier).load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final role = authState.role;
@@ -41,12 +53,15 @@ class LobbyView extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
-                  children: [
-                    // Perfil del estudiante
-                    PanelBox(
+                            Expanded(
+                              child: ListView(
+                                padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+                                children: [
+                                  // Metricas del estudiante (dashboard)
+                                  _ProfileMetrics(isStudent: isStudent),
+                                  const SizedBox(height: 12),
+                                  // Perfil del estudiante
+                                  PanelBox(
                       span: 'IDENTIDAD',
                       title: 'MI PERFIL',
                       child: Row(
@@ -173,6 +188,72 @@ class LobbyView extends ConsumerWidget {
   }
 }
 
+class _ProfileMetrics extends ConsumerWidget {
+  final bool isStudent;
+  const _ProfileMetrics({required this.isStudent});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progression = ref.watch(progressionProvider);
+    final profile = progression.profile;
+    return PanelBox(
+      span: 'DASHBOARD',
+      title: 'MIS ESTADISTICAS',
+      child: Column(
+        children: [
+          if (profile == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Aun no hay estadisticas registradas.',
+                style: TextStyle(
+                  fontFamily: AppTheme.bodyFont,
+                  color: AppColors.crema500,
+                  fontSize: 12.5,
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: StatStrip(
+                stats: [
+                  StatPair(value: '${profile.xp}', label: 'XP', valueColor: AppColors.oro500),
+                  StatPair(value: profile.rankName ?? 'Novato', label: 'RANGO', valueColor: AppColors.oro300),
+                  StatPair(value: profile.clanName ?? 'Sin clan', label: 'CLAN', valueColor: AppColors.oro500),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          const Divider(color: AppColors.bordeOro, height: 1, thickness: 1),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: PanelButton(
+                  label: isStudent ? 'SUBIR TAREA' : 'CREAR TAREA',
+                  height: 34,
+                  onTap: () => context.go('/institution/tasks'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PanelButton(
+                  label: 'COMPETIR',
+                  ghost: true,
+                  height: 34,
+                  onTap: () => context.go(isStudent ? '/battle/demo-bot' : '/institution/battles'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// [LobbyTile] fila de mision del lobby.
 class _LobbyTile extends StatelessWidget {
   final IconData icon;
   final String title;
