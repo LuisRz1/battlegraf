@@ -24,29 +24,30 @@ class AppColors {
   static const Color bordeOro = Color(0xFF4A3A1C); // bordes de tarjetas del panel
 
   // Acentos (web: aliados / imperio / legion)
-  static const Color aliados = Color(0xFF4D99FF);
-  static const Color imperio = Color(0xFFFF4D4D);
-  static const Color legion = Color(0xFF4DCC66);
+    static const Color aliados = Color(0xFF4D99FF);
+    static const Color imperio = Color(0xFFFF4D4D);
+    static const Color legion = Color(0xFF4DCC66);
+    static const Color violeta400 = Color(0xFFA78BFA); // unico violeta de la landing
 
   // Sangre (rojo UI web) y estados
   static const Color rojoAccion = Color(0xFFB3202C);
   static const Color textoSeco = Color(0xFF9A8870); // small del panel
 
   // Compatibilidad: nombres antiguos re-mapeados a la paleta web actual
-    // (las vistas usan estos nombres; asi TODO el aplicativo adopta el look web)
+    // (la landing usa PIEDRA + CREMA + ORO; los neones NO existen en la web)
     static const Color voidBlack = piedra950;
     static const Color deepPurple = piedra800;
     static const Color royalPurple = piedra700;
     static const Color darkCard = fondoCard;
     static const Color panelBackground = fondoPanel;
     static const Color deepBackground = fondoGame;
-    static const Color shadowPurple = piedra600;
+    static const Color shadowPurple = piedra600; // bordes suaves de la web
     static const Color mutedInk = crema500;
     static const Color crimsonRed = oro700; // sombras y bordes dorados
     static const Color brightRed = oro500; // botones y acentos -> ORO (como la web)
     static const Color magenta = oro300;
-    static const Color neonPurple = Color(0xFF7C5CD6); // violeta-600 web
-    static const Color cyan = aliados;
+    static const Color neonPurple = Color(0xFFA78BFA); // violeta-400 web (unico violeta de la landing)
+    static const Color cyan = oro300; // la landing NO usa azul: acentos son ORO
     static const Color gold = oro500;
     static const Color offWhite = crema100;
   }

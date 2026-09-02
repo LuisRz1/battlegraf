@@ -42,7 +42,7 @@ class SplashView extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: Image.asset(
-                        'assets/images/battlegraph_logo.png',
+                        'assets/images/battlegraph_icon.png',
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stack) => const ColoredBox(
                           color: AppColors.fondoPanel,

@@ -70,7 +70,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(5),
                                 child: Image.asset(
-                                  'assets/images/battlegraph_logo.png',
+                                  'assets/images/battlegraph_icon.png',
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, error, stack) => const ColoredBox(
                                     color: AppColors.fondoPanel,

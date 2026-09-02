@@ -28,20 +28,20 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "../public/game/BattleGraph.icon.png"
+  image_path: "assets/images/battlegraph_icon.png"
   min_sdk_android: 21
   remove_alpha_ios: true
   background_color_ios: "#0D0C14"
 
 flutter_native_splash:
   color: "#0D0C14"
-  image: "../public/game/BattleGraph.icon.png"
+  image: "assets/images/battlegraph_icon.png"
   android: true
   ios: true
   web: false
   android_12:
     color: "#0D0C14"
-    image: "../public/game/BattleGraph.icon.png"
+    image: "assets/images/battlegraph_icon.png"
 
 flutter:
   uses-material-design: true

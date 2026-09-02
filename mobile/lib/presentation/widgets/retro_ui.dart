@@ -103,7 +103,7 @@ class _BattleBackdropPainter extends CustomPainter {
         center: const Alignment(1.05, -.85),
         radius: 1.05,
         colors: [
-          AppColors.aliados.withAlpha(intense ? 55 : 30),
+          AppColors.violeta400.withAlpha(intense ? 60 : 30),
           AppColors.piedra600.withAlpha(intense ? 40 : 22),
           Colors.transparent,
         ],
@@ -138,7 +138,7 @@ class _BattleBackdropPainter extends CustomPainter {
             center.dy / math.max(size.height, 1) >
             center.dx / math.max(size.width, 1);
         gridPaint.color =
-            (redTerritory ? AppColors.oro700 : AppColors.piedra600)
+            (redTerritory ? AppColors.oro700 : AppColors.piedra700)
                 .withAlpha(intense ? 60 : 34);
         canvas.drawPath(_hexPath(center, radius), gridPaint);
       }
@@ -166,7 +166,7 @@ class _BattleBackdropPainter extends CustomPainter {
         colors: [
           AppColors.oro500.withAlpha(intense ? 30 : 16),
           Colors.transparent,
-          AppColors.aliados.withAlpha(intense ? 26 : 14),
+          AppColors.violeta400.withAlpha(intense ? 24 : 12),
         ],
       ).createShader(bounds)
       ..strokeWidth = intense ? 2 : 1;

@@ -77,7 +77,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(5),
                               child: Image.asset(
-                                'assets/images/battlegraph_logo.png',
+                                'assets/images/battlegraph_icon.png',
                                 fit: BoxFit.contain,
                                 errorBuilder: (context, error, stack) =>
                                     const Icon(Icons.games, color: AppColors.oro500, size: 30),
