@@ -1,8 +1,8 @@
 export const mobileRelease = {
-	version: "0.7.0",
+	version: "0.7.1",
 	androidUrl:
-		"https://github.com/LuisRz1/battlegraf/releases/download/v0.7.0/battlegraf-android.apk",
+		"https://github.com/LuisRz1/battlegraf/releases/download/v0.7.1/battlegraf-android.apk",
 	androidFileName: "battlegraf-android.apk",
 	androidSize: "56 MB",
-		androidSha256: "DBFF444574F264A6020366F9BB75D3D071ACB95EA66C1C0DCAA8885E8BA42FF5",
+		androidSha256: "503DF6D3EE3401E2C78F21A0C6B5EDCF5542AB4B74A17D879226696D631C3DFB",
 } as const;
