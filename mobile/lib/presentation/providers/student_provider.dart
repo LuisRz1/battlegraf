@@ -183,6 +183,19 @@ class StudentDashboardNotifier extends StateNotifier<StudentDashboardState> {
     }
   }
 
+  Future<bool> consumePowerup(String powerupId) async {
+    if (_schoolId.isEmpty) return false;
+    try {
+      await ref
+          .read(panelApiClientProvider)
+          .dio
+          .post('/panel/$_schoolId/powerups/$powerupId/consume');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> submitAssignment(String assignmentId, String answer) async {
     if (_schoolId.isEmpty) return false;
     try {

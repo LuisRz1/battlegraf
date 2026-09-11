@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../providers/question_pool_provider.dart';
+import '../../providers/student_provider.dart';
 import '../../widgets/panel_ui.dart';
 import '../../widgets/retro_ui.dart';
 
-/// El alumno elige con que materia jugar. Solo se ofrecen temas que
-/// realmente tienen preguntas aprobadas en el colegio.
+/// El alumno elige con que materia jugar y que poderes equipar.
+/// Solo se ofrecen temas con preguntas aprobadas en el colegio.
 class BattleSetupView extends ConsumerStatefulWidget {
   const BattleSetupView({super.key});
 
@@ -18,10 +19,63 @@ class BattleSetupView extends ConsumerStatefulWidget {
 
 class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
   String? _topic;
+  final Set<String> _selectedPowers = {};
+  bool _starting = false;
+
+  String _abilityFor(String effect) {
+    switch (effect) {
+      case 'half':
+      case 'double':
+        return 'half';
+      case 'invuln':
+      case 'alarm':
+        return 'invuln';
+      case 'fortify':
+      case 'chest':
+        return 'fortify';
+      case 'retopic':
+      case 'clock':
+        return 'retopic';
+      default:
+        return 'half';
+    }
+  }
+
+  Future<void> _start() async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    final notifier = ref.read(studentDashboardProvider.notifier);
+    final owned = {
+      for (final p in ref.read(studentDashboardProvider).powerups)
+        '${p['code']}': (p['quantity'] as num?)?.toInt() ?? 0,
+    };
+    final catalog = ref.read(studentDashboardProvider).powerupCatalog;
+    final effects = <String>[];
+    for (final powerup in catalog) {
+      final id = '${powerup['id']}';
+      if (!_selectedPowers.contains(id)) continue;
+      final code = '${powerup['code']}';
+      if ((owned[code] ?? 0) <= 0) continue;
+      final ok = await notifier.consumePowerup(id);
+      if (ok) effects.add(_abilityFor('${powerup['effect']}'));
+    }
+    await notifier.load();
+    if (!mounted) return;
+    final query = <String, String>{
+      if (_topic != null) 'topic': _topic!,
+      if (effects.isNotEmpty) 'powers': effects.join(','),
+    };
+    context.push(Uri(path: '/battle/play', queryParameters: query).toString());
+  }
 
   @override
   Widget build(BuildContext context) {
     final pool = ref.watch(questionPoolProvider);
+    final student = ref.watch(studentDashboardProvider);
+    final owned = {
+      for (final p in student.powerups)
+        '${p['code']}': (p['quantity'] as num?)?.toInt() ?? 0,
+    };
     return Scaffold(
       backgroundColor: AppColors.fondoGame,
       body: BattleBackdrop(
@@ -89,19 +143,40 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
                             ),
                     ),
                     const SizedBox(height: 12),
+                    if (student.powerupCatalog.isNotEmpty)
+                      PanelBox(
+                        span: 'INVENTARIO',
+                        title: 'PODERES (${student.points} PUNTOS)',
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final powerup in student.powerupCatalog)
+                              SectionChip(
+                                label:
+                                    '${powerup['name']} x${owned['${powerup['code']}'] ?? 0}',
+                                color: _selectedPowers.contains('${powerup['id']}')
+                                    ? AppColors.aliados
+                                    : AppColors.oro300,
+                                onTap: (owned['${powerup['code']}'] ?? 0) > 0
+                                    ? () => setState(() {
+                                        final id = '${powerup['id']}';
+                                        if (_selectedPowers.contains(id)) {
+                                          _selectedPowers.remove(id);
+                                        } else {
+                                          _selectedPowers.add(id);
+                                        }
+                                      })
+                                    : null,
+                              ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
                     if (pool.hasQuestions)
                       PanelButton(
-                        label: 'COMENZAR BATALLA',
-                        onTap: () {
-                          final topic = _topic;
-                          final uri = Uri(
-                            path: '/battle/play',
-                            queryParameters: topic == null
-                                ? const {}
-                                : {'topic': topic},
-                          );
-                          context.push(uri.toString());
-                        },
+                        label: _starting ? '...' : 'COMENZAR BATALLA',
+                        onTap: pool.hasQuestions && !_starting ? _start : null,
                       ),
                     const SizedBox(height: 8),
                     PanelButton(

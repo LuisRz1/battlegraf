@@ -65,13 +65,53 @@ const List<String> _intermediateNodeIds = [
 /// the board is not a separate mock. The only simulated part is the rival:
 /// every purple turn chooses a legal frontier node and resolves one question.
 class BotBattleDemoController extends ChangeNotifier {
-  BotBattleDemoController({List<DemoQuestion>? pool}) : _pool = pool {
+  BotBattleDemoController({List<DemoQuestion>? pool, Map<String, int>? initialAbilities})
+    : _pool = pool,
+      _initialAbilities = initialAbilities {
     _restoreInitialState();
   }
 
   /// Preguntas reales del colegio. Si es null se usa la demo local.
   final List<DemoQuestion>? _pool;
+
+  /// Poderes equipados al iniciar la partida (efecto -> cantidad).
+  final Map<String, int>? _initialAbilities;
   late Map<String, DemoQuestion> _questionMap;
+
+  int _helpTokens = 0;
+  final Set<String> _hiddenOptions = {};
+
+  int get helpTokens => _helpTokens;
+  bool get hasHelp =>
+      _helpTokens > 0 && _phase == DemoBattlePhase.answerQuestion;
+
+  /// Opciones visibles del nodo activo (los poderes pueden ocultar 2 erroneas).
+  List<MapEntry<String, String>> get activeOptions {
+    final question = activeQuestion;
+    if (question == null) return const [];
+    return question.options.entries
+        .where((entry) => !_hiddenOptions.contains(entry.key))
+        .toList();
+  }
+
+  /// Usa un poder equipado: elimina dos opciones incorrectas de la pregunta.
+  bool useHelp() {
+    final question = activeQuestion;
+    if (question == null ||
+        _helpTokens <= 0 ||
+        _phase != DemoBattlePhase.answerQuestion) {
+      return false;
+    }
+    final wrong = question.options.keys.where(
+      (key) => key != question.correctOption && !_hiddenOptions.contains(key),
+    );
+    for (final key in wrong.take(2)) {
+      _hiddenOptions.add(key);
+    }
+    _helpTokens -= 1;
+    notifyListeners();
+    return true;
+  }
 
   static const redBaseId = 'red-base';
   static const purpleBaseId = 'purple-base';
@@ -137,6 +177,7 @@ class BotBattleDemoController extends ChangeNotifier {
     _lastMoveNodeId = nodeId;
     _phase = DemoBattlePhase.answerQuestion;
     _lastMoveWasCorrect = null;
+    _hiddenOptions.clear();
     _statusMessage = 'Responde para conquistar ${_node(nodeId).label}.';
     notifyListeners();
     return true;
@@ -375,6 +416,8 @@ class BotBattleDemoController extends ChangeNotifier {
   void _restoreInitialState() {
     _graph = _buildGraph();
     _questionMap = _buildQuestionMap();
+    _hiddenOptions.clear();
+    _helpTokens = (_initialAbilities?.values.fold<int>(0, (a, b) => a + b)) ?? 0;
     _currentSide = DemoBattleSide.red;
     _phase = DemoBattlePhase.chooseNode;
     _winner = null;

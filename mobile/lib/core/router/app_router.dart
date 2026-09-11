@@ -77,8 +77,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/battle/play',
-        builder: (context, state) =>
-            BattlePlayView(topic: state.uri.queryParameters['topic']),
+        builder: (context, state) => BattlePlayView(
+          topic: state.uri.queryParameters['topic'],
+          powers: (state.uri.queryParameters['powers'] ?? '')
+              .split(',')
+              .where((value) => value.isNotEmpty)
+              .toList(),
+        ),
       ),
       GoRoute(
         path: '/assistant',

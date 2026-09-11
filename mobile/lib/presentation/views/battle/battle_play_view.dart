@@ -11,9 +11,10 @@ import 'bot_battle_demo_view.dart';
 /// Partida real del alumno: usa las preguntas del colegio y registra el
 /// resultado para que aparezca en su historial.
 class BattlePlayView extends ConsumerStatefulWidget {
-  const BattlePlayView({super.key, this.topic});
+  const BattlePlayView({super.key, this.topic, this.powers = const []});
 
   final String? topic;
+  final List<String> powers;
 
   @override
   ConsumerState<BattlePlayView> createState() => _BattlePlayViewState();
@@ -67,6 +68,9 @@ class _BattlePlayViewState extends ConsumerState<BattlePlayView> {
     return BotBattleDemoView(
       pool: questions,
       onFinished: _onFinished,
+      initialAbilities: {
+        for (final power in widget.powers) power: 1,
+      },
     );
   }
 }
