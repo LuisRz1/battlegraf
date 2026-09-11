@@ -85,7 +85,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
     });
-    return go(redirect, r.ok ? "created=section" : "error=save", "estructura");
+    return go(redirect, r.ok ? "created=section" : "error=save", "secciones");
   }
   if (action === "update_section") {
     const id = clean(form.get("id"), 40);
@@ -95,12 +95,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "estructura");
+    return go(redirect, r.ok ? "saved=change" : "error=save", "secciones");
   }
   if (action === "delete_section") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/sections/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "estructura");
+    return go(redirect, r.ok ? "saved=deleted" : "error=save", "secciones");
   }
   if (action === "subject") {
     const schoolId = await parseMember();
@@ -232,17 +232,41 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     if (!schoolId) return new Response("Sin permisos", { status: 403 });
     const title = clean(form.get("title"), 120);
     const subjectId = clean(form.get("subject_id"), 40);
+    const grade = clean(form.get("grade"), 20);
     const uploaded = form.get("file");
-    const fileName =
-      uploaded instanceof File && uploaded.size > 0
-        ? uploaded.name.slice(0, 180)
-        : null;
     if (title.length < 3 || !subjectId)
       return go(redirect, "error=validation", "materiales");
+    // Subida real del archivo: el backend extrae texto y lo persiste.
+    if (uploaded instanceof File && uploaded.size > 0) {
+      const forward = new FormData();
+      forward.set("subject_id", subjectId);
+      forward.set("title", title);
+      if (grade) forward.set("grade", grade);
+      forward.set("file", uploaded, uploaded.name);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/panel/${schoolId}/materials/upload`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiToken}` },
+            body: forward,
+          },
+        );
+        return go(
+          redirect,
+          res.ok ? "created=material" : "error=save",
+          "materiales",
+        );
+      } catch (e) {
+        console.error("material upload error", e);
+        return go(redirect, "error=save", "materiales");
+      }
+    }
     const r = await api("POST", `/${schoolId}/materials`, {
       title,
       subject_id: subjectId,
-      file_name: fileName,
+      file_name: null,
+      grade: grade || null,
     });
     return go(redirect, r.ok ? "created=material" : "error=save", "materiales");
   }
@@ -250,6 +274,11 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/materials/${id}`);
     return go(redirect, r.ok ? "saved=deleted" : "error=save", "materiales");
+  }
+  if (action === "generate_material") {
+    const id = clean(form.get("id"), 40);
+    const r = await api("POST", `/materials/${id}/generate?count=10`, {});
+    return go(redirect, r.ok ? "saved=generated" : "error=save", "materiales");
   }
   if (action === "question") {
     const schoolId = await parseMember();
@@ -404,6 +433,85 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       section_id: clean(form.get("section_id"), 40) || null,
     });
     return go(redirect, r.ok ? "created=class" : "error=save", "clases");
+  }
+
+  const list = (value: FormDataEntryValue | null) =>
+    clean(value, 800)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  if (action === "badge") {
+    const schoolId = await parseMember();
+    if (!schoolId) return new Response("Sin permisos", { status: 403 });
+    const r = await api("POST", `/${schoolId}/badges`, {
+      code: clean(form.get("code"), 60),
+      name: clean(form.get("name"), 120),
+      description: clean(form.get("description"), 500) || null,
+      icon_code: clean(form.get("icon_code"), 3) || "M",
+      category: clean(form.get("category"), 40) || "general",
+      points: Number(clean(form.get("points"), 5)) || 0,
+    });
+    return go(redirect, r.ok ? "created=badge" : "error=save", "recompensas");
+  }
+  if (action === "powerup") {
+    const schoolId = await parseMember();
+    if (!schoolId) return new Response("Sin permisos", { status: 403 });
+    const r = await api("POST", `/${schoolId}/powerups`, {
+      code: clean(form.get("code"), 60),
+      name: clean(form.get("name"), 120),
+      description: clean(form.get("description"), 500) || null,
+      effect: clean(form.get("effect"), 40) || "half",
+      rarity: clean(form.get("rarity"), 20) || "tactico",
+      cost_points: Number(clean(form.get("cost_points"), 6)) || 0,
+      duration_seconds: Number(clean(form.get("duration_seconds"), 5)) || 0,
+    });
+    return go(redirect, r.ok ? "created=powerup" : "error=save", "recompensas");
+  }
+  if (action === "mission") {
+    const schoolId = await parseMember();
+    if (!schoolId) return new Response("Sin permisos", { status: 403 });
+    const r = await api("POST", `/${schoolId}/missions`, {
+      title: clean(form.get("title"), 160),
+      description: clean(form.get("description"), 800) || null,
+      scope: clean(form.get("scope"), 20) || "section",
+      section_id: clean(form.get("section_id"), 40) || null,
+      subject_id: clean(form.get("subject_id"), 40) || null,
+      goal_type: clean(form.get("goal_type"), 30) || "tasks_completed",
+      goal_value: Number(clean(form.get("goal_value"), 6)) || 1,
+      reward_points: Number(clean(form.get("reward_points"), 6)) || 0,
+      reward_powerup_id: clean(form.get("reward_powerup_id"), 40) || null,
+      status: "active",
+    });
+    return go(redirect, r.ok ? "created=mission" : "error=save", "misiones");
+  }
+  if (action === "study_goal") {
+    const schoolId = await parseMember();
+    if (!schoolId) return new Response("Sin permisos", { status: 403 });
+    const r = await api("POST", `/${schoolId}/study-goals`, {
+      grade: clean(form.get("grade"), 20),
+      subject_id: clean(form.get("subject_id"), 40) || null,
+      title: clean(form.get("title"), 160),
+      topics: list(form.get("topics")),
+      objectives: list(form.get("objectives")),
+      competences: list(form.get("competences")),
+    });
+    return go(redirect, r.ok ? "created=goal" : "error=save", "metas");
+  }
+  if (action === "delete_badge") {
+    const id = clean(form.get("id"), 40);
+    const r = await api("DELETE", `/badges/${id}`);
+    return go(redirect, r.ok ? "saved=deleted" : "error=save", "recompensas");
+  }
+  if (action === "delete_powerup") {
+    const id = clean(form.get("id"), 40);
+    const r = await api("DELETE", `/powerups/${id}`);
+    return go(redirect, r.ok ? "saved=deleted" : "error=save", "recompensas");
+  }
+  if (action === "delete_mission") {
+    const id = clean(form.get("id"), 40);
+    const r = await api("DELETE", `/missions/${id}`);
+    return go(redirect, r.ok ? "saved=deleted" : "error=save", "misiones");
   }
 
   return go(redirect, "error=unknown_action", "configuracion");

@@ -68,6 +68,31 @@ try {
 } catch (e) {
   console.error("panel academics error", e);
 }
+// Recompensas, misiones y metas (backend FastAPI)
+let rewardsCatalog: any = { badges: [], powerups: [], ranks: [], reward_rules: {} };
+let missionsList: any[] = [];
+let studyGoalsList: any[] = [];
+if (apiToken) {
+  const extra = async (path: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/panel/${schoolId}${path}`, {
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "User-Agent": "battlegraf-panel",
+        },
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+  const catalog = await extra("/rewards/catalog");
+  if (catalog) rewardsCatalog = catalog;
+  const missions = await extra("/missions");
+  if (missions?.missions) missionsList = missions.missions;
+  const goals = await extra("/study-goals");
+  if (goals?.study_goals) studyGoalsList = goals.study_goals;
+}
 // Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
 if (!dashboard.school_id) {
   const fb = await Promise.all([
@@ -344,6 +369,10 @@ const allViews = [
   ["tareas", "Tareas"],
   ["batallas", "Batallas y torneos"],
   ["progreso", "Rangos, clanes y XP"],
+  ["recompensas", "Insignias y poderes"],
+  ["misiones", "Misiones"],
+  ["metas", "Metas de estudio"],
+  ["reportes", "Reportes"],
   ["auditoria", "Actividad y auditoria"],
 ];
 const viewsByRole: Record<string, string[]> = {
@@ -355,6 +384,7 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
   ],
   teacher: [
     "centro",
@@ -367,6 +397,10 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
+    "misiones",
+    "metas",
+    "reportes",
   ],
   tutor: [
     "centro",
@@ -379,6 +413,10 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
+    "misiones",
+    "metas",
+    "reportes",
   ],
 };
 const allowedViewSlugs = viewsByRole[myRole];
@@ -1799,6 +1837,19 @@ const trNivel = (level?: string) =>
                           <input
                             type="hidden"
                             name="action"
+                            value="generate_material"
+                          />
+                          <input type="hidden" name="id" value={material.id} />
+                          <button class="btn-edit">GENERAR IA</button>
+                        </form>
+                        <form
+                          method="post"
+                          action="/api/recursos"
+                          class="inline"
+                        >
+                          <input
+                            type="hidden"
+                            name="action"
                             value="delete_material"
                           />
                           <input type="hidden" name="id" value={material.id} />
@@ -2222,6 +2273,159 @@ const trNivel = (level?: string) =>
         }
 
         {
+          view === "recompensas" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>MOTIVACION</span>
+                  <h1>INSIGNIAS Y PODERES</h1>
+                  <p>
+                    Recompensas que los alumnos obtienen al completar tareas,
+                    misiones y batallas.
+                  </p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="badge-dialog">NUEVA INSIGNIA</button>
+                  <button class="command-btn" type="button" data-open-dialog="powerup-dialog">NUEVO PODER</button>
+                </div>
+              </div>
+              <div class="metric-grid">
+                <article><span>INSIGNIAS</span><strong>{String((rewardsCatalog.badges ?? []).length).padStart(2, "0")}</strong><small>Catalogo</small></article>
+                <article><span>PODERES</span><strong>{String((rewardsCatalog.powerups ?? []).length).padStart(2, "0")}</strong><small>Inventario</small></article>
+                <article><span>PUNTOS/ACIERTO</span><strong>{rewardsCatalog.reward_rules?.points_per_correct_answer ?? 5}</strong><small>Regla actual</small></article>
+                <article><span>PUNTOS/TAREA</span><strong>{rewardsCatalog.reward_rules?.points_per_task ?? 20}</strong><small>Regla actual</small></article>
+              </div>
+              <div class="dashboard-grid two">
+                <section class="game-panel">
+                  <span>CATALOGO</span>
+                  <h2>INSIGNIAS</h2>
+                  <div class="card-grid">
+                    {(rewardsCatalog.badges ?? []).map((b: any) => (
+                      <article class="subject-card searchable">
+                        <h2>{b.name}</h2>
+                        <p>{b.description ?? ""}</p>
+                        <small>{b.category ?? "general"} · {b.points ?? 0} puntos</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+                <section class="game-panel">
+                  <span>COMPRABLES CON PUNTOS</span>
+                  <h2>PODERES</h2>
+                  <div class="card-grid">
+                    {(rewardsCatalog.powerups ?? []).map((p: any) => (
+                      <article class="subject-card searchable">
+                        <h2>{p.name}</h2>
+                        <p>{p.description ?? ""}</p>
+                        <small>{p.rarity ?? "tactico"} · {p.cost_points ?? 0} puntos</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "misiones" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>RETOS</span>
+                  <h1>MISIONES</h1>
+                  <p>Retos por aula o grado que otorgan puntos, insignias y poderes.</p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="mission-dialog">NUEVA MISION</button>
+                </div>
+              </div>
+              <div class="card-grid">
+                {missionsList.length === 0 && (
+                  <section class="game-panel"><p>Aun no hay misiones creadas.</p></section>
+                )}
+                {missionsList.map((m: any) => (
+                  <article class="subject-card searchable">
+                    <h2>{m.title}</h2>
+                    <p>{m.description ?? ""}</p>
+                    <small>
+                      {m.goal_type} ≥ {m.goal_value} · {m.reward_points} puntos · {m.status}
+                    </small>
+                  </article>
+                ))}
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "metas" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>PLANIFICACION</span>
+                  <h1>METAS DE ESTUDIO</h1>
+                  <p>
+                    Objetivos y temas por grado y materia que orientan la
+                    generacion de material con IA.
+                  </p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="goal-dialog">NUEVA META</button>
+                </div>
+              </div>
+              <div class="card-grid">
+                {studyGoalsList.length === 0 && (
+                  <section class="game-panel"><p>Aun no hay metas de estudio.</p></section>
+                )}
+                {studyGoalsList.map((g: any) => (
+                  <article class="subject-card searchable">
+                    <h2>{g.title}</h2>
+                    <p>Grado {g.grade} · {g.status}</p>
+                    <small>{(g.topics ?? []).join(", ")}</small>
+                  </article>
+                ))}
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "reportes" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>ANALITICA</span>
+                  <h1>REPORTES</h1>
+                  <p>Descarga de notas, asistencia y desempeno por clase y por docente.</p>
+                </div>
+              </div>
+              <div class="dashboard-grid two">
+                <section class="game-panel">
+                  <span>POR AULA</span>
+                  <h2>REPORTE POR CLASE</h2>
+                  <p>Promedio, asistencia, tareas e insignias por alumno.</p>
+                  <div class="card-grid">
+                    {sections.map((s: any) => (
+                      <article class="subject-card searchable">
+                        <h2>{s.display_name}</h2>
+                        <a class="command-btn" href={`/api/reportes?type=class&section=${s.id}`}>EXPORTAR CSV</a>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+                <section class="game-panel">
+                  <span>POR DOCENTE</span>
+                  <h2>DESEMPENO DOCENTE</h2>
+                  <p>Cursos, clases, evaluaciones y secciones por profesor.</p>
+                  <a class="command-btn" href="/api/reportes?type=staff">EXPORTAR DOCENTES</a>
+                </section>
+              </div>
+            </>
+          )
+        }
+
+        {
           view === "auditoria" && (
             <>
               <>
@@ -2316,6 +2520,15 @@ const trNivel = (level?: string) =>
                   </article>
                 </>
               </div>
+              {["owner", "director", "subdirector", "coordinator", "tutor", "teacher"].includes(myRole) && (
+                <div class="row-actions academic-actions">
+                  <button class="command-btn" type="button" data-open-dialog="attendance-dialog">ASISTENCIA</button>
+                  <button class="command-btn" type="button" data-open-dialog="grade-item-dialog">CREAR EVALUACION</button>
+                  <button class="command-btn" type="button" data-open-dialog="quick-grade-dialog">REGISTRAR NOTA</button>
+                  <button class="command-btn" type="button" data-open-dialog="observation-dialog">OBSERVACION</button>
+                  <a class="command-btn" href="/api/reportes?type=class">EXPORTAR CLASES</a>
+                </div>
+              )}
               {(academicOverview.students ?? []).length === 0 ? (
                 <section class="academic-empty game-panel">
                   <span>PREPARACIÓN DEL PILOTO</span>
@@ -2643,13 +2856,14 @@ const trNivel = (level?: string) =>
             ))
           }</select
         ></label
+      ><label>Grado<input name="grade" placeholder="5" maxlength="20" /></label
       ><label
         >Archivo<input
           name="file"
           type="file"
           accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp"
         /></label
-      ><small>La carga genera preguntas de muestra para revision.</small><button
+      ><small>Se extrae el texto y luego puedes generar preguntas con IA (revision docente).</small><button
         class="command-btn"
         type="submit">PROCESAR MATERIAL</button
       >
@@ -3332,6 +3546,99 @@ const trNivel = (level?: string) =>
       class="command-btn"
       type="submit">REGISTRAR OBSERVACIÓN</button
     >
+  </form>
+</dialog>
+
+<dialog class="portal-dialog" id="badge-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="badge" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>RECOMPENSA</span><h2>Nueva insignia</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Codigo<input name="code" required maxlength="60" placeholder="primer_paso" /></label>
+    <label>Nombre<input name="name" required maxlength="120" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="500"></textarea></label>
+    <div class="dialog-columns">
+      <label>Icono<input name="icon_code" maxlength="3" value="M" /></label>
+      <label>Categoria<input name="category" maxlength="40" value="general" /></label>
+    </div>
+    <label>Puntos<input type="number" name="points" min="0" max="1000" value="15" /></label>
+    <button class="command-btn" type="submit">CREAR INSIGNIA</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="powerup-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="powerup" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>INVENTARIO</span><h2>Nuevo poder</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Codigo<input name="code" required maxlength="60" placeholder="half" /></label>
+    <label>Nombre<input name="name" required maxlength="120" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="500"></textarea></label>
+    <div class="dialog-columns">
+      <label>Efecto<select name="effect">
+        <option value="half">Mitad de opciones</option>
+        <option value="invuln">Escudo</option>
+        <option value="fortify">Fortificar</option>
+        <option value="retopic">Cambio de tema</option>
+        <option value="double">Doble oportunidad</option>
+        <option value="alarm">Alarma</option>
+        <option value="chest">Cofre</option>
+        <option value="clock">Reloj</option>
+      </select></label>
+      <label>Rareza<input name="rarity" maxlength="20" value="tactico" /></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Costo (puntos)<input type="number" name="cost_points" min="0" value="20" /></label>
+      <label>Duracion (s)<input type="number" name="duration_seconds" min="0" value="0" /></label>
+    </div>
+    <button class="command-btn" type="submit">CREAR PODER</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="mission-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="mission" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>RETO</span><h2>Nueva mision</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Titulo<input name="title" required maxlength="160" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="800"></textarea></label>
+    <div class="dialog-columns">
+      <label>Alcance<select name="scope">
+        <option value="section">Aula</option>
+        <option value="grade">Grado</option>
+        <option value="subject">Curso</option>
+        <option value="school">Colegio</option>
+      </select></label>
+      <label>Meta<select name="goal_type">
+        <option value="tasks_completed">Tareas entregadas</option>
+        <option value="tasks_graded">Tareas calificadas</option>
+        <option value="battles_won">Batallas ganadas</option>
+        <option value="battles_played">Batallas jugadas</option>
+        <option value="attendance_streak">Dias de asistencia</option>
+        <option value="grade_average">Promedio >=</option>
+        <option value="xp_earned">XP >=</option>
+      </select></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Valor meta<input type="number" name="goal_value" min="0" step="0.1" value="3" /></label>
+      <label>Recompensa (puntos)<input type="number" name="reward_points" min="0" value="50" /></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Aula<select name="section_id"><option value="">Todas</option>{sections.map((s: any) => (<option value={s.id}>{s.display_name}</option>))}</select></label>
+      <label>Curso<select name="subject_id"><option value="">Todos</option>{subjects.map((s: any) => (<option value={s.id}>{s.name}</option>))}</select></label>
+    </div>
+    <label>Poder de recompensa<select name="reward_powerup_id"><option value="">Sin poder</option>{(rewardsCatalog.powerups ?? []).map((p: any) => (<option value={p.id}>{p.name}</option>))}</select></label>
+    <button class="command-btn" type="submit">CREAR MISION</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="goal-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="study_goal" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>PLANIFICACION</span><h2>Nueva meta de estudio</h2></div><button type="button" data-close-dialog>X</button></header>
+    <div class="dialog-columns">
+      <label>Grado<input name="grade" required maxlength="20" placeholder="5" /></label>
+      <label>Curso<select name="subject_id"><option value="">General</option>{subjects.map((s: any) => (<option value={s.id}>{s.name}</option>))}</select></label>
+    </div>
+    <label>Titulo<input name="title" required maxlength="160" /></label>
+    <label>Temas (separados por coma)<textarea name="topics" rows="2" placeholder="Ecuaciones, Geometria"></textarea></label>
+    <label>Objetivos (separados por coma)<textarea name="objectives" rows="2"></textarea></label>
+    <label>Competencias (separadas por coma)<textarea name="competences" rows="2"></textarea></label>
+    <button class="command-btn" type="submit">CREAR META</button>
   </form>
 </dialog>
 
