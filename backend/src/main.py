@@ -14,6 +14,7 @@ from src.presentation.api.routes import (
     health,
     memberships,
     panel,
+    panel_assistant,
     panel_extra,
     progression,
     public,
@@ -68,6 +69,9 @@ def create_app() -> FastAPI:
     app.include_router(memberships.router, prefix="/api/v1", tags=["Memberships"])
     app.include_router(panel.router, prefix="/api/v1", tags=["Panel admin"])
     app.include_router(panel_extra.router, prefix="/api/v1", tags=["Panel extras"])
+    app.include_router(
+        panel_assistant.router, prefix="/api/v1", tags=["Panel assistant"]
+    )
     app.include_router(battle_ws.router, tags=["WebSocket"])
 
     return app
