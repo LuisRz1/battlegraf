@@ -1,49 +1,30 @@
-# AGENTS.md
+# AGENTS.md — BattleGraph (rama `main`)
 
-Astro landing page for **BattleGraph** (Godot web game export hosted in `public/game/`).
+Este checkout es un **snapshot del monorepo** sobre la rama `main` (backend + landing/panel + móvil + juego). La **rama operativa** del producto es `integracion-google`.
 
-## Commands
+> **Guía completa y actualizada para agentes:** `D:\proyectos_battlegraph\landing-real\AGENTS.md`
+> **Guía maestra del proyecto (fuera del repo):** `D:\proyectos_battlegraph\AGENTS.md`
 
-```sh
-bun install        # install dependencies (Bun is the package manager, not npm)
-bun run dev        # start dev server (foreground)
-bun run build      # production build -> dist/
-bun run preview    # preview production build
-```
+## Lo esencial
 
-### Development server (background mode)
+- Repo ÚNICO: `https://github.com/LuisRz1/battlegraf.git`.
+  - `main` → backend FastAPI (Railway).
+  - `integracion-google` → landing/panel Astro + móvil Flutter + juego Godot (Vercel).
+- **Backend**: `backend/` (FastAPI). Deploy manual:
+  `cd backend && railway up -s 628a67c5-... -p 34b17150-... -e 0aee7eeb-...`
+  El servicio Railway exige **Root Directory = `backend`** y **Dockerfile Path = `Dockerfile`** (si no, el build desde GitHub falla con Railpack).
+- **Landing/panel Astro**: `src/pages/panel.astro`, `src/pages/api/*`. Build `npm run build` + `vercel deploy --prebuilt --prod --yes` y **reasignar el alias `five`**.
+- **Móvil Flutter**: `mobile/`. Toolchain en `D:\flutter_setup` (Flutter, android-sdk, `jdk17\jdk-17.0.20.1+1`); `GRADLE_USER_HOME` en D:. Build con `--dart-define-from-file=dart_defines.local.json`.
+- **Juego**: export Godot en `public/game/`; al actualizar, **bumpear `CACHE_VERSION`** en `BattleGraph.service.worker.js`.
+- **Supabase**: proyecto `fepfoabnjldabzghvpvv`; migraciones en `supabase/migrations/` (aplicar con `node scripts/migrate.mjs` + `POSTGRES_URL`).
 
-When starting the dev server, use background mode:
+## Trampas
+- No reescribir archivos con acentos con `Set-Content` de PowerShell (corrompe UTF-8).
+- `unset VERCEL_TOKEN` antes de desplegar; reasignar el alias `five`.
+- Claves Supabase: usar `sb_secret_…` / `sb_publishable_…`.
+- No commitear `.env*`, `dart_defines.local.json` ni llaves.
+- Commits **específicos por cambio**.
 
-```
-astro dev --background
-```
-
-Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
-
-## Project structure
-
-- `src/pages/` — routes (currently `index.astro`)
-- `src/components/` — Astro components (Hero, Nav, Versus, Teams, Powerups, etc.)
-- `src/styles/global.css` — global styles + Tailwind 4 (via `@tailwindcss/vite`)
-- `public/game/` — **Godot web export (BattleGraph)**: regenerate it from the Godot project and commit the new export here; don't hand-edit these files
-- `public/assets/` — game images/assets served statically
-
-## Conventions
-
-- Tailwind CSS v4 with the Vite plugin — use `@import "tailwindcss"` and CSS-based config, no `tailwind.config.js`
-- Components are plain `.astro` files, no framework (React/Vue) in use
-- Font: VCR_OSD_MONO in `public/fonts/`
-
-## Documentation
-
-Full documentation: https://docs.astro.build
-
-Consult these guides before working on related tasks:
-
-- [Adding pages, dynamic routes, or middleware](https://docs.astro.build/en/guides/routing/)
-- [Working with Astro components](https://docs.astro.build/en/basics/astro-components/)
-- [Using React, Vue, Svelte, or other framework components](https://docs.astro.build/en/guides/framework-components/)
-- [Adding or managing content](https://docs.astro.build/en/guides/content-collections/)
-- [Adding styles or using Tailwind](https://docs.astro.build/en/guides/styling/)
-- [Supporting multiple languages](https://docs.astro.build/en/guides/internationalization/)
+## Estado (2026-09-11)
+Backend ~112 rutas (recompensas, reportes, materiales IA, asistente, consumo de poderes); panel Astro con 17 vistas; móvil 0.7.0 (dashboard, mapas dinámicos, poderes, asistente, paleta rojo→morado); juego con mapas base a base (`CACHE_VERSION v11`).
+Detalle: [[11 - Recompensas, asistente y reportes 2026]] del vault de Obsidian.
