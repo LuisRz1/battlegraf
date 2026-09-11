@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.infrastructure.database.init_db import init_db
 from src.infrastructure.config import get_settings
+from src.infrastructure.database.init_db import init_db
 from src.presentation.api.routes import (
     ai_agent,
     auth,
@@ -14,12 +14,13 @@ from src.presentation.api.routes import (
     health,
     memberships,
     panel,
+    panel_extra,
     progression,
+    public,
     questions,
     schools,
     tasks,
     users,
-    public,
 )
 from src.presentation.api.websocket import battle_ws
 
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(classes.router, prefix="/api/v1", tags=["Classes"])
     app.include_router(memberships.router, prefix="/api/v1", tags=["Memberships"])
     app.include_router(panel.router, prefix="/api/v1", tags=["Panel admin"])
+    app.include_router(panel_extra.router, prefix="/api/v1", tags=["Panel extras"])
     app.include_router(battle_ws.router, tags=["WebSocket"])
 
     return app

@@ -13,6 +13,12 @@ from pydantic import BaseModel, Field
 
 from src.infrastructure.config import get_settings
 from src.infrastructure.database.supabase_admin import supabase_admin
+from src.infrastructure.rewards import (
+    award_points,
+    evaluate_event,
+    points_balance,
+    reward_rules,
+)
 
 router = APIRouter(prefix="/panel", tags=["Panel"])
 
@@ -623,7 +629,8 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         out["questions"] = rows(
             t("question_bank")
             .select(
-                "id, school_id, question, options, correct_index, status, subject_id, source, is_demo, created_at"
+                "id, school_id, question, options, correct_index, status, "
+                "subject_id, source, is_demo, created_at"
             )
             .eq("school_id", school_id)
             .order("created_at", True)
@@ -1634,6 +1641,97 @@ async def student_tracking(
         rank_position = None
         section_rank_size = None
 
+    # Recompensas del alumno: insignias, poderes, puntos y misiones.
+    badges_list: list[dict] = []
+    powerups_list: list[dict] = []
+    missions_list: list[dict] = []
+    points_total = 0
+    try:
+        badge_rows = (
+            supabase.table("student_badges")
+            .select(
+                "id, awarded_at, source_type, "
+                "badges(code, name, description, icon_code, category)"
+            )
+            .eq("student_profile_id", student_id)
+            .order("awarded_at", ascending=False)
+            .execute()
+            .data
+            or []
+        )
+        for row in badge_rows:
+            b = row.get("badges") or {}
+            badges_list.append(
+                {
+                    "id": row.get("id"),
+                    "code": b.get("code"),
+                    "name": b.get("name"),
+                    "description": b.get("description"),
+                    "icon_code": b.get("icon_code"),
+                    "category": b.get("category"),
+                    "awarded_at": row.get("awarded_at"),
+                }
+            )
+        powerup_rows = (
+            supabase.table("student_powerups")
+            .select(
+                "quantity, "
+                "powerups:reward_powerups(code, name, description, icon_code, effect, rarity, cost_points)"
+            )
+            .eq("student_profile_id", student_id)
+            .execute()
+            .data
+            or []
+        )
+        for row in powerup_rows:
+            p = row.get("powerups") or {}
+            if not p:
+                continue
+            powerups_list.append(
+                {
+                    "code": p.get("code"),
+                    "name": p.get("name"),
+                    "description": p.get("description"),
+                    "icon_code": p.get("icon_code"),
+                    "effect": p.get("effect"),
+                    "rarity": p.get("rarity"),
+                    "cost_points": p.get("cost_points"),
+                    "quantity": int(row.get("quantity") or 0),
+                }
+            )
+        points_total = points_balance(supabase, student_id)
+        mission_rows = (
+            supabase.table("student_missions")
+            .select(
+                "progress, completed, claimed, "
+                "missions(id, title, description, goal_type, goal_value, reward_points, status)"
+            )
+            .eq("student_profile_id", student_id)
+            .execute()
+            .data
+            or []
+        )
+        for row in mission_rows:
+            m = row.get("missions") or {}
+            if not m:
+                continue
+            missions_list.append(
+                {
+                    "id": m.get("id"),
+                    "title": m.get("title"),
+                    "description": m.get("description"),
+                    "goal_type": m.get("goal_type"),
+                    "goal_value": m.get("goal_value"),
+                    "reward_points": m.get("reward_points"),
+                    "progress": row.get("progress"),
+                    "completed": row.get("completed"),
+                    "claimed": row.get("claimed"),
+                    "status": m.get("status"),
+                }
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
     attendance_count = len(attendance)
     attended_count = sum(
         1 for row in attendance if row.get("status") in {"present", "late"}
@@ -1687,6 +1785,12 @@ async def student_tracking(
         "battle_results": battle_results,
         "rank_position": rank_position,
         "section_rank_size": section_rank_size,
+        "rewards": {
+            "badges": badges_list,
+            "powerups": powerups_list,
+            "points": points_total,
+            "missions": missions_list,
+        },
     }
 
 
@@ -1953,6 +2057,14 @@ async def record_attendance(
             ).execute()
         else:
             supabase.table("attendance_records").insert(payload).execute()
+        if record.status in {"present", "late"}:
+            evaluate_event(
+                supabase,
+                school_id,
+                record.student_profile_id,
+                "attendance_streak",
+                1,
+            )
     return Msg(detail=f"Asistencia guardada para {len(body.records)} alumnos")
 
 
@@ -2050,6 +2162,7 @@ async def grade_student(
     else:
         result = supabase.table("student_grades").insert(payload).execute().data or []
         grade_id = str(result[0].get("id")) if result else None
+    evaluate_event(supabase, str(item["school_id"]), student_id, "grade_average", 0)
     return Msg(id=grade_id, detail="Nota guardada")
 
 
@@ -2167,6 +2280,17 @@ async def submit_assignment(
         ).execute()
     else:
         supabase.table("assignment_submissions").insert(payload).execute()
+    rules = reward_rules(supabase, school_id)
+    award_points(
+        supabase,
+        school_id,
+        student_id,
+        int(rules.get("points_per_task", 20)),
+        "tarea_entregada",
+        source_type="assignment",
+        source_id=f"{assignment_id}:{student_id}",
+    )
+    evaluate_event(supabase, school_id, student_id, "tasks_completed", 1)
     return Msg(detail="Tarea entregada")
 
 
@@ -2189,6 +2313,27 @@ async def record_battle_result(
         "is_demo": False,
     }
     result = supabase.table("battle_results").insert(payload).execute().data or []
+    student_id = str(student["id"])
+    rules = reward_rules(supabase, school_id)
+    won = str(body.result or "").lower() in {"victoria", "win", "won", "player"}
+    points = int(
+        rules.get(
+            "points_per_battle_win" if won else "points_per_battle_played",
+            30 if won else 10,
+        )
+    )
+    award_points(
+        supabase,
+        school_id,
+        student_id,
+        points,
+        "batalla_ganada" if won else "batalla_jugada",
+        source_type="battle_result",
+        source_id=str(result[0].get("id")) if result else None,
+    )
+    evaluate_event(
+        supabase, school_id, student_id, "battles_won" if won else "battles_played", 1
+    )
     return Msg(
         id=str(result[0].get("id")) if result else None,
         detail="Resultado de batalla registrado",
