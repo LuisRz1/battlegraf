@@ -19,12 +19,16 @@ class BotBattleDemoView extends StatefulWidget {
     this.pool,
     this.onFinished,
     this.initialAbilities,
+    this.layers,
+    this.nodesPerLayer,
   });
 
   final List<DemoQuestion>? pool;
   final void Function(DemoBattleSide winner, int playerScore, int botScore)?
   onFinished;
   final Map<String, int>? initialAbilities;
+  final int? layers;
+  final int? nodesPerLayer;
 
   @override
   State<BotBattleDemoView> createState() => _BotBattleDemoViewState();
@@ -48,6 +52,8 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
     _battle = BotBattleDemoController(
       pool: widget.pool,
       initialAbilities: widget.initialAbilities,
+      layers: widget.layers,
+      nodesPerLayer: widget.nodesPerLayer,
     )..addListener(_onBattleChanged);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }

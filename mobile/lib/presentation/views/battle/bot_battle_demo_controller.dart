@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../domain/models/graph.dart';
@@ -45,29 +47,21 @@ class DemoQuestion {
   }
 }
 
-/// Nodos intermedios del tablero (sin las torres) usados para repartir preguntas.
-const List<String> _intermediateNodeIds = [
-  'math-1',
-  'language-1',
-  'science-1',
-  'history-2',
-  'math-2',
-  'science-2',
-  'language-2',
-  'science-3',
-  'history-3',
-  'math-3',
-];
-
 /// Local, deterministic battle used by the public prototype.
 ///
 /// It deliberately uses the same [Graph] and [Node] types as online battles so
 /// the board is not a separate mock. The only simulated part is the rival:
 /// every purple turn chooses a legal frontier node and resolves one question.
 class BotBattleDemoController extends ChangeNotifier {
-  BotBattleDemoController({List<DemoQuestion>? pool, Map<String, int>? initialAbilities})
-    : _pool = pool,
-      _initialAbilities = initialAbilities {
+  BotBattleDemoController({
+    List<DemoQuestion>? pool,
+    Map<String, int>? initialAbilities,
+    int? layers,
+    int? nodesPerLayer,
+  }) : _pool = pool,
+       _initialAbilities = initialAbilities,
+       _configLayers = layers,
+       _configNodes = nodesPerLayer {
     _restoreInitialState();
   }
 
@@ -76,6 +70,10 @@ class BotBattleDemoController extends ChangeNotifier {
 
   /// Poderes equipados al iniciar la partida (efecto -> cantidad).
   final Map<String, int>? _initialAbilities;
+
+  /// Tamano de mapa configurable (capas y nodos por capa).
+  final int? _configLayers;
+  final int? _configNodes;
   late Map<String, DemoQuestion> _questionMap;
 
   int _helpTokens = 0;
@@ -414,7 +412,9 @@ class BotBattleDemoController extends ChangeNotifier {
   }
 
   void _restoreInitialState() {
-    _graph = _buildGraph();
+    _graph = (_pool == null || _pool.isEmpty)
+        ? _demoGraph()
+        : _generateGraph();
     _questionMap = _buildQuestionMap();
     _hiddenOptions.clear();
     _helpTokens = (_initialAbilities?.values.fold<int>(0, (a, b) => a + b)) ?? 0;
@@ -445,7 +445,7 @@ class BotBattleDemoController extends ChangeNotifier {
     correctOption: source.correctOption,
   );
 
-  /// Reparte las preguntas reales entre los nodos del tablero.
+  /// Reparte las preguntas reales entre los nodos generados.
   Map<String, DemoQuestion> _buildQuestionMap() {
     final pool = _pool;
     if (pool == null || pool.isEmpty) {
@@ -453,17 +453,107 @@ class BotBattleDemoController extends ChangeNotifier {
     }
     final map = <String, DemoQuestion>{};
     var index = 0;
-    for (final nodeId in _intermediateNodeIds) {
-      map[nodeId] = _copyFor(pool[index % pool.length], nodeId);
+    for (final node in _graph.nodes) {
+      final bySubject = pool
+          .where((question) => question.subject == node.subject)
+          .toList();
+      final source = bySubject.isNotEmpty
+          ? bySubject[index % bySubject.length]
+          : pool[index % pool.length];
+      map[node.id] = _copyFor(source, node.id);
       index++;
     }
-    final base = pool[index % pool.length];
-    map[redBaseId] = _copyFor(base, redBaseId);
-    map[purpleBaseId] = _copyFor(base, purpleBaseId);
     return map;
   }
 
-  static Graph _buildGraph() {
+  void _addEdge(List<GraphEdge> edges, String source, String target) {
+    if (source == target) return;
+    final exists = edges.any(
+      (edge) =>
+          (edge.source == source && edge.target == target) ||
+          (edge.source == target && edge.target == source),
+    );
+    if (!exists) edges.add(GraphEdge(source: source, target: target));
+  }
+
+  /// Genera un mapa distinto por batalla (base a base con capas intermedias),
+  /// replicando el generador del juego web.
+  Graph _generateGraph() {
+    final rng = Random(DateTime.now().microsecondsSinceEpoch);
+    final layers = (_configLayers ?? (4 + rng.nextInt(3))).clamp(3, 7).toInt();
+    final nodesPerLayer = (_configNodes ?? (3 + rng.nextInt(2)))
+        .clamp(2, 5)
+        .toInt();
+    final topics = _pool!
+        .map((question) => question.subject)
+        .where((subject) => subject.trim().isNotEmpty)
+        .toSet()
+        .toList();
+
+    final nodes = <Node>[
+      const Node(
+        id: redBaseId,
+        label: 'TU BASE',
+        subject: 'base',
+        layer: 0,
+        position: 0,
+        owner: NodeOwner.player,
+      ),
+    ];
+    final layerIds = <List<String>>[];
+    for (var layer = 1; layer <= layers - 2; layer++) {
+      final ids = <String>[];
+      for (var pos = 0; pos < nodesPerLayer; pos++) {
+        final id = 'n${layer}_$pos';
+        final subject = topics.isEmpty
+            ? 'general'
+            : topics[(layer * nodesPerLayer + pos) % topics.length];
+        ids.add(id);
+        nodes.add(
+          Node(id: id, label: subject, subject: subject, layer: layer, position: pos),
+        );
+      }
+      layerIds.add(ids);
+    }
+    nodes.add(
+      Node(
+        id: purpleBaseId,
+        label: 'BASE RIVAL',
+        subject: 'base',
+        layer: layers - 1,
+        position: 0,
+        owner: NodeOwner.opponent,
+      ),
+    );
+
+    final edges = <GraphEdge>[];
+    final first = layerIds.isNotEmpty ? layerIds.first : <String>[purpleBaseId];
+    for (final id in first) {
+      _addEdge(edges, redBaseId, id);
+    }
+    for (var i = 0; i < layerIds.length - 1; i++) {
+      final a = layerIds[i];
+      final b = layerIds[i + 1];
+      for (var k = 0; k < a.length; k++) {
+        final j = (k * b.length ~/ a.length).clamp(0, b.length - 1).toInt();
+        _addEdge(edges, a[k], b[j]);
+      }
+      for (var j = 0; j < b.length; j++) {
+        final hasInput = edges.any((edge) => edge.target == b[j]);
+        if (!hasInput) {
+          final k = (j * a.length ~/ b.length).clamp(0, a.length - 1).toInt();
+          _addEdge(edges, a[k], b[j]);
+        }
+      }
+    }
+    final last = layerIds.isNotEmpty ? layerIds.last : <String>[redBaseId];
+    for (final id in last) {
+      _addEdge(edges, id, purpleBaseId);
+    }
+    return Graph(nodes: nodes, edges: edges, layerCount: layers);
+  }
+
+  static Graph _demoGraph() {
     const nodes = [
       Node(
         id: redBaseId,

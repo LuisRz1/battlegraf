@@ -21,6 +21,8 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
   String? _topic;
   final Set<String> _selectedPowers = {};
   bool _starting = false;
+  int _layers = 5;
+  int _nodesPerLayer = 3;
 
   String _abilityFor(String effect) {
     switch (effect) {
@@ -64,6 +66,8 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
     final query = <String, String>{
       if (_topic != null) 'topic': _topic!,
       if (effects.isNotEmpty) 'powers': effects.join(','),
+      'layers': '$_layers',
+      'nodes': '$_nodesPerLayer',
     };
     context.push(Uri(path: '/battle/play', queryParameters: query).toString());
   }
@@ -172,6 +176,47 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
                           ],
                         ),
                       ),
+                    const SizedBox(height: 12),
+                    PanelBox(
+                      span: 'DIFICULTAD',
+                      title: 'TAMAÑO DEL MAPA',
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SectionChip(
+                            label: 'PEQUEÑO',
+                            color: _layers == 4
+                                ? AppColors.aliados
+                                : AppColors.oro300,
+                            onTap: () => setState(() {
+                              _layers = 4;
+                              _nodesPerLayer = 3;
+                            }),
+                          ),
+                          SectionChip(
+                            label: 'MEDIANO',
+                            color: _layers == 5
+                                ? AppColors.aliados
+                                : AppColors.oro300,
+                            onTap: () => setState(() {
+                              _layers = 5;
+                              _nodesPerLayer = 3;
+                            }),
+                          ),
+                          SectionChip(
+                            label: 'GRANDE',
+                            color: _layers == 6
+                                ? AppColors.aliados
+                                : AppColors.oro300,
+                            onTap: () => setState(() {
+                              _layers = 6;
+                              _nodesPerLayer = 4;
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     if (pool.hasQuestions)
                       PanelButton(

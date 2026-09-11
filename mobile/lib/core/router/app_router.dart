@@ -83,6 +83,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               .split(',')
               .where((value) => value.isNotEmpty)
               .toList(),
+          layers: int.tryParse(state.uri.queryParameters['layers'] ?? ''),
+          nodesPerLayer: int.tryParse(state.uri.queryParameters['nodes'] ?? ''),
         ),
       ),
       GoRoute(
