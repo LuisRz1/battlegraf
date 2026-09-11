@@ -5,7 +5,7 @@ El usuario se resuelve por auth.uid() y sus memberships determinan permisos.
 Operaciones contra Supabase (servidor -> service role, sin RLS).
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -214,6 +214,21 @@ class StudentObservationIn(BaseModel):
     status: Literal["open", "resolved", "archived"] = "open"
 
 
+class AssignmentSubmissionIn(BaseModel):
+    answer: str | None = Field(default=None, max_length=4000)
+    file_url: str | None = Field(default=None, max_length=1000)
+
+
+class BattleResultIn(BaseModel):
+    subject_id: str | None = None
+    subject: str | None = Field(default=None, max_length=120)
+    mode: str = Field(default="bot", max_length=20)
+    result: str = Field(default="finished", max_length=20)
+    score: int = Field(default=0, ge=0, le=100000)
+    opponent_score: int = Field(default=0, ge=0, le=100000)
+    nodes_owned: int = Field(default=0, ge=0, le=10000)
+
+
 class SchoolUpdate(BaseModel):
     name: str | None = None
     code: str | None = None
@@ -359,6 +374,22 @@ def _staff_for_member(
         ),
         None,
     )
+
+
+def _own_student_profile(
+    supabase: Any, school_id: str, membership_id: str
+) -> dict | None:
+    """Perfil de alumno vinculado a la membership del propio usuario."""
+    rows = (
+        supabase.table("student_profiles")
+        .select("id, full_name, email, section_id, status")
+        .eq("school_id", school_id)
+        .eq("membership_id", membership_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return _first(rows)
 
 
 def _accessible_students(
@@ -1144,7 +1175,7 @@ async def student_tracking(
     """Todo el recorrido de un alumno: perfil, seccion, cursos con profesores,
     notas, asistencia, observaciones, rango, tareas y batallas."""
     supabase = supabase_admin()
-    _, st = await _require_student_access(supabase, uid, school_id, student_id)
+    member, st = await _require_student_access(supabase, uid, school_id, student_id)
 
     # seccion del alumno
     section = None
@@ -1200,6 +1231,23 @@ async def student_tracking(
                 "teachers": teachers_by_subject.get(sbj["id"], []),
             }
         )
+
+    # cursos que el alumno realmente cursa (materias de su seccion + clases inscritas)
+    student_subject_ids: set[str] = set()
+    if st.get("section_id"):
+        sec_subjects = (
+            supabase.table("section_subjects")
+            .select("subject_id, is_enabled")
+            .eq("section_id", st["section_id"])
+            .execute()
+            .data
+            or []
+        )
+        student_subject_ids |= {
+            str(row["subject_id"])
+            for row in sec_subjects
+            if row.get("subject_id") and row.get("is_enabled", True)
+        }
 
     # xp total del alumno (xp_transactions.user_id = membership.user_id del alumno)
     xp_total = 0
@@ -1325,6 +1373,12 @@ async def student_tracking(
                     "subject": (c.get("subjects") or {}).get("name"),
                 }
             )
+            if c.get("subject_id"):
+                student_subject_ids.add(str(c["subject_id"]))
+
+    # la ficha muestra solo los cursos del alumno si se pudieron resolver
+    if student_subject_ids:
+        courses = [c for c in courses if str(c["id"]) in student_subject_ids]
 
     # Seguimiento academico. El bloque es tolerante mientras se aplica la
     # migracion: el resto de la ficha continua disponible sin ocultar el error.
@@ -1409,6 +1463,177 @@ async def student_tracking(
     except Exception:  # noqa: BLE001
         academic_ready = False
 
+    # El alumno solo ve las observaciones marcadas como visibles para el.
+    if member.get("role") == "student":
+        observations = [
+            row for row in observations if row.get("visibility") == "student"
+        ]
+
+    # Tareas (assignments) del alumno: pendientes y entregadas.
+    assignments_out: list[dict] = []
+    try:
+        assign_rows = (
+            supabase.table("assignments")
+            .select(
+                "id, title, subject_id, section_id, delivery_type, due_at, xp_reward, status"
+            )
+            .eq("school_id", school_id)
+            .execute()
+            .data
+            or []
+        )
+        assign_rows = [
+            a
+            for a in assign_rows
+            if a.get("status") in {"scheduled", "published", "closed"}
+            and (
+                not a.get("section_id")
+                or str(a.get("section_id")) == str(st.get("section_id"))
+            )
+            and (
+                not student_subject_ids
+                or not a.get("subject_id")
+                or str(a.get("subject_id")) in student_subject_ids
+            )
+        ]
+        sub_rows = (
+            supabase.table("assignment_submissions")
+            .select(
+                "id, assignment_id, is_graded, score, xp_awarded, feedback, submitted_at"
+            )
+            .eq("student_profile_id", student_id)
+            .execute()
+            .data
+            or []
+        )
+        sub_by_assignment = {str(r["assignment_id"]): r for r in sub_rows}
+        for a in assign_rows:
+            sub = sub_by_assignment.get(str(a["id"]))
+            assignments_out.append(
+                {
+                    "id": a["id"],
+                    "title": a.get("title"),
+                    "subject_id": a.get("subject_id"),
+                    "subject": subj_by_id.get(str(a.get("subject_id")), "General"),
+                    "delivery_type": a.get("delivery_type"),
+                    "due_at": a.get("due_at"),
+                    "xp_reward": a.get("xp_reward"),
+                    "status": a.get("status"),
+                    "submitted": sub is not None,
+                    "is_graded": (sub or {}).get("is_graded", False),
+                    "score": (sub or {}).get("score"),
+                    "xp_awarded": (sub or {}).get("xp_awarded"),
+                    "feedback": (sub or {}).get("feedback"),
+                    "submitted_at": (sub or {}).get("submitted_at"),
+                }
+            )
+    except Exception:  # noqa: BLE001
+        assignments_out = []
+
+    # Historial de batallas del alumno (movil: alumno vs bot / programadas).
+    battle_results: list[dict] = []
+    try:
+        battle_results = (
+            supabase.table("battle_results")
+            .select(
+                "id, subject, subject_id, mode, result, score, opponent_score, nodes_owned, played_at"
+            )
+            .eq("student_profile_id", student_id)
+            .order("played_at", ascending=False)
+            .limit(20)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001
+        battle_results = []
+
+    # Promedio por curso (para el dashboard del alumno).
+    subject_buckets: dict[str, dict] = {}
+    for row in grades:
+        if row.get("percentage") is None or row.get("status") != "graded":
+            continue
+        key = str(row.get("subject_id") or row.get("subject") or "General")
+        bucket = subject_buckets.setdefault(
+            key,
+            {
+                "subject_id": row.get("subject_id"),
+                "subject": row.get("subject"),
+                "total": 0.0,
+                "count": 0,
+            },
+        )
+        bucket["total"] += float(row["percentage"])
+        bucket["count"] += 1
+    grades_by_subject = [
+        {
+            "subject_id": b["subject_id"],
+            "subject": b["subject"],
+            "average": round(b["total"] / b["count"], 1),
+            "records": b["count"],
+        }
+        for b in subject_buckets.values()
+    ]
+
+    # Posicion del alumno dentro de su seccion por XP (ranking).
+    rank_position = None
+    section_rank_size = None
+    try:
+        if st.get("section_id"):
+            peers = (
+                supabase.table("student_profiles")
+                .select("id, membership_id")
+                .eq("school_id", school_id)
+                .eq("section_id", st["section_id"])
+                .execute()
+                .data
+                or []
+            )
+            membership_ids = [
+                str(p["membership_id"]) for p in peers if p.get("membership_id")
+            ]
+            xp_by_user: dict[str, int] = {}
+            if membership_ids:
+                mem_rows = (
+                    supabase.table("memberships")
+                    .select("id, user_id")
+                    .in_("id", membership_ids)
+                    .execute()
+                    .data
+                    or []
+                )
+                user_by_membership = {
+                    str(m["id"]): str(m.get("user_id")) for m in mem_rows
+                }
+                user_ids = [u for u in user_by_membership.values() if u]
+                if user_ids:
+                    xp_rows = (
+                        supabase.table("xp_transactions")
+                        .select("user_id, amount")
+                        .in_("user_id", user_ids)
+                        .execute()
+                        .data
+                        or []
+                    )
+                    for r in xp_rows:
+                        uid_key = str(r.get("user_id"))
+                        xp_by_user[uid_key] = xp_by_user.get(uid_key, 0) + int(
+                            r.get("amount") or 0
+                        )
+                totals = []
+                for p in peers:
+                    uid_key = user_by_membership.get(str(p.get("membership_id")), "")
+                    totals.append((str(p["id"]), xp_by_user.get(uid_key, 0)))
+                totals.sort(key=lambda item: item[1], reverse=True)
+                section_rank_size = len(totals)
+                for idx, (pid, _xp) in enumerate(totals, start=1):
+                    if pid == str(student_id):
+                        rank_position = idx
+                        break
+    except Exception:  # noqa: BLE001
+        rank_position = None
+        section_rank_size = None
+
     attendance_count = len(attendance)
     attended_count = sum(
         1 for row in attendance if row.get("status") in {"present", "late"}
@@ -1456,7 +1681,12 @@ async def student_tracking(
         },
         "grades": grades,
         "grade_average": grade_average,
+        "grades_by_subject": grades_by_subject,
         "observations": observations,
+        "assignments": assignments_out,
+        "battle_results": battle_results,
+        "rank_position": rank_position,
+        "section_rank_size": section_rank_size,
     }
 
 
@@ -1859,6 +2089,110 @@ async def seed_academic_demo(
     )
     supabase.rpc("seed_academic_pilot", {"p_school_id": school_id}).execute()
     return Msg(detail="Datos academicos de prueba creados")
+
+
+# ---------- alumno: identidad, entrega de tareas y resultados de batalla ----------
+
+
+@router.get("/{school_id}/me")
+async def panel_me(school_id: str, uid: Annotated[str, Depends(_current_uid)]):
+    """Identidad del usuario en el colegio (perfil de alumno/personal y seccion)."""
+    supabase = supabase_admin()
+    member = await _require_member(
+        supabase,
+        uid,
+        school_id,
+        [
+            "owner",
+            "director",
+            "subdirector",
+            "coordinator",
+            "tutor",
+            "teacher",
+            "student",
+        ],
+    )
+    return {
+        "membership_id": member["id"],
+        "role": member["role"],
+        "student_profile": _own_student_profile(supabase, school_id, member["id"]),
+        "staff_profile": _staff_for_member(supabase, school_id, member, uid),
+    }
+
+
+@router.post("/{school_id}/assignments/{assignment_id}/submissions", response_model=Msg)
+async def submit_assignment(
+    school_id: str,
+    assignment_id: str,
+    body: AssignmentSubmissionIn,
+    uid: Annotated[str, Depends(_current_uid)],
+):
+    """El alumno entrega una tarea programada por el docente."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, ["student"])
+    student = _own_student_profile(supabase, school_id, member["id"])
+    if not student:
+        raise _fail("Tu cuenta no tiene perfil de alumno")
+    student_id = str(student["id"])
+    assignment = _first(
+        supabase.table("assignments")
+        .select("id, school_id, status")
+        .eq("id", assignment_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not assignment or str(assignment.get("school_id")) != str(school_id):
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    payload = {
+        "school_id": school_id,
+        "assignment_id": assignment_id,
+        "student_profile_id": student_id,
+        "answer": body.answer,
+        "file_url": body.file_url,
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    existing = (
+        supabase.table("assignment_submissions")
+        .select("id")
+        .eq("assignment_id", assignment_id)
+        .eq("student_profile_id", student_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if existing:
+        supabase.table("assignment_submissions").update(payload).eq(
+            "id", existing[0]["id"]
+        ).execute()
+    else:
+        supabase.table("assignment_submissions").insert(payload).execute()
+    return Msg(detail="Tarea entregada")
+
+
+@router.post("/{school_id}/battles/results", response_model=Msg)
+async def record_battle_result(
+    school_id: str,
+    body: BattleResultIn,
+    uid: Annotated[str, Depends(_current_uid)],
+):
+    """Registra el resultado de una batalla jugada por el alumno (movil)."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, ["student"])
+    student = _own_student_profile(supabase, school_id, member["id"])
+    if not student:
+        raise _fail("Tu cuenta no tiene perfil de alumno")
+    payload = {
+        "school_id": school_id,
+        "student_profile_id": str(student["id"]),
+        **body.model_dump(),
+        "is_demo": False,
+    }
+    result = supabase.table("battle_results").insert(payload).execute().data or []
+    return Msg(
+        id=str(result[0].get("id")) if result else None,
+        detail="Resultado de batalla registrado",
+    )
 
 
 # ---------- personas ----------
