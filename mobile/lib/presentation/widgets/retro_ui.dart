@@ -235,6 +235,9 @@ class PixelPanel extends StatelessWidget {
           clipper: const _ChamferClipper(),
           child: Container(
             padding: padding,
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(color: accent.withAlpha(45), width: 1),
+            ),
             decoration: BoxDecoration(
               color: AppColors.darkCard.withAlpha(238),
               gradient: LinearGradient(

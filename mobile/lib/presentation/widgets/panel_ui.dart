@@ -103,50 +103,73 @@ class PanelBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final frame = borderColor ?? AppColors.bordeOro;
     return Container(
       margin: margin ?? EdgeInsets.zero,
-      padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.fondoPanel,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: borderColor ?? AppColors.bordeOro, width: 1.3),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.fondoCard, AppColors.fondoGame],
+        ),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: frame, width: 1.2),
         boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Color(0x55000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (span != null || title != null) ...[
-            if (span != null)
-              Text(
-                span!.toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: AppTheme.displayFont,
-                  color: AppColors.oro300,
-                  fontSize: 9,
-                  letterSpacing: 2,
-                ),
-              ),
-            if (title != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                title!,
-                style: const TextStyle(
-                  fontFamily: AppTheme.displayFont,
-                  color: AppColors.crema100,
-                  fontSize: 15,
-                  letterSpacing: 1.2,
-                ),
-              ),
+      child: Container(
+        margin: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: AppColors.piedra600, width: 1),
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(3),
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: frame.withAlpha(38), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (span != null || title != null) ...[
+                if (span != null)
+                  Text(
+                    span!.toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: AppTheme.displayFont,
+                      color: AppColors.oro300,
+                      fontSize: 9,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                if (title != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    title!,
+                    style: const TextStyle(
+                      fontFamily: AppTheme.displayFont,
+                      color: AppColors.crema100,
+                      fontSize: 15,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                const Divider(color: AppColors.bordeOro, height: 1, thickness: 1),
+                const SizedBox(height: 10),
+              ],
+              child,
             ],
-            const SizedBox(height: 10),
-            const Divider(color: AppColors.bordeOro, height: 1, thickness: 1),
-            const SizedBox(height: 10),
-          ],
-          child,
-        ],
+          ),
+        ),
       ),
     );
   }
