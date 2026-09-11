@@ -153,6 +153,13 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                               isStudent ? '/student' : '/academics',
                             ),
                           ),
+                          _LobbyTile(
+                            icon: Icons.smart_toy,
+                            title: 'ASISTENTE',
+                            subtitle: 'Pregunta a la IA con la memoria de tu cuenta',
+                            accent: AppColors.neonPurple,
+                            onTap: () => context.go('/assistant'),
+                          ),
                           if (!isStudent)
                             ...institutionAreasForRole(role).map(
                               (area) => _LobbyTile(

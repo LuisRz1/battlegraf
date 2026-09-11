@@ -15,6 +15,7 @@ import '../../presentation/views/auth/register_view.dart';
 import '../../presentation/views/academics/academic_overview_view.dart';
 import '../../presentation/views/student/student_dashboard_view.dart';
 import '../../presentation/views/student/student_detail_view.dart';
+import '../../presentation/views/assistant/assistant_view.dart';
 import '../../features/institution/presentation/views/institution_hub_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -78,6 +79,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/battle/play',
         builder: (context, state) =>
             BattlePlayView(topic: state.uri.queryParameters['topic']),
+      ),
+      GoRoute(
+        path: '/assistant',
+        builder: (context, state) => const AssistantView(),
       ),
     ],
   );
