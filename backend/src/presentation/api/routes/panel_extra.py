@@ -616,6 +616,35 @@ async def buy_powerup(
     return Msg(detail="Poder adquirido")
 
 
+@router.post("/{school_id}/powerups/{powerup_id}/consume", response_model=Msg)
+async def consume_powerup(
+    school_id: str, powerup_id: str, uid: Annotated[str, Depends(_current_uid)]
+):
+    """Descuenta una unidad del inventario del alumno al usar un poder."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, ["student"])
+    student = _own_student_profile(supabase, school_id, member["id"])
+    if not student:
+        raise HTTPException(status_code=403, detail="Sin perfil de alumno")
+    student_id = str(student["id"])
+    owned = _first(
+        supabase.table("student_powerups")
+        .select("id, quantity")
+        .eq("student_profile_id", student_id)
+        .eq("powerup_id", powerup_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not owned or int(owned.get("quantity") or 0) <= 0:
+        raise HTTPException(status_code=400, detail="Sin unidades de este poder")
+    remaining = int(owned.get("quantity") or 0) - 1
+    supabase.table("student_powerups").update(
+        {"quantity": remaining, "updated_at": datetime.now(timezone.utc).isoformat()}
+    ).eq("id", owned["id"]).execute()
+    return Msg(detail="Poder usado", id=str(remaining))
+
+
 # ---------------------------------------------------------------- reportes
 
 
@@ -1013,10 +1042,10 @@ async def generate_material_questions(
     from src.domain.enums.subject import Subject
 
     subject_name = (material.get("subjects") or {}).get("name") or "General"
-    try:
-        subject_enum = Subject(subject_name)
-    except Exception:  # noqa: BLE001
-        subject_enum = next(iter(Subject))
+    label_map = {subject.label.lower(): subject for subject in Subject}
+    slug_map = {subject.value.lower(): subject for subject in Subject}
+    key = str(subject_name).strip().lower()
+    subject_enum = label_map.get(key) or slug_map.get(key) or Subject.MATH
 
     agent = build_question_agent()
     try:
