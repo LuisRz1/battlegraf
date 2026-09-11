@@ -2,53 +2,52 @@ import 'package:flutter/material.dart';
 
 /// Paleta del sistema web (global.css) replicada en el aplicativo móvil.
 class AppColors {
-  // Fondos piedra (web: --color-piedra-900/950 y paneles)
-  static const Color piedra950 = Color(0xFF0D0C14);
-  static const Color piedra900 = Color(0xFF131120);
-  static const Color piedra800 = Color(0xFF1B1830);
-  static const Color piedra700 = Color(0xFF262142);
-  static const Color piedra600 = Color(0xFF342D58);
-  static const Color fondoPanel = Color(0xFF14100A); // tarjetas oscuras del panel web
-  static const Color fondoGame = Color(0xFF09090C); // fondo general web
-  static const Color fondoCard = Color(0xFF100D12);
+  // Fondos piedra oscuros con tinte morado (estilo Balatro)
+  static const Color piedra950 = Color(0xFF0A0610);
+  static const Color piedra900 = Color(0xFF140A20);
+  static const Color piedra800 = Color(0xFF1D1030);
+  static const Color piedra700 = Color(0xFF2A1745);
+  static const Color piedra600 = Color(0xFF3B2160);
+  static const Color fondoPanel = Color(0xFF170C26); // tarjetas del panel
+  static const Color fondoGame = Color(0xFF08050E); // fondo general
+  static const Color fondoCard = Color(0xFF120A1E);
 
-  // Crema (web: --color-crema-*)
-  static const Color crema100 = Color(0xFFF7EED6);
-  static const Color crema300 = Color(0xFFE9D9AE);
-  static const Color crema500 = Color(0xFFCDB888);
+  // Crema lavanda (texto)
+  static const Color crema100 = Color(0xFFF6ECFA);
+  static const Color crema300 = Color(0xFFDDC8EE);
+  static const Color crema500 = Color(0xFFA892C4);
 
-  // Oro (web: --color-oro-*)
-  static const Color oro300 = Color(0xFFF0CF7A);
-  static const Color oro500 = Color(0xFFE6B84D);
-  static const Color oro700 = Color(0xFFB5852C);
-  static const Color bordeOro = Color(0xFF4A3A1C); // bordes de tarjetas del panel
+  // Acento principal: rojo -> magenta -> morado (sin dorado)
+  static const Color oro300 = Color(0xFFFF6FB0); // magenta claro (highlight)
+  static const Color oro500 = Color(0xFFE11D48); // rojo (botones / primario)
+  static const Color oro700 = Color(0xFF8E1030); // rojo profundo (bordes/botones)
+  static const Color bordeOro = Color(0xFF4A1E52); // borde morado de tarjetas
 
-  // Acentos (web: aliados / imperio / legion)
-    static const Color aliados = Color(0xFF4D99FF);
-    static const Color imperio = Color(0xFFFF4D4D);
-    static const Color legion = Color(0xFF4DCC66);
-    static const Color violeta400 = Color(0xFFA78BFA); // unico violeta de la landing
+  // Acentos (bandos y temas)
+  static const Color aliados = Color(0xFF8B5CF6); // morado (aliados)
+  static const Color imperio = Color(0xFFFF3B5C); // rojo (imperio)
+  static const Color legion = Color(0xFFD946EF); // fucsia (legion)
+  static const Color violeta400 = Color(0xFFA78BFA);
 
-  // Sangre (rojo UI web) y estados
-  static const Color rojoAccion = Color(0xFFB3202C);
-  static const Color textoSeco = Color(0xFF9A8870); // small del panel
+  // Estados
+  static const Color rojoAccion = Color(0xFFE11D48);
+  static const Color textoSeco = Color(0xFF8B7BA8);
 
-  // Compatibilidad: nombres antiguos re-mapeados a la paleta web actual
-    // (la landing usa PIEDRA + CREMA + ORO; los neones NO existen en la web)
+  // Compatibilidad con nombres antiguos (re-mapeados a la paleta roja/morada)
     static const Color voidBlack = piedra950;
     static const Color deepPurple = piedra800;
     static const Color royalPurple = piedra700;
     static const Color darkCard = fondoCard;
     static const Color panelBackground = fondoPanel;
     static const Color deepBackground = fondoGame;
-    static const Color shadowPurple = piedra600; // bordes suaves de la web
+    static const Color shadowPurple = piedra600;
     static const Color mutedInk = crema500;
-    static const Color crimsonRed = oro700; // sombras y bordes dorados
-    static const Color brightRed = oro500; // botones y acentos -> ORO (como la web)
-    static const Color magenta = oro300;
-    static const Color neonPurple = Color(0xFFA78BFA); // violeta-400 web (unico violeta de la landing)
-    static const Color cyan = oro300; // la landing NO usa azul: acentos son ORO
-    static const Color gold = oro500;
+    static const Color crimsonRed = oro700;
+    static const Color brightRed = Color(0xFFFF3B5C);
+    static const Color magenta = Color(0xFFD946EF);
+    static const Color neonPurple = Color(0xFFA855F7);
+    static const Color cyan = Color(0xFF8B5CF6);
+    static const Color gold = oro300;
     static const Color offWhite = crema100;
   }
 
