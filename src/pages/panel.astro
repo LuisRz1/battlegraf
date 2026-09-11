@@ -72,6 +72,7 @@ try {
 let rewardsCatalog: any = { badges: [], powerups: [], ranks: [], reward_rules: {} };
 let missionsList: any[] = [];
 let studyGoalsList: any[] = [];
+let assistantMessages: any[] = [];
 if (apiToken) {
   const extra = async (path: string) => {
     try {
@@ -92,6 +93,8 @@ if (apiToken) {
   if (missions?.missions) missionsList = missions.missions;
   const goals = await extra("/study-goals");
   if (goals?.study_goals) studyGoalsList = goals.study_goals;
+  const memory = await extra("/me/memory");
+  if (memory?.messages) assistantMessages = memory.messages;
 }
 // Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
 if (!dashboard.school_id) {
@@ -373,6 +376,7 @@ const allViews = [
   ["misiones", "Misiones"],
   ["metas", "Metas de estudio"],
   ["reportes", "Reportes"],
+  ["asistente", "Asistente IA"],
   ["auditoria", "Actividad y auditoria"],
 ];
 const viewsByRole: Record<string, string[]> = {
@@ -385,6 +389,7 @@ const viewsByRole: Record<string, string[]> = {
     "batallas",
     "progreso",
     "recompensas",
+    "asistente",
   ],
   teacher: [
     "centro",
@@ -401,6 +406,7 @@ const viewsByRole: Record<string, string[]> = {
     "misiones",
     "metas",
     "reportes",
+    "asistente",
   ],
   tutor: [
     "centro",
@@ -417,6 +423,7 @@ const viewsByRole: Record<string, string[]> = {
     "misiones",
     "metas",
     "reportes",
+    "asistente",
   ],
 };
 const allowedViewSlugs = viewsByRole[myRole];
@@ -2421,6 +2428,41 @@ const trNivel = (level?: string) =>
                   <a class="command-btn" href="/api/reportes?type=staff">EXPORTAR DOCENTES</a>
                 </section>
               </div>
+            </>
+          )
+        }
+
+        {
+          view === "asistente" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>MEMORIA DE LA CUENTA</span>
+                  <h1>ASISTENTE IA</h1>
+                  <p>
+                    Pregunta sobre tus clases, tus alumnos o como preparar una
+                    actividad. El asistente recuerda el historial de tu cuenta.
+                  </p>
+                </div>
+              </div>
+              <section class="game-panel">
+                <span>CONVERSACION</span>
+                <h2>CHAT</h2>
+                {(assistantMessages ?? []).length === 0 && (
+                  <p>Inicia la conversacion con tu asistente.</p>
+                )}
+                {(assistantMessages ?? []).map((m: any) => (
+                  <div>
+                    <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+                    <p>{m.content}</p>
+                  </div>
+                ))}
+                <form method="post" action="/api/asistente">
+                  <input type="hidden" name="school_id" value={schoolId} />
+                  <label>Pregunta<textarea name="prompt" rows="3" required maxlength="2000"></textarea></label>
+                  <button class="command-btn" type="submit">ENVIAR</button>
+                </form>
+              </section>
             </>
           )
         }
