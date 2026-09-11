@@ -128,6 +128,8 @@ class _StudentDashboardViewState extends ConsumerState<StudentDashboardView> {
         const SizedBox(height: 12),
         _battles(state),
         const SizedBox(height: 12),
+        _rewards(state),
+        const SizedBox(height: 12),
         _observations(state),
       ],
     );
@@ -239,6 +241,91 @@ class _StudentDashboardViewState extends ConsumerState<StudentDashboardView> {
                   ),
               ],
             ),
+    );
+  }
+
+  Widget _rewards(StudentDashboardState state) {
+    final owned = {
+      for (final p in state.powerups)
+        '${p['code']}': (p['quantity'] as num?)?.toInt() ?? 0,
+    };
+    return PanelBox(
+      span: 'RECOMPENSAS',
+      title: '${state.points} PUNTOS',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.badges.isNotEmpty) ...[
+            const _EmptyText('INSIGNIAS'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final badge in state.badges)
+                  SectionChip(
+                    label: '${badge['name'] ?? badge['code']}',
+                    color: AppColors.oro500,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (state.activeMissions.isNotEmpty) ...[
+            const _EmptyText('MISIONES ACTIVAS'),
+            for (final mission in state.activeMissions)
+              PanelRow(
+                leading: const Icon(
+                  Icons.flag,
+                  color: AppColors.oro300,
+                  size: 20,
+                ),
+                title: '${mission['title'] ?? 'Mision'}',
+                subtitle:
+                    '${mission['progress'] ?? 0} / ${mission['goal_value'] ?? 0} · ${mission['reward_points'] ?? 0} puntos',
+              ),
+            const SizedBox(height: 10),
+          ],
+          const _EmptyText('TIENDA DE PODERES'),
+          const SizedBox(height: 4),
+          for (final powerup in state.powerupCatalog)
+            PanelRow(
+              leading: const Icon(
+                Icons.auto_awesome,
+                color: AppColors.legion,
+                size: 20,
+              ),
+              title: '${powerup['name'] ?? 'Poder'}',
+              subtitle:
+                  '${powerup['description'] ?? ''} · ${powerup['cost_points'] ?? 0} puntos',
+              tag: 'x${owned['${powerup['code']}'] ?? 0}',
+              tagColor: AppColors.aliados,
+              actions: [
+                PanelMiniButton(
+                  label: 'CANJEAR',
+                  onTap: (state.points >=
+                          ((powerup['cost_points'] as num?)?.toInt() ?? 0))
+                      ? () async {
+                          final ok = await ref
+                              .read(studentDashboardProvider.notifier)
+                              .buyPowerup('${powerup['id']}');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok
+                                      ? 'Poder canjeado.'
+                                      : 'No se pudo canjear (revisa tus puntos).',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 

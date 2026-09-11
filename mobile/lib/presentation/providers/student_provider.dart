@@ -12,6 +12,7 @@ class StudentDashboardState {
   final String? sectionId;
   final String? fullName;
   final Map<String, dynamic>? tracking;
+  final List<Map<String, dynamic>> powerupCatalog;
 
   const StudentDashboardState({
     this.isLoading = false,
@@ -20,6 +21,7 @@ class StudentDashboardState {
     this.sectionId,
     this.fullName,
     this.tracking,
+    this.powerupCatalog = const [],
   });
 
   int get xpTotal => (tracking?['xp_total'] as num?)?.toInt() ?? 0;
@@ -51,6 +53,26 @@ class StudentDashboardState {
 
   List<Map<String, dynamic>> get pendingAssignments =>
       assignments.where((a) => a['submitted'] != true).toList();
+
+  Map<String, dynamic> get _rewards =>
+      Map<String, dynamic>.from(tracking?['rewards'] as Map? ?? const {});
+
+  int get points => (_rewards['points'] as num?)?.toInt() ?? 0;
+
+  List<Map<String, dynamic>> _rewardsList(String key) {
+    final raw = _rewards[key];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get badges => _rewardsList('badges');
+  List<Map<String, dynamic>> get powerups => _rewardsList('powerups');
+  List<Map<String, dynamic>> get missions => _rewardsList('missions');
+  List<Map<String, dynamic>> get activeMissions =>
+      missions.where((m) => m['completed'] != true).toList();
 }
 
 class StudentDashboardNotifier extends StateNotifier<StudentDashboardState> {
@@ -90,11 +112,27 @@ class StudentDashboardNotifier extends StateNotifier<StudentDashboardState> {
           '/panel/$_schoolId/students/$studentId/tracking',
         )).data as Map,
       );
+      var catalog = state.powerupCatalog;
+      try {
+        final catalogData = Map<String, dynamic>.from(
+          (await client.dio.get('/panel/$_schoolId/rewards/catalog')).data as Map,
+        );
+        final raw = catalogData['powerups'];
+        if (raw is List) {
+          catalog = raw
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      } catch (_) {
+        catalog = state.powerupCatalog;
+      }
       state = StudentDashboardState(
         studentProfileId: studentId,
         sectionId: profile['section_id']?.toString(),
         fullName: profile['full_name']?.toString(),
         tracking: tracking,
+        powerupCatalog: catalog,
       );
     } catch (error) {
       state = StudentDashboardState(
@@ -125,6 +163,20 @@ class StudentDashboardNotifier extends StateNotifier<StudentDashboardState> {
           'nodes_owned': nodesOwned,
         },
       );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> buyPowerup(String powerupId) async {
+    if (_schoolId.isEmpty) return false;
+    try {
+      await ref
+          .read(panelApiClientProvider)
+          .dio
+          .post('/panel/$_schoolId/powerups/$powerupId/buy');
+      await load();
       return true;
     } catch (_) {
       return false;
