@@ -6,11 +6,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/views/battle/bot_battle_demo_view.dart';
+import '../../presentation/views/battle/battle_setup_view.dart';
+import '../../presentation/views/battle/battle_play_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
 import '../../presentation/views/auth/register_view.dart';
 import '../../presentation/views/academics/academic_overview_view.dart';
+import '../../presentation/views/student/student_dashboard_view.dart';
+import '../../presentation/views/student/student_detail_view.dart';
 import '../../features/institution/presentation/views/institution_hub_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -55,6 +59,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/battle/demo-bot',
         builder: (context, state) => const BotBattleDemoView(),
+      ),
+      GoRoute(
+        path: '/student',
+        builder: (context, state) => const StudentDashboardView(),
+      ),
+      GoRoute(
+        path: '/student-detail',
+        builder: (context, state) => StudentDetailView(
+          studentId: state.uri.queryParameters['student'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/battle/setup',
+        builder: (context, state) => const BattleSetupView(),
+      ),
+      GoRoute(
+        path: '/battle/play',
+        builder: (context, state) =>
+            BattlePlayView(topic: state.uri.queryParameters['topic']),
       ),
     ],
   );

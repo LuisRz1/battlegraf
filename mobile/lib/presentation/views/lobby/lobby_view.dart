@@ -124,9 +124,11 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                           _LobbyTile(
                             icon: Icons.sports_esports,
                             title: 'JUGAR',
-                            subtitle: 'Batalla por turnos · responde y conquista',
+                            subtitle: 'Batalla por turnos con preguntas de tus cursos',
                             accent: AppColors.oro500,
-                            onTap: () => context.go('/battle/demo-bot'),
+                            onTap: () => context.go(
+                              isStudent ? '/battle/setup' : '/battle/demo-bot',
+                            ),
                           ),
                           _LobbyTile(
                             icon: Icons.assignment,
@@ -145,9 +147,11 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
                           _LobbyTile(
                             icon: Icons.insights,
                             title: 'MI AVANCE',
-                            subtitle: 'XP, rango y progreso por curso',
+                            subtitle: 'XP, notas, asistencia y tareas',
                             accent: AppColors.legion,
-                            onTap: () => context.go('/academics'),
+                            onTap: () => context.go(
+                              isStudent ? '/student' : '/academics',
+                            ),
                           ),
                           if (!isStudent)
                             ...institutionAreasForRole(role).map(
@@ -242,7 +246,9 @@ class _ProfileMetrics extends ConsumerWidget {
                   label: 'COMPETIR',
                   ghost: true,
                   height: 34,
-                  onTap: () => context.go(isStudent ? '/battle/demo-bot' : '/institution/battles'),
+                  onTap: () => context.go(
+                    isStudent ? '/battle/setup' : '/institution/battles',
+                  ),
                 ),
               ),
             ],

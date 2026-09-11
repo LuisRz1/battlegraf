@@ -46,7 +46,7 @@ List<InstitutionArea> institutionAreasForRole(String role) {
       InstitutionArea.progress,
     ];
   }
-  if (role == 'teacher') {
+  if (role == 'teacher' || role == 'professor') {
     return const [
       InstitutionArea.overview,
       InstitutionArea.profile,
@@ -520,6 +520,9 @@ class InstitutionHubView extends ConsumerWidget {
               }),
             ]
           : null,
+      onTap: (row) => context.push(
+        '/student-detail?student=${row['id']}',
+      ),
     ),
     const SizedBox(height: 16),
     ..._rows(
@@ -826,8 +829,16 @@ class InstitutionHubView extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
+              onPressed: () => context.go('/battle/setup'),
+              child: const Text('JUGAR CON PREGUNTAS'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
               onPressed: () => context.go('/battle/demo-bot'),
-              child: const Text('JUGAR VS BOT'),
+              child: const Text('DEMO VS BOT'),
             ),
           ),
         ],
@@ -945,6 +956,7 @@ class InstitutionHubView extends ConsumerWidget {
     String Function(JsonMap) primary,
     String Function(JsonMap) secondary, {
     List<_RowAction> Function(JsonMap)? actions,
+    void Function(JsonMap)? onTap,
   }) => [
     PixelPanel(
       accent: _accent(area),
@@ -960,43 +972,46 @@ class InstitutionHubView extends ConsumerWidget {
             )
           else
             ...rows.map(
-              (row) => Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.darkCard.withValues(alpha: .82),
-                  border: Border.all(color: AppColors.shadowPurple),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      primary(row),
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      secondary(row),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    if (actions != null && actions(row).isNotEmpty) ...[
-                      const SizedBox(height: 7),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: actions(row)
-                            .map(
-                              (action) => TextButton.icon(
-                                onPressed: action.onPressed,
-                                icon: Icon(action.icon, size: 16),
-                                label: Text(action.label),
-                              ),
-                            )
-                            .toList(),
+              (row) => InkWell(
+                onTap: onTap == null ? null : () => onTap(row),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.darkCard.withValues(alpha: .82),
+                    border: Border.all(color: AppColors.shadowPurple),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        primary(row),
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
+                      const SizedBox(height: 3),
+                      Text(
+                        secondary(row),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (actions != null && actions(row).isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: actions(row)
+                              .map(
+                                (action) => TextButton.icon(
+                                  onPressed: action.onPressed,
+                                  icon: Icon(action.icon, size: 16),
+                                  label: Text(action.label),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

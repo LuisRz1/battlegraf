@@ -23,7 +23,41 @@ class DemoQuestion {
     required this.options,
     required this.correctOption,
   });
+
+  /// Convierte una pregunta del endpoint público de BattleGraph
+  /// (`{t, q, a:[...], c:indice}`) al formato del motor nativo.
+  factory DemoQuestion.fromRemote(Map<String, dynamic> json, String nodeId) {
+    const letters = ['A', 'B', 'C', 'D'];
+    final raw = (json['a'] as List?) ?? const [];
+    final options = <String, String>{};
+    for (var i = 0; i < raw.length && i < letters.length; i++) {
+      options[letters[i]] = '${raw[i]}';
+    }
+    final correct = (json['c'] as num?)?.toInt() ?? 0;
+    return DemoQuestion(
+      id: '${json['t'] ?? 'q'}-$nodeId',
+      nodeId: nodeId,
+      subject: '${json['t'] ?? 'General'}',
+      prompt: '${json['q'] ?? ''}',
+      options: options.isEmpty ? const {'A': '-', 'B': '-', 'C': '-', 'D': '-'} : options,
+      correctOption: letters[correct.clamp(0, 3).toInt()],
+    );
+  }
 }
+
+/// Nodos intermedios del tablero (sin las torres) usados para repartir preguntas.
+const List<String> _intermediateNodeIds = [
+  'math-1',
+  'language-1',
+  'science-1',
+  'history-2',
+  'math-2',
+  'science-2',
+  'language-2',
+  'science-3',
+  'history-3',
+  'math-3',
+];
 
 /// Local, deterministic battle used by the public prototype.
 ///
@@ -31,9 +65,13 @@ class DemoQuestion {
 /// the board is not a separate mock. The only simulated part is the rival:
 /// every purple turn chooses a legal frontier node and resolves one question.
 class BotBattleDemoController extends ChangeNotifier {
-  BotBattleDemoController() {
+  BotBattleDemoController({List<DemoQuestion>? pool}) : _pool = pool {
     _restoreInitialState();
   }
+
+  /// Preguntas reales del colegio. Si es null se usa la demo local.
+  final List<DemoQuestion>? _pool;
+  late Map<String, DemoQuestion> _questionMap;
 
   static const redBaseId = 'red-base';
   static const purpleBaseId = 'purple-base';
@@ -78,7 +116,7 @@ class BotBattleDemoController extends ChangeNotifier {
 
   DemoQuestion? get activeQuestion {
     final nodeId = _selectedNodeId;
-    return nodeId == null ? null : _questionsByNode[nodeId];
+    return nodeId == null ? null : _questionMap[nodeId];
   }
 
   Set<String> get legalNodeIds => _legalNodesFor(_currentSide);
@@ -336,6 +374,7 @@ class BotBattleDemoController extends ChangeNotifier {
 
   void _restoreInitialState() {
     _graph = _buildGraph();
+    _questionMap = _buildQuestionMap();
     _currentSide = DemoBattleSide.red;
     _phase = DemoBattlePhase.chooseNode;
     _winner = null;
@@ -352,6 +391,33 @@ class BotBattleDemoController extends ChangeNotifier {
     _botMoveCount = 0;
     _lastMoveWasCorrect = null;
     _captureMillis.clear();
+  }
+
+  DemoQuestion _copyFor(DemoQuestion source, String nodeId) => DemoQuestion(
+    id: '${source.id}-$nodeId',
+    nodeId: nodeId,
+    subject: source.subject,
+    prompt: source.prompt,
+    options: source.options,
+    correctOption: source.correctOption,
+  );
+
+  /// Reparte las preguntas reales entre los nodos del tablero.
+  Map<String, DemoQuestion> _buildQuestionMap() {
+    final pool = _pool;
+    if (pool == null || pool.isEmpty) {
+      return _questionsByNode;
+    }
+    final map = <String, DemoQuestion>{};
+    var index = 0;
+    for (final nodeId in _intermediateNodeIds) {
+      map[nodeId] = _copyFor(pool[index % pool.length], nodeId);
+      index++;
+    }
+    final base = pool[index % pool.length];
+    map[redBaseId] = _copyFor(base, redBaseId);
+    map[purpleBaseId] = _copyFor(base, purpleBaseId);
+    return map;
   }
 
   static Graph _buildGraph() {

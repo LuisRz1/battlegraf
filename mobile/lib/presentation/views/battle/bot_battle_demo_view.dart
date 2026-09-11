@@ -10,8 +10,15 @@ import '../../widgets/retro_ui.dart';
 import 'bot_battle_demo_controller.dart';
 
 /// Public, backend-free prototype of a complete turn-based BattleGraph match.
+///
+/// Tambien se usa para partidas reales del colegio: si se entrega [pool], el
+/// tablero usa esas preguntas (del endpoint publico) en lugar de la demo local.
 class BotBattleDemoView extends StatefulWidget {
-  const BotBattleDemoView({super.key});
+  const BotBattleDemoView({super.key, this.pool, this.onFinished});
+
+  final List<DemoQuestion>? pool;
+  final void Function(DemoBattleSide winner, int playerScore, int botScore)?
+  onFinished;
 
   @override
   State<BotBattleDemoView> createState() => _BotBattleDemoViewState();
@@ -27,11 +34,13 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
   int _observedTurn = 1;
   String? _selectedOption;
   bool _reduceMotion = false;
+  bool _reported = false;
 
   @override
   void initState() {
     super.initState();
-    _battle = BotBattleDemoController()..addListener(_onBattleChanged);
+    _battle = BotBattleDemoController(pool: widget.pool)
+      ..addListener(_onBattleChanged);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
@@ -67,6 +76,15 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
 
   void _onBattleChanged() {
     if (!mounted) return;
+
+    if (_battle.isFinished && !_reported) {
+      _reported = true;
+      widget.onFinished?.call(
+        _battle.winner ?? DemoBattleSide.purple,
+        _battle.redCorrect,
+        _battle.purpleCorrect,
+      );
+    }
 
     if (_observedTurn != _battle.turnNumber) {
       _observedTurn = _battle.turnNumber;
