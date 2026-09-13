@@ -30,51 +30,49 @@ const membership = activeMembership;
 const schoolId = membership.school_id;
 const myRole = membership.role;
 const multiSchool = membershipsList.length > 1;
-// Datos del panel desde el backend FastAPI (Railway) — una sola llamada
+// Datos del panel desde el backend FastAPI (Railway) — todas las llamadas en paralelo
+// con cache corto en memoria para que moverse entre vistas sea inmediato.
 const API_BASE =
   process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
 const { data: sessionData } = await supabase.auth.getSession();
 const apiToken = sessionData?.session?.access_token ?? "";
-let dashboard: any = {};
-let academicOverview: any = {
-  metrics: {},
-  students: [],
-  subject_performance: [],
-  periods: [],
+type PanelCacheEntry = {
+  at: number;
+  dashboard: any;
+  academicOverview: any;
+  rewardsCatalog: any;
+  missionsList: any[];
+  studyGoalsList: any[];
+  assistantMessages: any[];
 };
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "User-Agent": "battlegraf-panel",
-        },
-      })
-    : null;
-  if (res?.ok) dashboard = await res.json();
-} catch (e) {
-  console.error("panel dashboard error", e);
-}
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/academics/overview`, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "User-Agent": "battlegraf-panel",
-        },
-      })
-    : null;
-  if (res?.ok) academicOverview = await res.json();
-} catch (e) {
-  console.error("panel academics error", e);
-}
-// Recompensas, misiones y metas (backend FastAPI)
-let rewardsCatalog: any = { badges: [], powerups: [], ranks: [], reward_rules: {} };
-let missionsList: any[] = [];
-let studyGoalsList: any[] = [];
-let assistantMessages: any[] = [];
-if (apiToken) {
-  const extra = async (path: string) => {
+const panelCache: Map<string, PanelCacheEntry> = ((
+  globalThis as any
+).__battlegrafPanelCache ??= new Map());
+const panelCacheKey = `${schoolId}:${myRole}:${userData.user.id}`;
+const bypassPanelCache =
+  Astro.url.searchParams.has("created") ||
+  Astro.url.searchParams.has("saved") ||
+  Astro.url.searchParams.has("error");
+const cachedPanel = bypassPanelCache
+  ? undefined
+  : panelCache.get(panelCacheKey);
+const panelCacheFresh = Boolean(
+  cachedPanel && Date.now() - cachedPanel.at < 45_000,
+);
+let dashboard: any = panelCacheFresh ? cachedPanel!.dashboard : {};
+let academicOverview: any = panelCacheFresh
+  ? cachedPanel!.academicOverview
+  : { metrics: {}, students: [], subject_performance: [], periods: [] };
+let rewardsCatalog: any = panelCacheFresh
+  ? cachedPanel!.rewardsCatalog
+  : { badges: [], powerups: [], ranks: [], reward_rules: {} };
+let missionsList: any[] = panelCacheFresh ? cachedPanel!.missionsList : [];
+let studyGoalsList: any[] = panelCacheFresh ? cachedPanel!.studyGoalsList : [];
+let assistantMessages: any[] = panelCacheFresh
+  ? cachedPanel!.assistantMessages
+  : [];
+if (!panelCacheFresh && apiToken) {
+  const apiGet = async (path: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/panel/${schoolId}${path}`, {
         headers: {
@@ -87,14 +85,32 @@ if (apiToken) {
       return null;
     }
   };
-  const catalog = await extra("/rewards/catalog");
+  const [dash, academics, catalog, missions, goals, memory] =
+    await Promise.all([
+      apiGet("/dashboard"),
+      apiGet("/academics/overview"),
+      apiGet("/rewards/catalog"),
+      apiGet("/missions"),
+      apiGet("/study-goals"),
+      apiGet("/me/memory"),
+    ]);
+  if (dash) dashboard = dash;
+  if (academics) academicOverview = academics;
   if (catalog) rewardsCatalog = catalog;
-  const missions = await extra("/missions");
   if (missions?.missions) missionsList = missions.missions;
-  const goals = await extra("/study-goals");
   if (goals?.study_goals) studyGoalsList = goals.study_goals;
-  const memory = await extra("/me/memory");
   if (memory?.messages) assistantMessages = memory.messages;
+  if (dashboard.school_id) {
+    panelCache.set(panelCacheKey, {
+      at: Date.now(),
+      dashboard,
+      academicOverview,
+      rewardsCatalog,
+      missionsList,
+      studyGoalsList,
+      assistantMessages,
+    });
+  }
 }
 // Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
 if (!dashboard.school_id) {
@@ -532,7 +548,7 @@ const trNivel = (level?: string) =>
   title={`${viewTitle} | BattleGraph`}
   description="Centro de mando institucional de BattleGraph."
 >
-  <section class="command-shell">
+  <section class="command-shell" data-view={view}>
     <aside class="command-sidebar">
       <a class="command-logo" href="/"
         ><img
@@ -555,6 +571,7 @@ const trNivel = (level?: string) =>
             <a
               class:list={[view === slug && "active"]}
               href={`/panel?view=${slug}`}
+              data-astro-prefetch="hover"
             >
               <b>{String(index + 1).padStart(2, "0")}</b>
               {label}
@@ -581,7 +598,15 @@ const trNivel = (level?: string) =>
           ><span>BUSCAR</span><input
             id="command-search"
             placeholder="Alumno, seccion, material..."
-          /></label
+          />        </label
+        ><button
+          class="sound-toggle"
+          id="sound-toggle"
+          type="button"
+          data-sound="off"
+          aria-pressed="false"
+          title="Activa o silencia el sonido del juego"
+          ><span>SONIDO</span><strong id="sound-toggle-label">SILENCIO</strong></button
         ><label class="role-view"
           ><span>ROL ACTIVO</span><select id="role-view" disabled
             ><option>{trRol(myRole)}</option></select
@@ -3360,7 +3385,8 @@ const trNivel = (level?: string) =>
     </form><div class="game-modal-frame">
       <iframe
         id="panel-game-iframe"
-        src="/game/BattleGraph.html"
+        src="about:blank"
+        data-src="/game/BattleGraph.html"
         allow="autoplay; fullscreen; focus-without-user-activation"
         title="Juego BattleGraph"></iframe>
     </div>
@@ -3687,6 +3713,38 @@ const trNivel = (level?: string) =>
 <script>
   const SCHOOL_ID =
     document.getElementById("school-holder")?.dataset.schoolId ?? "";
+  // ---- Sonido: arranca en silencio y recuerda la preferencia del usuario ----
+  const SOUND_KEY = "battlegraf_panel_sound";
+  let soundOn = (() => {
+    try {
+      return localStorage.getItem(SOUND_KEY) === "on";
+    } catch {
+      return false;
+    }
+  })();
+  const soundButton = document.getElementById("sound-toggle");
+  const soundLabel = document.getElementById("sound-toggle-label");
+  const renderSound = () => {
+    if (!soundButton) return;
+    soundButton.dataset.sound = soundOn ? "on" : "off";
+    soundButton.setAttribute("aria-pressed", soundOn ? "true" : "false");
+    if (soundLabel) soundLabel.textContent = soundOn ? "ACTIVO" : "SILENCIO";
+  };
+  renderSound();
+  soundButton?.addEventListener("click", () => {
+    soundOn = !soundOn;
+    try {
+      localStorage.setItem(SOUND_KEY, soundOn ? "on" : "off");
+    } catch {}
+    renderSound();
+    const frame = document.getElementById(
+      "panel-game-iframe",
+    ) as HTMLIFrameElement | null;
+    frame?.contentWindow?.postMessage(
+      { type: "battlegraf-sound", muted: !soundOn },
+      "*",
+    );
+  });
   const openDialog = (id: string) =>
     (document.getElementById(id) as HTMLDialogElement | null)?.showModal();
   document
@@ -4018,13 +4076,20 @@ const trNivel = (level?: string) =>
       ) as HTMLDialogElement | null;
       const title = document.getElementById("game-dialog-title");
       if (!frame || !dlg) return;
-      let src =
-        "/game/BattleGraph.html?school_id=" + encodeURIComponent(SCHOOL_ID);
+      const gameBase = frame.dataset.src ?? "/game/BattleGraph.html";
+      let src = gameBase + "?school_id=" + encodeURIComponent(SCHOOL_ID);
       if (subject) src += "&subject=" + encodeURIComponent(subject);
       if (turnSeconds) src += "&time=" + encodeURIComponent(turnSeconds);
       if (layers) src += "&layers=" + encodeURIComponent(layers);
       if (nodes) src += "&nodes=" + encodeURIComponent(nodes);
       if (teams) src += "&teams=" + encodeURIComponent(teams);
+      if (!soundOn) src += "&mute=1";
+      frame.onload = () => {
+        frame.contentWindow?.postMessage(
+          { type: "battlegraf-sound", muted: !soundOn },
+          "*",
+        );
+      };
       frame.src = src;
       if (title) title.textContent = b.dataset.title ?? "Alumno vs bot";
       dlg.showModal();
