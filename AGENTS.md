@@ -1,7 +1,7 @@
-# AGENTS.md — BattleGraph (monorepo, rama `integracion-google`)
+# AGENTS.md — BattleGraph (monorepo, rama `main`)
 
 Guía operativa para agentes de IA (OpenCode, Claude Code, Codex, etc.).
-Última actualización: 2026-09-11.
+Última actualización: 2026-09-13.
 
 ---
 
@@ -16,18 +16,20 @@ juego Godot web + app móvil Flutter.
 
 ## 2. Repositorio y ramas (repo ÚNICO: `https://github.com/LuisRz1/battlegraf.git`)
 
-- `main` → **backend FastAPI**. Se despliega en Railway.
-- `integracion-google` → **landing/panel Astro + juego Godot + móvil Flutter**.
-  Se despliega en Vercel. **Es la rama operativa**; trabajar aquí.
+- `main` → **rama unificada y de despliegue**: backend FastAPI (Railway) +
+  landing/panel Astro + juego Godot + móvil Flutter. Railway y Vercel despliegan
+  automáticamente desde `main` al hacer push.
+- `integracion-google` → rama histórica de trabajo del panel/móvil; quedó
+  fusionada en `main` (2026-09-13). Trabajar directamente en `main`.
 
 Checkouts locales (mismo repo):
 | Ruta | Rama | Uso |
 |---|---|---|
-| `D:\proyectos_battlegraph\landing-real` | `integracion-google` | landing/panel, backend, móvil, supabase, juego |
-| `D:\proyectos_battlegraph\proyectos_battlegraph\battlegraf` | `main` | backend (espejo) + export del juego |
+| `C:\Users\edwin\Documents\Minedu-Hackathon\battlegraf` | `main` | landing/panel, backend, móvil, supabase, juego (fuente de verdad) |
 
-> `D:\proyectos_battlegraph\landing-real` es la fuente de verdad. El backend del
-> segundo checkout se usa para `railway up`.
+> El backend se despliega en Railway al pushear `main` (integración GitHub).
+> El panel/landing se despliega en Vercel al pushear `main`; el alias `five`
+> apunta al deployment de producción.
 
 ## 3. Arquitectura (superficies)
 
@@ -75,6 +77,14 @@ curl -X POST "https://api.vercel.com/v1/deployments/<deploy-url>/aliases" \
 ```
 - Proyecto `battlegraf-landing` (`prj_wN7HoAO7PbpQghxwYA02YbiN75Ui`).
 - Token en `%APPDATA%\xdg.data\com.vercel.cli\auth.json`.
+- **`vercel.json` en la raíz** fuerza `framework: astro` + `buildCommand`, para que
+  el deploy automático desde GitHub compile (el proyecto tenía Framework Preset
+  `Other`, por eso los builds salían vacíos con 404). Si se cambia el preset en
+  el dashboard, este archivo es redundante pero inofensivo.
+- Variables requeridas por el build en Vercel: `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ya presentes). Para rutas que usan service
+  role conviene agregar `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+  `SUPABASE_SECRET_KEY` y `PANEL_API_URL`.
 
 ### Supabase (BD)
 - Proyecto `fepfoabnjldabzghvpvv` (`https://fepfoabnjldabzghvpvv.supabase.co`).
