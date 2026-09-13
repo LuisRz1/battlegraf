@@ -78,9 +78,8 @@ curl -X POST "https://api.vercel.com/v1/deployments/<deploy-url>/aliases" \
 - Proyecto `battlegraf-landing` (`prj_wN7HoAO7PbpQghxwYA02YbiN75Ui`).
 - Token en `%APPDATA%\xdg.data\com.vercel.cli\auth.json`.
 - **`vercel.json` en la raíz** fuerza `framework: astro` + `buildCommand`, para que
-  el deploy automático desde GitHub compile (el proyecto tenía Framework Preset
-  `Other`, por eso los builds salían vacíos con 404). Si se cambia el preset en
-  el dashboard, este archivo es redundante pero inofensivo.
+  el deploy automático desde GitHub compile. El proyecto ya tiene Framework
+  Preset = **Astro** (2026-09-13); el archivo se mantiene como respaldo.
 - Variables requeridas por el build en Vercel: `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ya presentes). Para rutas que usan service
   role conviene agregar `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
