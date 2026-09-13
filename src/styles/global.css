@@ -4515,3 +4515,106 @@
     margin-left: 0;
   }
 }
+
+/* ============================================================
+   Asistente IA flotante y conversacion
+   ============================================================ */
+.assistant-fab {
+  position: fixed;
+  z-index: 40;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  display: grid;
+  gap: 0.18rem;
+  justify-items: center;
+  padding: 0.65rem 0.8rem;
+  border: 2px solid var(--module-accent);
+  background: linear-gradient(180deg, #1b1526, #0d0c12);
+  color: #f2e2b8;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px #09080d;
+  animation: fabIn 0.5s ease both;
+}
+.assistant-fab span {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--module-accent);
+  color: var(--module-accent);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+.assistant-fab strong {
+  font-size: 0.48rem;
+  letter-spacing: 0.12em;
+}
+.assistant-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+}
+@keyframes fabIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.assistant-dialog {
+  width: min(42rem, calc(100% - 2rem));
+}
+.assistant-dialog form {
+  grid-template-columns: 1fr;
+}
+.assistant-thread {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 38vh;
+  padding: 0.2rem 0.1rem;
+  overflow-y: auto;
+}
+.assistant-msg {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #33292e;
+  background: #0d0c12;
+}
+.assistant-msg.user {
+  border-color: color-mix(in srgb, var(--module-accent) 55%, transparent);
+  background: #141021;
+}
+.assistant-msg strong {
+  color: var(--module-accent);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+}
+.assistant-msg p {
+  margin-top: 0.25rem;
+  color: #d9c9ae;
+  font-size: 0.64rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.assistant-empty {
+  padding: 0.8rem;
+  border: 1px dashed #44363c;
+  color: #b6a493;
+  font-size: 0.62rem;
+  line-height: 1.6;
+}
+.assistant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.assistant-chips .report-chip {
+  margin-left: 0;
+  cursor: pointer;
+}

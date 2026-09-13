@@ -2512,22 +2512,56 @@ const trNivel = (level?: string) =>
                   </p>
                 </div>
               </div>
-              <section class="game-panel">
-                <span>CONVERSACION</span>
+              <section class="game-panel assistant-view">
+                <span>CONVERSACION · SOLO TU COLEGIO</span>
                 <h2>CHAT</h2>
                 {(assistantMessages ?? []).length === 0 && (
-                  <p>Inicia la conversacion con tu asistente.</p>
+                  <p>
+                    Inicia la conversacion. Puedo explicarte como funciona cada
+                    modulo, ayudarte con la configuracion y leer tus reportes.
+                    Solo veo la informacion de tu colegio.
+                  </p>
                 )}
-                {(assistantMessages ?? []).map((m: any) => (
-                  <div>
-                    <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
-                    <p>{m.content}</p>
-                  </div>
-                ))}
+                <div class="assistant-thread">
+                  {(assistantMessages ?? []).map((m: any) => (
+                    <div
+                      class:list={[
+                        "assistant-msg",
+                        m.role === "user" ? "user" : "bot",
+                      ]}
+                    >
+                      <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+                      <p>{m.content}</p>
+                    </div>
+                  ))}
+                </div>
+                <div class="assistant-chips">
+                  {[
+                    "¿Como creo una seccion?",
+                    "¿Como programo una batalla contra bot?",
+                    "¿Como interpreto el reporte de mi aula?",
+                    "Ayudame a configurar mi colegio",
+                  ].map((suggestion) => (
+                    <button
+                      type="button"
+                      class="report-chip"
+                      data-assistant-prompt={suggestion}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
                 <form method="post" action="/api/asistente">
                   <input type="hidden" name="school_id" value={schoolId} />
-                  <label>Pregunta<textarea name="prompt" rows="3" required maxlength="2000"></textarea></label>
-                  <button class="command-btn" type="submit">ENVIAR</button>
+                  <input type="hidden" name="redirect" value={view} />
+                  <label
+                    >Pregunta<textarea
+                      name="prompt"
+                      rows="3"
+                      required
+                      maxlength="2000"
+                      class="assistant-prompt"></textarea></label
+                  ><button class="command-btn" type="submit">ENVIAR</button>
                 </form>
               </section>
             </>
@@ -3460,6 +3494,78 @@ const trNivel = (level?: string) =>
         title="Juego BattleGraph"></iframe>
     </div>
   </dialog>
+  <button
+    class="assistant-fab"
+    id="assistant-fab"
+    type="button"
+    data-open-dialog="assistant-dialog"
+    aria-label="Abrir asistente IA"
+    title="Asistente IA de tu colegio"
+    ><span>IA</span><strong>ASISTENTE</strong></button
+  >
+  <dialog class="portal-dialog assistant-dialog" id="assistant-dialog">
+    <form method="post" action="/api/asistente">
+      <input type="hidden" name="school_id" value={schoolId} /><input
+        type="hidden"
+        name="redirect"
+        value={view}
+      /><header>
+        <div>
+          <span>ASISTENTE DEL COLEGIO</span>
+          <h2 id="assistant-dialog-title">Pregunta lo que necesites</h2>
+        </div><button type="button" data-close-dialog>X</button>
+      </header>
+      <div class="assistant-thread">
+        {(assistantMessages ?? []).length === 0 && (
+          <p class="assistant-empty">
+            Puedo explicarte como funciona cada modulo, ayudarte a configurar
+            secciones, materias, tareas y batallas, y leer tus reportes. Solo
+            accedo a la informacion de tu colegio.
+          </p>
+        )}
+        {(assistantMessages ?? []).map((m: any) => (
+          <div
+            class:list={[
+              "assistant-msg",
+              m.role === "user" ? "user" : "bot",
+            ]}
+          >
+            <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+            <p>{m.content}</p>
+          </div>
+        ))}
+      </div>
+      <div class="assistant-chips">
+        {[
+          "¿Como creo una seccion?",
+          "¿Como programo una batalla contra bot?",
+          "¿Como interpreto el reporte de mi aula?",
+          "Ayudame a configurar mi colegio",
+        ].map((suggestion) => (
+          <button
+            type="button"
+            class="report-chip"
+            data-assistant-prompt={suggestion}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+      <label
+        >Tu pregunta<textarea
+          name="prompt"
+          rows="3"
+          required
+          maxlength="2000"
+          class="assistant-prompt"></textarea></label
+      >
+      <div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog
+          >CERRAR</button
+        ><button class="command-btn" type="submit">ENVIAR</button>
+      </div>
+    </form>
+  </dialog>
 </PortalLayout>
 <dialog class="portal-dialog academic-dialog" id="attendance-dialog">
   <form method="post" action="/api/academicos">
@@ -3838,6 +3944,37 @@ const trNivel = (level?: string) =>
       { type: "battlegraf-sound", muted: !soundOn },
       "*",
     );
+  });
+  // ---- Asistente IA: sugerencias y foco ----
+  document
+    .querySelectorAll<HTMLElement>("[data-assistant-prompt]")
+    .forEach((chip) =>
+      chip.addEventListener("click", () => {
+        const text = chip.dataset.assistantPrompt ?? "";
+        const target =
+          chip
+            .closest("form")
+            ?.querySelector<HTMLTextAreaElement>(".assistant-prompt") ??
+          document.querySelector<HTMLTextAreaElement>(
+            "#assistant-dialog .assistant-prompt",
+          ) ??
+          document.querySelector<HTMLTextAreaElement>(
+            ".assistant-view .assistant-prompt",
+          );
+        if (target) {
+          target.value = text;
+          target.focus();
+        }
+      }),
+    );
+  document.getElementById("assistant-fab")?.addEventListener("click", () => {
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLTextAreaElement>(
+          "#assistant-dialog .assistant-prompt",
+        )
+        ?.focus();
+    }, 80);
   });
   const openDialog = (id: string) =>
     (document.getElementById(id) as HTMLDialogElement | null)?.showModal();
