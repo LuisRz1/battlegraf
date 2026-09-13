@@ -2431,30 +2431,70 @@ const trNivel = (level?: string) =>
                 <div>
                   <span>ANALITICA</span>
                   <h1>REPORTES</h1>
-                  <p>Descarga de notas, asistencia y desempeno por clase y por docente.</p>
+                  <p>
+                    Desempeno de todas las aulas, docentes y alumnos con el
+                    Indice BattleGraph (IDB) y su distancia a la meta.
+                  </p>
+                </div>
+                <div class="command-actions">
+                  <button
+                    class="command-btn ghost"
+                    data-open-dialog="report-config-dialog"
+                  >
+                    AJUSTAR META
+                  </button>
+                  <a
+                    class="command-btn"
+                    id="report-export"
+                    href="/api/reportes?type=overview&format=csv"
+                    >EXPORTAR CSV</a
+                  >
                 </div>
               </div>
-              <div class="dashboard-grid two">
-                <section class="game-panel">
-                  <span>POR AULA</span>
-                  <h2>REPORTE POR CLASE</h2>
-                  <p>Promedio, asistencia, tareas e insignias por alumno.</p>
-                  <div class="card-grid">
-                    {sections.map((s: any) => (
-                      <article class="subject-card searchable">
-                        <h2>{s.display_name}</h2>
-                        <a class="command-btn" href={`/api/reportes?type=class&section=${s.id}`}>EXPORTAR CSV</a>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-                <section class="game-panel">
-                  <span>POR DOCENTE</span>
-                  <h2>DESEMPENO DOCENTE</h2>
-                  <p>Cursos, clases, evaluaciones y secciones por profesor.</p>
-                  <a class="command-btn" href="/api/reportes?type=staff">EXPORTAR DOCENTES</a>
-                </section>
+              <div class="report-filter">
+                <label>Vista<select id="report-scope"
+                    ><option value="school">Todo el colegio</option
+                    ><option value="section">Un aula</option
+                    ><option value="staff">Un docente</option
+                    ><option value="student">Un alumno</option></select
+                  ></label
+                ><label id="report-section-wrap" hidden
+                  >Aula<select id="report-section"
+                    >{sections.map((s: any) => (
+                      <option value={s.id}>{s.display_name}</option>
+                    ))}</select
+                  ></label
+                ><label id="report-staff-wrap" hidden
+                  >Docente<select id="report-staff"
+                    >{staff
+                      .filter((p: any) =>
+                        [
+                          "teacher",
+                          "tutor",
+                          "coordinator",
+                          "subdirector",
+                        ].includes(p.role),
+                      )
+                      .map((p: any) => (
+                        <option value={p.id}>{p.full_name}</option>
+                      ))}</select
+                  ></label
+                ><label id="report-student-wrap" hidden
+                  >Alumno<select id="report-student"
+                    >{students.map((s: any) => (
+                      <option value={s.id}>{s.full_name}</option>
+                    ))}</select
+                  ></label
+                ><button class="command-btn" id="report-refresh" type="button">
+                  ACTUALIZAR
+                </button><span class="report-chip" id="report-goal-chip"
+                  >META 80 / IDB</span
+                >
               </div>
+              <div class="report-loading" id="report-loading">
+                PREPARANDO ANALITICA...
+              </div>
+              <div id="report-content" hidden></div>
             </>
           )
         }
@@ -3738,6 +3778,31 @@ const trNivel = (level?: string) =>
     <button class="command-btn" type="submit">CREAR META</button>
   </form>
 </dialog>
+<dialog class="portal-dialog report-config-dialog" id="report-config-dialog">
+  <form method="post" action="/api/reportes">
+    <header>
+      <div>
+        <span>METODOLOGIA DEL DESEMPENO</span><h2>Meta y pesos del IDB</h2>
+      </div><button type="button" data-close-dialog>X</button>
+    </header>
+    <label>Meta institucional (sobre 100)<input id="report-goal-input" name="goal" type="number" min="1" max="100" value="80" required /></label>
+    <div class="dialog-columns">
+      <label>Peso notas %<input id="report-w-grades" name="weight_grades" type="number" min="0" max="100" value="40" /></label>
+      <label>Peso asistencia %<input id="report-w-attendance" name="weight_attendance" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso tareas %<input id="report-w-tasks" name="weight_tasks" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso practica %<input id="report-w-practice" name="weight_practice" type="number" min="0" max="100" value="20" /></label>
+    </div>
+    <p class="report-config-note">
+      El IDB pondera solo los componentes con datos y renormaliza los pesos.
+      Brecha de hasta 5 puntos = meta cumplida; hasta 15 = cerca; mas de 15 = lejos.
+      La metodologia completa esta documentada en docs/METODOLOGIA_DESEMPENO.md.
+    </p>
+    <div class="dialog-actions">
+      <button class="command-btn ghost" type="button" data-close-dialog>CANCELAR</button>
+      <button class="command-btn" type="submit">GUARDAR METODOLOGIA</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
   const SCHOOL_ID =
@@ -4122,6 +4187,386 @@ const trNivel = (level?: string) =>
       if (confirmInput) confirmInput.value = "";
       syncConfirmDelete();
     });
+  // ---- Reportes: graficos de desempeno (IDB), metas y tablas ----
+  const reportRoot = document.getElementById("report-content");
+  if (reportRoot) {
+    const scopeSel = document.getElementById(
+      "report-scope",
+    ) as HTMLSelectElement | null;
+    const sectionSel = document.getElementById(
+      "report-section",
+    ) as HTMLSelectElement | null;
+    const staffSel = document.getElementById(
+      "report-staff",
+    ) as HTMLSelectElement | null;
+    const studentSel = document.getElementById(
+      "report-student",
+    ) as HTMLSelectElement | null;
+    const sectionWrap = document.getElementById("report-section-wrap");
+    const staffWrap = document.getElementById("report-staff-wrap");
+    const studentWrap = document.getElementById("report-student-wrap");
+    const reportLoading = document.getElementById("report-loading");
+    const goalChip = document.getElementById("report-goal-chip");
+    const exportLink = document.getElementById(
+      "report-export",
+    ) as HTMLAnchorElement | null;
+    let overview: any = null;
+    let staffData: any = null;
+    let overviewPromise: Promise<any> | null = null;
+    let staffPromise: Promise<any> | null = null;
+
+    const loadJson = async (url: string) => {
+      try {
+        const res = await fetch(url, {
+          headers: { Accept: "application/json" },
+        });
+        return res.ok ? await res.json() : null;
+      } catch {
+        return null;
+      }
+    };
+    const loadOverview = async () => {
+      if (overview) return overview;
+      if (!overviewPromise)
+        overviewPromise = loadJson("/api/reportes?type=overview&format=json");
+      overview = await overviewPromise;
+      return overview;
+    };
+    const loadStaff = async () => {
+      if (staffData) return staffData;
+      if (!staffPromise)
+        staffPromise = loadJson("/api/reportes?type=staff&format=json");
+      staffData = await staffPromise;
+      return staffData;
+    };
+    const fmt = (value: any, suffix = "") =>
+      value === null || value === undefined ? "—" : `${value}${suffix}`;
+    const statusClass = (gap: any) => gap?.status ?? "sin-datos";
+    const esc = (value: any) =>
+      String(value ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c] as string,
+      );
+    const kpiRow = (items: [string, any, string?][]) =>
+      `<div class="report-kpis">${items
+        .map(
+          ([label, value, hint]) =>
+            `<article class="${hint ?? ""}"><span>${esc(label)}</span><strong>${value}</strong></article>`,
+        )
+        .join("")}</div>`;
+    const barList = (
+      items: { label: string; value: number | null; id?: string; gap?: any }[],
+      goal: number,
+      dataAttr = "",
+    ) =>
+      `<div class="report-bars">${items
+        .map(
+          (item) =>
+            `<button type="button" class="report-bar" ${dataAttr}="${esc(item.id ?? "")}">` +
+            `<span class="report-bar-label">${esc(item.label)}</span>` +
+            `<span class="report-bar-track"><i class="${statusClass(item.gap)}" style="width:${Math.max(0, Math.min(100, item.value ?? 0))}%"></i>` +
+            (goal >= 1 && goal <= 100
+              ? `<b class="report-bar-goal" style="left:${goal}%"></b>`
+              : "") +
+            `</span><strong>${item.value === null || item.value === undefined ? "—" : item.value.toFixed(1)}</strong></button>`,
+        )
+        .join("")}</div>`;
+    const table = (
+      headers: string[],
+      rows: (string | number | null)[][],
+    ) =>
+      `<div class="report-table-wrap"><table class="report-table"><thead><tr>${headers
+        .map((h) => `<th>${esc(h)}</th>`)
+        .join("")}</tr></thead><tbody>${rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map(
+                (cell) =>
+                  `<td>${cell === null || cell === undefined ? "—" : cell}</td>`,
+              )
+              .join("")}</tr>`,
+        )
+        .join("")}</tbody></table></div>`;
+    const sectionName = (id: string) =>
+      (overview?.sections ?? []).find((s: any) => String(s.id) === String(id))
+        ?.display_name ?? "Sin aula";
+
+    const setExport = (scope: string, student?: any) => {
+      if (!exportLink) return;
+      if (scope === "section" && sectionSel?.value)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(sectionSel.value)}&format=csv`;
+      else if (scope === "staff")
+        exportLink.href = "/api/reportes?type=staff&format=csv";
+      else if (scope === "student" && student?.section_id)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(student.section_id)}&format=csv`;
+      else exportLink.href = "/api/reportes?type=overview&format=csv";
+    };
+
+    const applyConfig = (data: any) => {
+      if (!data?.config) return;
+      const goal = data.config.goal ?? 80;
+      if (goalChip) goalChip.textContent = `META ${goal} / IDB`;
+      const set = (id: string, value: any) => {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (el && value !== undefined) el.value = String(value);
+      };
+      set("report-goal-input", goal);
+      const weights = data.config.weights ?? {};
+      set("report-w-grades", weights.grades);
+      set("report-w-attendance", weights.attendance);
+      set("report-w-tasks", weights.tasks);
+      set("report-w-practice", weights.practice);
+    };
+
+    const render = async () => {
+      const scope = scopeSel?.value ?? "school";
+      if (sectionWrap) sectionWrap.hidden = scope !== "section";
+      if (staffWrap) staffWrap.hidden = scope !== "staff";
+      if (studentWrap) studentWrap.hidden = scope !== "student";
+      if (reportLoading) reportLoading.hidden = false;
+      reportRoot.hidden = true;
+      let html = "";
+      try {
+        if (scope === "staff") {
+          const data = await loadStaff();
+          await loadOverview();
+          const staffList = data?.staff ?? [];
+          const goal = overview?.config?.goal ?? 80;
+          const selectedId = staffSel?.value ?? staffList[0]?.id ?? "";
+          const selected = staffList.find(
+            (s: any) => String(s.id) === String(selectedId),
+          );
+          html += kpiRow([
+            ["DOCENTES", staffList.length],
+            ["IDB DEL DOCENTE", fmt(selected?.performance)],
+            ["BRECHA A META", fmt(selected?.gap?.distance)],
+            ["ASISTENCIA", fmt(selected?.attendance, "%")],
+          ]);
+          html += `<section class="game-panel"><span>COMPARATIVO</span><h2>Desempeno por docente</h2>${barList(
+            staffList.map((s: any) => ({
+              label: s.full_name ?? "Docente",
+              value: s.performance,
+              id: s.id,
+              gap: s.gap,
+            })),
+            goal,
+            "data-staff",
+          )}</section>`;
+          if (selected) {
+            const theirSections = selected.sections ?? [];
+            const theirStudents = (overview?.students ?? []).filter(
+              (st: any) =>
+                theirSections.some(
+                  (sec: any) => String(sec.id) === String(st.section_id),
+                ),
+            );
+            html += `<section class="game-panel"><span>${esc(selected.full_name)}</span><h2>Detalle del docente</h2><p>${selected.subjects?.join(" · ") || "Sin cursos asignados"} · ${theirSections.map((s: any) => esc(s.display_name)).join(", ") || "Sin aulas"}</p>${table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas"],
+              theirStudents.map((st: any) => [
+                esc(st.full_name),
+                esc(sectionName(st.section_id)),
+                fmt(st.performance),
+                fmt(st.grade_average, "%"),
+                fmt(st.attendance_rate, "%"),
+                `${st.tasks_done ?? 0}/${st.tasks_expected ?? 0}`,
+              ]),
+            )}</section>`;
+          }
+          setExport("staff");
+        } else {
+          const data = await loadOverview();
+          if (!data) throw new Error("sin datos");
+          applyConfig(data);
+          const goal = data.config?.goal ?? 80;
+          if (scope === "section") {
+            const section =
+              data.sections.find(
+                (s: any) => String(s.id) === String(sectionSel?.value),
+              ) ?? data.sections[0];
+            if (sectionSel && section)
+              sectionSel.value = String(section.id);
+            const members = data.students.filter(
+              (s: any) => String(s.section_id) === String(section?.id),
+            );
+            html += kpiRow([
+              ["IDB DEL AULA", fmt(section?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(section?.gap?.distance)],
+              ["ALUMNOS", members.length],
+              ["ASISTENCIA", fmt(section?.attendance, "%")],
+              ["TAREAS", fmt(section?.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>${esc(section?.display_name ?? "")}</span><h2>Desempeno por alumno</h2>${barList(
+              members
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => ({
+                  label: s.full_name ?? "Alumno",
+                  value: s.performance,
+                  id: s.id,
+                  gap: s.gap,
+                })),
+              goal,
+              "data-student",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (section?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              members.map((s: any) => [
+                esc(s.full_name),
+                fmt(s.performance),
+                fmt(s.grade_average, "%"),
+                fmt(s.attendance_rate, "%"),
+                `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                s.points ?? 0,
+                fmt(s.gap?.distance),
+              ]),
+            );
+            setExport("section");
+          } else if (scope === "student") {
+            const student =
+              data.students.find(
+                (s: any) => String(s.id) === String(studentSel?.value),
+              ) ?? data.students[0];
+            if (studentSel && student) studentSel.value = String(student.id);
+            html += kpiRow([
+              ["IDB DEL ALUMNO", fmt(student?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(student?.gap?.distance)],
+              ["NOTAS", fmt(student?.grade_average, "%")],
+              ["ASISTENCIA", fmt(student?.attendance_rate, "%")],
+              ["TAREAS", `${student?.tasks_done ?? 0}/${student?.tasks_expected ?? 0}`],
+              ["PUNTOS", student?.points ?? 0],
+              ["BATALLAS", `${student?.battles ?? 0} (${student?.wins ?? 0} ganadas)`],
+            ]);
+            html += `<section class="game-panel"><span>${esc(student?.full_name ?? "")} · ${esc(sectionName(student?.section_id))}</span><h2>Desempeno por materia</h2>${barList(
+              (student?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}${table(
+              ["Indicador", "Valor"],
+              [
+                ["Promedio de notas", fmt(student?.grade_average, "%")],
+                ["Asistencia", fmt(student?.attendance_rate, "%")],
+                ["Tareas entregadas", `${student?.tasks_done ?? 0} de ${student?.tasks_expected ?? 0}`],
+                ["Cumplimiento de tareas", fmt(student?.tasks_rate, "%")],
+                ["Practica (puntos)", fmt(student?.practice, "%")],
+                ["Insignias", student?.badges ?? 0],
+                ["Victorias en batallas", student?.wins ?? 0],
+              ],
+            )}</section>`;
+            setExport("student", student);
+          } else {
+            const school = data.school ?? {};
+            html += kpiRow([
+              ["IDB DEL COLEGIO", fmt(school.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(school.gap?.distance)],
+              ["AULAS", school.sections ?? 0],
+              ["ALUMNOS", school.students ?? 0],
+              ["NOTAS", fmt(school.grades, "%")],
+              ["ASISTENCIA", fmt(school.attendance, "%")],
+              ["TAREAS", fmt(school.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>TODAS LAS AULAS</span><h2>Desempeno por aula</h2>${barList(
+              (data.sections ?? []).map((s: any) => ({
+                label: s.display_name,
+                value: s.performance,
+                id: s.id,
+                gap: s.gap,
+              })),
+              goal,
+              "data-section",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (data.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              (data.students ?? [])
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => [
+                  esc(s.full_name),
+                  esc(sectionName(s.section_id)),
+                  fmt(s.performance),
+                  fmt(s.grade_average, "%"),
+                  fmt(s.attendance_rate, "%"),
+                  `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                  s.points ?? 0,
+                  fmt(s.gap?.distance),
+                ]),
+            );
+            setExport("school");
+          }
+        }
+        reportRoot.innerHTML = html;
+      } catch {
+        reportRoot.innerHTML = `<div class="report-loading">No se pudo cargar la analitica. Intenta actualizar.</div>`;
+      } finally {
+        if (reportLoading) reportLoading.hidden = true;
+        reportRoot.hidden = false;
+      }
+    };
+
+    scopeSel?.addEventListener("change", () => void render());
+    sectionSel?.addEventListener("change", () => void render());
+    staffSel?.addEventListener("change", () => void render());
+    studentSel?.addEventListener("change", () => void render());
+    document.getElementById("report-refresh")?.addEventListener("click", () => {
+      overview = null;
+      staffData = null;
+      overviewPromise = null;
+      staffPromise = null;
+      void render();
+    });
+    reportRoot.addEventListener("click", (event) => {
+      const bar = (event.target as HTMLElement).closest<HTMLElement>(".report-bar");
+      if (!bar || !overview) return;
+      const sectionId = bar.dataset.section;
+      const studentId = bar.dataset.student;
+      const staffId = bar.dataset.staff;
+      if (sectionId && sectionSel && scopeSel) {
+        sectionSel.value = sectionId;
+        scopeSel.value = "section";
+        void render();
+      } else if (studentId && studentSel && scopeSel) {
+        const student = overview.students.find(
+          (s: any) => String(s.id) === String(studentId),
+        );
+        if (student) {
+          studentSel.value = studentId;
+          scopeSel.value = "student";
+          void render();
+        }
+      } else if (staffId && staffSel && scopeSel) {
+        staffSel.value = staffId;
+        scopeSel.value = "staff";
+        void render();
+      }
+    });
+    void render();
+  }
   // ---- Modal del juego (batalla vs bot con preguntas del sistema) ----
   document.querySelectorAll<HTMLElement>("[data-play-battle]").forEach((b) =>
     b.addEventListener("click", (e) => {
