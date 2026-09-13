@@ -3,6 +3,7 @@ reportes por clase/docente y carga de material con IA (Supabase)."""
 
 from __future__ import annotations
 
+import contextlib
 import io
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from src.infrastructure.ai.openai_agent import build_question_agent
 from src.infrastructure.database.supabase_admin import supabase_admin
 from src.presentation.api.routes.panel import (
     Msg,
+    _accessible_students,
     _current_uid,
     _first,
     _own_student_profile,
@@ -97,6 +99,13 @@ class AwardBadgeIn(BaseModel):
     badge_id: str | None = None
     code: str | None = None
     note: str | None = Field(default=None, max_length=300)
+
+
+class ReportConfigIn(BaseModel):
+    """Pesos y meta del Indice de Desempeno BattleGraph (configurable)."""
+
+    weights: dict[str, int] | None = None
+    goal: float | None = Field(default=None, ge=0, le=100)
 
 
 # ---------------------------------------------------------------- utils
@@ -847,6 +856,10 @@ async def report_staff(
         or []
     )
 
+    metrics = _school_metrics(supabase, school_id)
+    section_index = {str(s["id"]): s for s in metrics["sections"]}
+    goal = float(metrics.get("goal") or 0)
+
     by_staff: list[dict] = []
     for person in staff:
         membership_id = person.get("membership_id")
@@ -867,6 +880,32 @@ async def report_staff(
             if membership_id
             and str(g.get("created_by_membership_id")) == str(membership_id)
         ]
+        their_sections = sorted(
+            {
+                str(c.get("section_id"))
+                for c in their_classes
+                if c.get("section_id")
+            }
+        )
+        section_rows = [
+            section_index[s] for s in their_sections if s in section_index
+        ]
+        perf_values = [
+            float(s["performance"])
+            for s in section_rows
+            if s.get("performance") is not None
+        ]
+        attendance_values = [
+            float(s["attendance"])
+            for s in section_rows
+            if s.get("attendance") is not None
+        ]
+        grade_values = [
+            float(s["grades"]) for s in section_rows if s.get("grades") is not None
+        ]
+        performance = (
+            round(sum(perf_values) / len(perf_values), 1) if perf_values else None
+        )
         by_staff.append(
             {
                 "id": person["id"],
@@ -876,13 +915,24 @@ async def report_staff(
                 "subjects": [s for s in subjects if s],
                 "classes": len(their_classes),
                 "grade_items": len(items_created),
-                "students": len(
-                    {
-                        str(c.get("section_id"))
-                        for c in their_classes
-                        if c.get("section_id")
-                    }
+                "students": sum(int(s.get("students") or 0) for s in section_rows),
+                "sections": [
+                    {"id": s["id"], "display_name": s.get("display_name")}
+                    for s in section_rows
+                ],
+                "performance": performance,
+                "attendance": (
+                    round(sum(attendance_values) / len(attendance_values), 1)
+                    if attendance_values
+                    else None
                 ),
+                "grades": (
+                    round(sum(grade_values) / len(grade_values), 1)
+                    if grade_values
+                    else None
+                ),
+                "goal": goal,
+                "gap": _goal_gap(performance, goal),
             }
         )
     rows = [
@@ -893,16 +943,574 @@ async def report_staff(
             p["classes"],
             p["grade_items"],
             p["students"],
+            p["performance"],
+            p["attendance"],
         ]
         for p in by_staff
     ]
     return _export_or_json(
         export,
         "battlegraf-docentes.csv",
-        ["Docente", "Rol", "Cursos", "Clases", "Evaluaciones", "Secciones"],
+        [
+            "Docente",
+            "Rol",
+            "Cursos",
+            "Clases",
+            "Evaluaciones",
+            "Secciones",
+            "Desempeno IDB",
+            "Asistencia%",
+        ],
         rows,
         {"staff": by_staff, "count": len(by_staff), "assignments": len(assignments)},
     )
+
+
+# ---------------------------------------------------------------- desempeno
+# Indice de Desempeno BattleGraph (IDB): promedio ponderado configurable.
+# Metodologia completa en docs/METODOLOGIA_DESEMPENO.md
+DEFAULT_REPORT_CONFIG: dict[str, Any] = {
+    "weights": {"grades": 40, "attendance": 20, "tasks": 20, "practice": 20},
+    "goal": 80.0,
+}
+
+
+def _report_config(supabase: Any, school_id: str) -> dict:
+    config: dict[str, Any] = {
+        "weights": dict(DEFAULT_REPORT_CONFIG["weights"]),
+        "goal": float(DEFAULT_REPORT_CONFIG["goal"]),
+    }
+    try:
+        row = (
+            _first(
+                supabase.table("school_settings")
+                .select("report_config")
+                .eq("school_id", school_id)
+                .limit(1)
+                .execute()
+                .data
+            )
+            or {}
+        )
+        stored = row.get("report_config") or {}
+        if isinstance(stored, dict):
+            weights = stored.get("weights")
+            if isinstance(weights, dict):
+                for key in config["weights"]:
+                    if key in weights:
+                        with contextlib.suppress(TypeError, ValueError):
+                            config["weights"][key] = max(0, int(weights[key]))
+            if stored.get("goal") is not None:
+                with contextlib.suppress(TypeError, ValueError):
+                    config["goal"] = max(0.0, min(100.0, float(stored["goal"])))
+    except Exception:  # noqa: BLE001
+        pass
+    return config
+
+
+def _performance_index(
+    values: dict[str, Any], weights: dict[str, int]
+) -> float | None:
+    total = 0.0
+    acc = 0.0
+    for key, weight in weights.items():
+        value = values.get(key)
+        if value is None or weight <= 0:
+            continue
+        acc += max(0.0, min(100.0, float(value))) * float(weight)
+        total += float(weight)
+    if total <= 0:
+        return None
+    return round(acc / total, 1)
+
+
+def _goal_gap(performance: float | None, goal: float) -> dict:
+    if performance is None:
+        return {"progress": None, "distance": None, "status": "sin-datos"}
+    distance = round(goal - performance, 1)
+    progress = (
+        round(min(100.0, (performance / goal) * 100), 1) if goal > 0 else None
+    )
+    if distance <= 5:
+        status = "cumplida"
+    elif distance <= 15:
+        status = "cerca"
+    else:
+        status = "lejos"
+    return {"progress": progress, "distance": distance, "status": status}
+
+
+def _avg(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return round(sum(values) / len(values), 1)
+
+
+def _school_metrics(
+    supabase: Any,
+    school_id: str,
+    member: dict | None = None,
+    uid: str | None = None,
+) -> dict:
+    config = _report_config(supabase, school_id)
+    weights = config["weights"]
+    goal = float(config["goal"])
+
+    sections = (
+        supabase.table("sections")
+        .select("id, display_name, grade, level")
+        .eq("school_id", school_id)
+        .execute()
+        .data
+        or []
+    )
+    students = (
+        supabase.table("student_profiles")
+        .select("id, full_name, email, section_id")
+        .eq("school_id", school_id)
+        .execute()
+        .data
+        or []
+    )
+    # Alcance real del rol: un docente/tutor ve su aula, no todo el colegio.
+    if member is not None:
+        accessible = _accessible_students(supabase, school_id, member, uid or "")
+        allowed = {str(row["id"]) for row in accessible}
+        students = [row for row in students if str(row["id"]) in allowed]
+        allowed_sections = {
+            str(row.get("section_id"))
+            for row in students
+            if row.get("section_id")
+        }
+        if member.get("role") not in {
+            "owner",
+            "director",
+            "subdirector",
+            "coordinator",
+        }:
+            sections = [
+                row for row in sections if str(row["id"]) in allowed_sections
+            ]
+    subjects = (
+        supabase.table("subjects")
+        .select("id, name, color")
+        .eq("school_id", school_id)
+        .execute()
+        .data
+        or []
+    )
+    subject_names = {str(s["id"]): (s.get("name") or "Materia") for s in subjects}
+    student_ids = [s["id"] for s in students]
+
+    attendance: list[dict] = []
+    grades: list[dict] = []
+    submissions: list[dict] = []
+    badges: list[dict] = []
+    if student_ids:
+        attendance = (
+            supabase.table("attendance_records")
+            .select("student_profile_id, status")
+            .in_("student_profile_id", student_ids)
+            .execute()
+            .data
+            or []
+        )
+        grades = (
+            supabase.table("student_grades")
+            .select(
+                "student_profile_id, score, status, "
+                "grade_items(max_score, subject_id)"
+            )
+            .in_("student_profile_id", student_ids)
+            .execute()
+            .data
+            or []
+        )
+        submissions = (
+            supabase.table("assignment_submissions")
+            .select("student_profile_id, assignment_id")
+            .in_("student_profile_id", student_ids)
+            .execute()
+            .data
+            or []
+        )
+        try:
+            badge_rows = (
+                supabase.table("student_badges")
+                .select("student_profile_id")
+                .in_("student_profile_id", student_ids)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:  # noqa: BLE001
+            badge_rows = []
+        badges.extend(badge_rows)
+        try:
+            battle_rows = (
+                supabase.table("battle_results")
+                .select("student_profile_id, result")
+                .in_("student_profile_id", student_ids)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:  # noqa: BLE001
+            battle_rows = []
+    else:
+        battle_rows = []
+
+    assignments = (
+        supabase.table("assignments")
+        .select("id, section_id, subject_id, status")
+        .eq("school_id", school_id)
+        .execute()
+        .data
+        or []
+    )
+    assignment_section = {
+        str(a["id"]): (str(a["section_id"]) if a.get("section_id") else None)
+        for a in assignments
+    }
+    per_section_assignments: dict[str, int] = {}
+    for a in assignments:
+        if a.get("section_id"):
+            key = str(a["section_id"])
+            per_section_assignments[key] = per_section_assignments.get(key, 0) + 1
+
+    buckets: dict[str, dict] = {}
+    for s in students:
+        sid = str(s["id"])
+        buckets[sid] = {
+            "id": s["id"],
+            "full_name": s.get("full_name"),
+            "email": s.get("email"),
+            "section_id": str(s["section_id"]) if s.get("section_id") else None,
+            "attendance_total": 0,
+            "attendance_ok": 0,
+            "grades": [],
+            "subject_grades": {},
+            "tasks_done": 0,
+            "badges": 0,
+            "points": 0,
+            "battles": 0,
+            "wins": 0,
+        }
+
+    for row in attendance:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if not b:
+            continue
+        b["attendance_total"] += 1
+        if row.get("status") in {"present", "late"}:
+            b["attendance_ok"] += 1
+    for row in grades:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if not b:
+            continue
+        score = row.get("score")
+        item = row.get("grade_items") or {}
+        max_score = float(item.get("max_score") or 0)
+        if score is not None and max_score > 0:
+            pct = (float(score) / max_score) * 100
+            b["grades"].append(pct)
+            subject = (
+                subject_names.get(str(item.get("subject_id")))
+                if item.get("subject_id")
+                else None
+            )
+            if subject:
+                b["subject_grades"].setdefault(subject, []).append(pct)
+    for row in submissions:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if not b:
+            continue
+        assignment_id = str(row.get("assignment_id"))
+        if assignment_section.get(assignment_id) == b["section_id"]:
+            b["tasks_done"] += 1
+    for row in badges:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if b:
+            b["badges"] += 1
+    try:
+        point_rows = (
+            supabase.table("points_ledger")
+            .select("student_profile_id, amount")
+            .in_("student_profile_id", student_ids)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001
+        point_rows = []
+    for row in point_rows:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if b:
+            b["points"] += int(row.get("amount") or 0)
+    for row in battle_rows:
+        b = buckets.get(str(row.get("student_profile_id")))
+        if b:
+            b["battles"] += 1
+            if str(row.get("result") or "") in {"victoria", "win", "won"}:
+                b["wins"] += 1
+
+    # Practica: puntos BattleGraph normalizados contra el maximo del aula;
+    # si aun no hay puntos, se usan batallas jugadas.
+    section_max_points: dict[str, float] = {}
+    section_max_battles: dict[str, float] = {}
+    for b in buckets.values():
+        key = b["section_id"] or "_"
+        section_max_points[key] = max(section_max_points.get(key, 0.0), float(b["points"]))
+        section_max_battles[key] = max(
+            section_max_battles.get(key, 0.0), float(b["battles"])
+        )
+
+    def metrics_for(b: dict) -> dict:
+        total = b["attendance_total"]
+        attendance_rate = (
+            round((b["attendance_ok"] / total) * 100, 1) if total else None
+        )
+        grade_average = _avg(b["grades"])
+        expected = per_section_assignments.get(b["section_id"] or "", 0)
+        tasks_rate = (
+            round(min(100.0, (b["tasks_done"] / expected) * 100), 1)
+            if expected
+            else None
+        )
+        key = b["section_id"] or "_"
+        points_max = section_max_points.get(key, 0.0)
+        battles_max = section_max_battles.get(key, 0.0)
+        if points_max > 0:
+            practice = round(min(100.0, (b["points"] / points_max) * 100), 1)
+        elif battles_max > 0:
+            practice = round(min(100.0, (b["battles"] / battles_max) * 100), 1)
+        else:
+            practice = None
+        values = {
+            "grades": grade_average,
+            "attendance": attendance_rate,
+            "tasks": tasks_rate,
+            "practice": practice,
+        }
+        performance = _performance_index(values, weights)
+        return {
+            "id": b["id"],
+            "full_name": b["full_name"],
+            "email": b["email"],
+            "section_id": b["section_id"],
+            "attendance_rate": attendance_rate,
+            "grade_average": grade_average,
+            "tasks_done": b["tasks_done"],
+            "tasks_expected": expected,
+            "tasks_rate": tasks_rate,
+            "badges": b["badges"],
+            "points": b["points"],
+            "battles": b["battles"],
+            "wins": b["wins"],
+            "practice": practice,
+            "performance": performance,
+            "gap": _goal_gap(performance, goal),
+            "subjects": _subject_performance([b]),
+        }
+
+    student_rows = [metrics_for(b) for b in buckets.values()]
+    by_section: dict[str, list[dict]] = {}
+    for row in student_rows:
+        if row["section_id"]:
+            by_section.setdefault(row["section_id"], []).append(row)
+
+    section_rows = []
+    for section in sections:
+        key = str(section["id"])
+        members = by_section.get(key, [])
+        performances = [m["performance"] for m in members if m["performance"] is not None]
+        attendance_values = [
+            m["attendance_rate"] for m in members if m["attendance_rate"] is not None
+        ]
+        grade_values = [
+            m["grade_average"] for m in members if m["grade_average"] is not None
+        ]
+        task_values = [m["tasks_rate"] for m in members if m["tasks_rate"] is not None]
+        section_performance = _avg(performances)
+        section_rows.append(
+            {
+                "id": section["id"],
+                "display_name": section.get("display_name"),
+                "grade": section.get("grade"),
+                "students": len(members),
+                "performance": section_performance,
+                "grades": _avg(grade_values),
+                "attendance": _avg(attendance_values),
+                "tasks": _avg(task_values),
+                "assignments": per_section_assignments.get(key, 0),
+                "gap": _goal_gap(section_performance, goal),
+                "subjects": _subject_performance(members),
+            }
+        )
+
+    all_performances = [m["performance"] for m in student_rows if m["performance"] is not None]
+    school_performance = _avg(all_performances)
+    return {
+        "config": config,
+        "goal": goal,
+        "school": {
+            "students": len(student_rows),
+            "sections": len(sections),
+            "performance": school_performance,
+            "grades": _avg(
+                [m["grade_average"] for m in student_rows if m["grade_average"] is not None]
+            ),
+            "attendance": _avg(
+                [
+                    m["attendance_rate"]
+                    for m in student_rows
+                    if m["attendance_rate"] is not None
+                ]
+            ),
+            "tasks": _avg([m["tasks_rate"] for m in student_rows if m["tasks_rate"] is not None]),
+            "practice": _avg([m["practice"] for m in student_rows if m["practice"] is not None]),
+            "gap": _goal_gap(school_performance, goal),
+        },
+        "sections": section_rows,
+        "students": student_rows,
+        "subjects": _subject_performance(student_rows),
+    }
+
+
+def _subject_performance(rows: list[dict]) -> list[dict]:
+    subjects: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for row in rows:
+        for name, values in (row.get("subject_grades") or {}).items():
+            subjects[name] = subjects.get(name, 0.0) + sum(values)
+            counts[name] = counts.get(name, 0) + len(values)
+    result = [
+        {
+            "name": name,
+            "performance": round(subjects[name] / counts[name], 1)
+            if counts[name]
+            else None,
+        }
+        for name in subjects
+    ]
+    result.sort(key=lambda item: item["performance"] or 0, reverse=True)
+    return result
+
+
+@router.get("/{school_id}/reports/overview")
+async def report_overview(
+    school_id: str,
+    uid: Annotated[str, Depends(_current_uid)],
+    export: bool = False,
+):
+    """Vista agregada de todas las aulas para los graficos del panel."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, STAFF_ROLES)
+    data = _school_metrics(supabase, school_id, member, uid)
+    section_names = {
+        str(s["id"]): s.get("display_name") for s in data["sections"]
+    }
+    csv_rows = [
+        [
+            s.get("full_name"),
+            section_names.get(str(s.get("section_id")), ""),
+            s.get("performance"),
+            s.get("grade_average"),
+            s.get("attendance_rate"),
+            s.get("tasks_done"),
+            s.get("tasks_expected"),
+            s.get("points"),
+            (s.get("gap") or {}).get("distance"),
+        ]
+        for s in data["students"]
+    ]
+    return _export_or_json(
+        export,
+        "battlegraf-desempeno.csv",
+        [
+            "Alumno",
+            "Aula",
+            "IDB",
+            "Promedio%",
+            "Asistencia%",
+            "Tareas",
+            "Tareas esperadas",
+            "Puntos",
+            "Brecha meta",
+        ],
+        csv_rows,
+        data,
+    )
+
+
+@router.post("/{school_id}/reports/config", response_model=Msg)
+async def update_report_config(
+    school_id: str,
+    body: ReportConfigIn,
+    uid: Annotated[str, Depends(_current_uid)],
+):
+    """Guarda pesos y meta del indice de desempeno (direccion)."""
+    supabase = supabase_admin()
+    await _require_member(supabase, uid, school_id, LEAD_ROLES)
+    current = (
+        _first(
+            supabase.table("school_settings")
+            .select("report_config")
+            .eq("school_id", school_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        or {}
+    )
+    stored = dict(current.get("report_config") or {})
+    if body.weights is not None:
+        weights = dict(stored.get("weights") or {})
+        for key, value in body.weights.items():
+            if key in DEFAULT_REPORT_CONFIG["weights"]:
+                weights[key] = max(0, int(value))
+        stored["weights"] = weights
+    if body.goal is not None:
+        stored["goal"] = max(0.0, min(100.0, float(body.goal)))
+    try:
+        if current:
+            supabase.table("school_settings").update({"report_config": stored}).eq(
+                "school_id", school_id
+            ).execute()
+        else:
+            supabase.table("school_settings").insert(
+                {"school_id": school_id, "report_config": stored}
+            ).execute()
+    except Exception:  # noqa: BLE001
+        raise HTTPException(
+            status_code=400, detail="No se pudo guardar la configuracion"
+        ) from None
+    return Msg(detail="Configuracion de reportes guardada")
+
+
+@router.get("/{school_id}/reports/student/{student_id}")
+async def report_student(
+    school_id: str,
+    student_id: str,
+    uid: Annotated[str, Depends(_current_uid)],
+):
+    """Expediente de desempeno de un alumno del colegio."""
+    supabase = supabase_admin()
+    member = await _require_member(supabase, uid, school_id, STAFF_ROLES)
+    data = _school_metrics(supabase, school_id, member, uid)
+    for row in data["students"]:
+        if str(row["id"]) == str(student_id):
+            row = dict(row)
+            row["rank"] = sorted(
+                [
+                    (r["performance"] or 0, r["id"])
+                    for r in data["students"]
+                    if r.get("section_id") == row.get("section_id")
+                ],
+                reverse=True,
+            ).index((row["performance"] or 0, row["id"])) + 1
+            return {"student": row, "config": data["config"], "goal": data["goal"]}
+    raise HTTPException(status_code=404, detail="Alumno no encontrado")
 
 
 # ---------------------------------------------------------------- materiales IA

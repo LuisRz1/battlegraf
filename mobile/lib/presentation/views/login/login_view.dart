@@ -56,31 +56,36 @@ class _LoginViewState extends ConsumerState<LoginView> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SchoolTower(
-                                      color: AppColors.brightRed,
-                                      size: 76,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Container(
+                              width: 92,
+                              height: 92,
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: AppColors.piedra900,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.bordeOro, width: 1.6),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(5),
+                                child: Image.asset(
+                                  'assets/images/battlegraph_icon.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stack) => const ColoredBox(
+                                    color: AppColors.fondoPanel,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.games,
+                                        color: AppColors.oro500,
+                                        size: 34,
+                                      ),
                                     ),
-                                    SizedBox(width: 8),
-                                    AcademicHexBadge(
-                                      label: 'VS',
-                                      color: AppColors.gold,
-                                      size: 48,
-                                    ),
-                                    SizedBox(width: 8),
-                                    SchoolTower(
-                                      color: AppColors.neonPurple,
-                                      size: 76,
-                                      flagRight: false,
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              )
-                              .animate()
+                              ),
+                            ),
+                          ).animate()
                               .fadeIn(duration: 500.ms)
                               .scale(
                                 begin: const Offset(.75, .75),
@@ -179,21 +184,31 @@ class _LoginViewState extends ConsumerState<LoginView> {
                                         : const Text('ENTRAR AL GRAFO'),
                                   ),
                                 ),
-                                if (authState.usesSupabase) ...[
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: authState.isLoading
-                                          ? null
-                                          : () => ref
-                                                .read(authProvider.notifier)
-                                                .loginWithGoogle(),
-                                      icon: const Icon(Icons.login),
-                                      label: const Text('CONTINUAR CON GOOGLE'),
-                                    ),
-                                  ),
-                                ],
+                                const SizedBox(height: 10),
+                                                                SizedBox(
+                                                                  width: double.infinity,
+                                                                  child: OutlinedButton.icon(
+                                                                    onPressed: authState.isLoading
+                                                                        ? null
+                                                                        : () => ref
+                                                                              .read(authProvider.notifier)
+                                                                              .loginWithGoogle(),
+                                                                    icon: const Icon(Icons.login),
+                                                                    label: const Text('CONTINUAR CON GOOGLE'),
+                                                                    style: OutlinedButton.styleFrom(
+                                                                      foregroundColor: AppColors.oro300,
+                                                                      side: const BorderSide(color: AppColors.bordeOro, width: 1.3),
+                                                                      shape: RoundedRectangleBorder(
+                                                                        borderRadius: BorderRadius.circular(4),
+                                                                      ),
+                                                                      textStyle: const TextStyle(
+                                                                        fontFamily: AppTheme.displayFont,
+                                                                        fontSize: 11,
+                                                                        letterSpacing: 1.4,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ),
                                 const SizedBox(height: 14),
                                 SizedBox(
                                   width: double.infinity,

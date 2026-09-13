@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../domain/models/graph.dart';
@@ -23,6 +25,26 @@ class DemoQuestion {
     required this.options,
     required this.correctOption,
   });
+
+  /// Convierte una pregunta del endpoint público de BattleGraph
+  /// (`{t, q, a:[...], c:indice}`) al formato del motor nativo.
+  factory DemoQuestion.fromRemote(Map<String, dynamic> json, String nodeId) {
+    const letters = ['A', 'B', 'C', 'D'];
+    final raw = (json['a'] as List?) ?? const [];
+    final options = <String, String>{};
+    for (var i = 0; i < raw.length && i < letters.length; i++) {
+      options[letters[i]] = '${raw[i]}';
+    }
+    final correct = (json['c'] as num?)?.toInt() ?? 0;
+    return DemoQuestion(
+      id: '${json['t'] ?? 'q'}-$nodeId',
+      nodeId: nodeId,
+      subject: '${json['t'] ?? 'General'}',
+      prompt: '${json['q'] ?? ''}',
+      options: options.isEmpty ? const {'A': '-', 'B': '-', 'C': '-', 'D': '-'} : options,
+      correctOption: letters[correct.clamp(0, 3).toInt()],
+    );
+  }
 }
 
 /// Local, deterministic battle used by the public prototype.
@@ -31,8 +53,62 @@ class DemoQuestion {
 /// the board is not a separate mock. The only simulated part is the rival:
 /// every purple turn chooses a legal frontier node and resolves one question.
 class BotBattleDemoController extends ChangeNotifier {
-  BotBattleDemoController() {
+  BotBattleDemoController({
+    List<DemoQuestion>? pool,
+    Map<String, int>? initialAbilities,
+    int? layers,
+    int? nodesPerLayer,
+  }) : _pool = pool,
+       _initialAbilities = initialAbilities,
+       _configLayers = layers,
+       _configNodes = nodesPerLayer {
     _restoreInitialState();
+  }
+
+  /// Preguntas reales del colegio. Si es null se usa la demo local.
+  final List<DemoQuestion>? _pool;
+
+  /// Poderes equipados al iniciar la partida (efecto -> cantidad).
+  final Map<String, int>? _initialAbilities;
+
+  /// Tamano de mapa configurable (capas y nodos por capa).
+  final int? _configLayers;
+  final int? _configNodes;
+  late Map<String, DemoQuestion> _questionMap;
+
+  int _helpTokens = 0;
+  final Set<String> _hiddenOptions = {};
+
+  int get helpTokens => _helpTokens;
+  bool get hasHelp =>
+      _helpTokens > 0 && _phase == DemoBattlePhase.answerQuestion;
+
+  /// Opciones visibles del nodo activo (los poderes pueden ocultar 2 erroneas).
+  List<MapEntry<String, String>> get activeOptions {
+    final question = activeQuestion;
+    if (question == null) return const [];
+    return question.options.entries
+        .where((entry) => !_hiddenOptions.contains(entry.key))
+        .toList();
+  }
+
+  /// Usa un poder equipado: elimina dos opciones incorrectas de la pregunta.
+  bool useHelp() {
+    final question = activeQuestion;
+    if (question == null ||
+        _helpTokens <= 0 ||
+        _phase != DemoBattlePhase.answerQuestion) {
+      return false;
+    }
+    final wrong = question.options.keys.where(
+      (key) => key != question.correctOption && !_hiddenOptions.contains(key),
+    );
+    for (final key in wrong.take(2)) {
+      _hiddenOptions.add(key);
+    }
+    _helpTokens -= 1;
+    notifyListeners();
+    return true;
   }
 
   static const redBaseId = 'red-base';
@@ -78,7 +154,7 @@ class BotBattleDemoController extends ChangeNotifier {
 
   DemoQuestion? get activeQuestion {
     final nodeId = _selectedNodeId;
-    return nodeId == null ? null : _questionsByNode[nodeId];
+    return nodeId == null ? null : _questionMap[nodeId];
   }
 
   Set<String> get legalNodeIds => _legalNodesFor(_currentSide);
@@ -99,6 +175,7 @@ class BotBattleDemoController extends ChangeNotifier {
     _lastMoveNodeId = nodeId;
     _phase = DemoBattlePhase.answerQuestion;
     _lastMoveWasCorrect = null;
+    _hiddenOptions.clear();
     _statusMessage = 'Responde para conquistar ${_node(nodeId).label}.';
     notifyListeners();
     return true;
@@ -335,7 +412,12 @@ class BotBattleDemoController extends ChangeNotifier {
   }
 
   void _restoreInitialState() {
-    _graph = _buildGraph();
+    _graph = (_pool == null || _pool.isEmpty)
+        ? _demoGraph()
+        : _generateGraph();
+    _questionMap = _buildQuestionMap();
+    _hiddenOptions.clear();
+    _helpTokens = (_initialAbilities?.values.fold<int>(0, (a, b) => a + b)) ?? 0;
     _currentSide = DemoBattleSide.red;
     _phase = DemoBattlePhase.chooseNode;
     _winner = null;
@@ -354,7 +436,124 @@ class BotBattleDemoController extends ChangeNotifier {
     _captureMillis.clear();
   }
 
-  static Graph _buildGraph() {
+  DemoQuestion _copyFor(DemoQuestion source, String nodeId) => DemoQuestion(
+    id: '${source.id}-$nodeId',
+    nodeId: nodeId,
+    subject: source.subject,
+    prompt: source.prompt,
+    options: source.options,
+    correctOption: source.correctOption,
+  );
+
+  /// Reparte las preguntas reales entre los nodos generados.
+  Map<String, DemoQuestion> _buildQuestionMap() {
+    final pool = _pool;
+    if (pool == null || pool.isEmpty) {
+      return _questionsByNode;
+    }
+    final map = <String, DemoQuestion>{};
+    var index = 0;
+    for (final node in _graph.nodes) {
+      final bySubject = pool
+          .where((question) => question.subject == node.subject)
+          .toList();
+      final source = bySubject.isNotEmpty
+          ? bySubject[index % bySubject.length]
+          : pool[index % pool.length];
+      map[node.id] = _copyFor(source, node.id);
+      index++;
+    }
+    return map;
+  }
+
+  void _addEdge(List<GraphEdge> edges, String source, String target) {
+    if (source == target) return;
+    final exists = edges.any(
+      (edge) =>
+          (edge.source == source && edge.target == target) ||
+          (edge.source == target && edge.target == source),
+    );
+    if (!exists) edges.add(GraphEdge(source: source, target: target));
+  }
+
+  /// Genera un mapa distinto por batalla (base a base con capas intermedias),
+  /// replicando el generador del juego web.
+  Graph _generateGraph() {
+    final rng = Random(DateTime.now().microsecondsSinceEpoch);
+    final layers = (_configLayers ?? (4 + rng.nextInt(3))).clamp(3, 7).toInt();
+    final nodesPerLayer = (_configNodes ?? (3 + rng.nextInt(2)))
+        .clamp(2, 5)
+        .toInt();
+    final topics = _pool!
+        .map((question) => question.subject)
+        .where((subject) => subject.trim().isNotEmpty)
+        .toSet()
+        .toList();
+
+    final nodes = <Node>[
+      const Node(
+        id: redBaseId,
+        label: 'TU BASE',
+        subject: 'base',
+        layer: 0,
+        position: 0,
+        owner: NodeOwner.player,
+      ),
+    ];
+    final layerIds = <List<String>>[];
+    for (var layer = 1; layer <= layers - 2; layer++) {
+      final ids = <String>[];
+      for (var pos = 0; pos < nodesPerLayer; pos++) {
+        final id = 'n${layer}_$pos';
+        final subject = topics.isEmpty
+            ? 'general'
+            : topics[(layer * nodesPerLayer + pos) % topics.length];
+        ids.add(id);
+        nodes.add(
+          Node(id: id, label: subject, subject: subject, layer: layer, position: pos),
+        );
+      }
+      layerIds.add(ids);
+    }
+    nodes.add(
+      Node(
+        id: purpleBaseId,
+        label: 'BASE RIVAL',
+        subject: 'base',
+        layer: layers - 1,
+        position: 0,
+        owner: NodeOwner.opponent,
+      ),
+    );
+
+    final edges = <GraphEdge>[];
+    final first = layerIds.isNotEmpty ? layerIds.first : <String>[purpleBaseId];
+    for (final id in first) {
+      _addEdge(edges, redBaseId, id);
+    }
+    for (var i = 0; i < layerIds.length - 1; i++) {
+      final a = layerIds[i];
+      final b = layerIds[i + 1];
+      for (var k = 0; k < a.length; k++) {
+        final j = (k * b.length ~/ a.length).clamp(0, b.length - 1).toInt();
+        _addEdge(edges, a[k], b[j]);
+      }
+      for (var j = 0; j < b.length; j++) {
+        final hasInput = edges.any((edge) => edge.target == b[j]);
+        if (!hasInput) {
+          final k = (j * a.length ~/ b.length).clamp(0, a.length - 1).toInt();
+          _addEdge(edges, a[k], b[j]);
+        }
+      }
+    }
+    final last = layerIds.isNotEmpty ? layerIds.last : <String>[redBaseId];
+    for (final id in last) {
+      _addEdge(edges, id, purpleBaseId);
+    }
+    return Graph(nodes: nodes, edges: edges, layerCount: layers);
+  }
+
+  static Graph _demoGraph() {
     const nodes = [
       Node(
         id: redBaseId,

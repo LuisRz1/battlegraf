@@ -11,6 +11,15 @@ import Topics from "../components/Topics.astro";
 import PricingSection from "../components/PricingSection.astro";
 import FinalCta from "../components/FinalCta.astro";
 import Footer from "../components/Footer.astro";
+
+// Callback OAuth movil: Supabase redirige aqui con el code de Google.
+// Reenviamos al deep link de la app para que la sesion vuelva al aplicativo.
+const params = Astro.url.searchParams;
+const hasOauthCode = params.has("code") || params.has("access_token");
+if (hasOauthCode) {
+	const qs = params.toString();
+	return Astro.redirect(`io.battlegraf.app://login-callback?${qs}`, 302);
+}
 ---
 
 <html lang="es">

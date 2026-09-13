@@ -30,43 +30,87 @@ const membership = activeMembership;
 const schoolId = membership.school_id;
 const myRole = membership.role;
 const multiSchool = membershipsList.length > 1;
-// Datos del panel desde el backend FastAPI (Railway) — una sola llamada
+// Datos del panel desde el backend FastAPI (Railway) — todas las llamadas en paralelo
+// con cache corto en memoria para que moverse entre vistas sea inmediato.
 const API_BASE =
   process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
 const { data: sessionData } = await supabase.auth.getSession();
 const apiToken = sessionData?.session?.access_token ?? "";
-let dashboard: any = {};
-let academicOverview: any = {
-  metrics: {},
-  students: [],
-  subject_performance: [],
-  periods: [],
+type PanelCacheEntry = {
+  at: number;
+  dashboard: any;
+  academicOverview: any;
+  rewardsCatalog: any;
+  missionsList: any[];
+  studyGoalsList: any[];
+  assistantMessages: any[];
 };
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/dashboard`, {
+const panelCache: Map<string, PanelCacheEntry> = ((
+  globalThis as any
+).__battlegrafPanelCache ??= new Map());
+const panelCacheKey = `${schoolId}:${myRole}:${userData.user.id}`;
+const bypassPanelCache =
+  Astro.url.searchParams.has("created") ||
+  Astro.url.searchParams.has("saved") ||
+  Astro.url.searchParams.has("error");
+const cachedPanel = bypassPanelCache
+  ? undefined
+  : panelCache.get(panelCacheKey);
+const panelCacheFresh = Boolean(
+  cachedPanel && Date.now() - cachedPanel.at < 45_000,
+);
+let dashboard: any = panelCacheFresh ? cachedPanel!.dashboard : {};
+let academicOverview: any = panelCacheFresh
+  ? cachedPanel!.academicOverview
+  : { metrics: {}, students: [], subject_performance: [], periods: [] };
+let rewardsCatalog: any = panelCacheFresh
+  ? cachedPanel!.rewardsCatalog
+  : { badges: [], powerups: [], ranks: [], reward_rules: {} };
+let missionsList: any[] = panelCacheFresh ? cachedPanel!.missionsList : [];
+let studyGoalsList: any[] = panelCacheFresh ? cachedPanel!.studyGoalsList : [];
+let assistantMessages: any[] = panelCacheFresh
+  ? cachedPanel!.assistantMessages
+  : [];
+if (!panelCacheFresh && apiToken) {
+  const apiGet = async (path: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/panel/${schoolId}${path}`, {
         headers: {
           Authorization: `Bearer ${apiToken}`,
           "User-Agent": "battlegraf-panel",
         },
-      })
-    : null;
-  if (res?.ok) dashboard = await res.json();
-} catch (e) {
-  console.error("panel dashboard error", e);
-}
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/academics/overview`, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "User-Agent": "battlegraf-panel",
-        },
-      })
-    : null;
-  if (res?.ok) academicOverview = await res.json();
-} catch (e) {
-  console.error("panel academics error", e);
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+  const [dash, academics, catalog, missions, goals, memory] =
+    await Promise.all([
+      apiGet("/dashboard"),
+      apiGet("/academics/overview"),
+      apiGet("/rewards/catalog"),
+      apiGet("/missions"),
+      apiGet("/study-goals"),
+      apiGet("/me/memory"),
+    ]);
+  if (dash) dashboard = dash;
+  if (academics) academicOverview = academics;
+  if (catalog) rewardsCatalog = catalog;
+  if (missions?.missions) missionsList = missions.missions;
+  if (goals?.study_goals) studyGoalsList = goals.study_goals;
+  if (memory?.messages) assistantMessages = memory.messages;
+  if (dashboard.school_id) {
+    panelCache.set(panelCacheKey, {
+      at: Date.now(),
+      dashboard,
+      academicOverview,
+      rewardsCatalog,
+      missionsList,
+      studyGoalsList,
+      assistantMessages,
+    });
+  }
 }
 // Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
 if (!dashboard.school_id) {
@@ -344,6 +388,11 @@ const allViews = [
   ["tareas", "Tareas"],
   ["batallas", "Batallas y torneos"],
   ["progreso", "Rangos, clanes y XP"],
+  ["recompensas", "Insignias y poderes"],
+  ["misiones", "Misiones"],
+  ["metas", "Metas de estudio"],
+  ["reportes", "Reportes"],
+  ["asistente", "Asistente IA"],
   ["auditoria", "Actividad y auditoria"],
 ];
 const viewsByRole: Record<string, string[]> = {
@@ -355,6 +404,8 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
+    "asistente",
   ],
   teacher: [
     "centro",
@@ -367,6 +418,11 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
+    "misiones",
+    "metas",
+    "reportes",
+    "asistente",
   ],
   tutor: [
     "centro",
@@ -379,6 +435,11 @@ const viewsByRole: Record<string, string[]> = {
     "tareas",
     "batallas",
     "progreso",
+    "recompensas",
+    "misiones",
+    "metas",
+    "reportes",
+    "asistente",
   ],
 };
 const allowedViewSlugs = viewsByRole[myRole];
@@ -487,7 +548,7 @@ const trNivel = (level?: string) =>
   title={`${viewTitle} | BattleGraph`}
   description="Centro de mando institucional de BattleGraph."
 >
-  <section class="command-shell">
+  <section class="command-shell" data-view={view}>
     <aside class="command-sidebar">
       <a class="command-logo" href="/"
         ><img
@@ -510,6 +571,7 @@ const trNivel = (level?: string) =>
             <a
               class:list={[view === slug && "active"]}
               href={`/panel?view=${slug}`}
+              data-astro-prefetch="hover"
             >
               <b>{String(index + 1).padStart(2, "0")}</b>
               {label}
@@ -536,7 +598,15 @@ const trNivel = (level?: string) =>
           ><span>BUSCAR</span><input
             id="command-search"
             placeholder="Alumno, seccion, material..."
-          /></label
+          />        </label
+        ><button
+          class="sound-toggle"
+          id="sound-toggle"
+          type="button"
+          data-sound="off"
+          aria-pressed="false"
+          title="Activa o silencia el sonido del juego"
+          ><span>SONIDO</span><strong id="sound-toggle-label">SILENCIO</strong></button
         ><label class="role-view"
           ><span>ROL ACTIVO</span><select id="role-view" disabled
             ><option>{trRol(myRole)}</option></select
@@ -1799,6 +1869,19 @@ const trNivel = (level?: string) =>
                           <input
                             type="hidden"
                             name="action"
+                            value="generate_material"
+                          />
+                          <input type="hidden" name="id" value={material.id} />
+                          <button class="btn-edit">GENERAR IA</button>
+                        </form>
+                        <form
+                          method="post"
+                          action="/api/recursos"
+                          class="inline"
+                        >
+                          <input
+                            type="hidden"
+                            name="action"
                             value="delete_material"
                           />
                           <input type="hidden" name="id" value={material.id} />
@@ -2096,6 +2179,7 @@ const trNivel = (level?: string) =>
                             ?.name ?? ""
                         }
                         data-time={settings.battle_rules?.turn_seconds ?? 30}
+                        data-bot={battle.bot_difficulty ?? "balanced"}
                         data-layers={battle.graph_layers ?? 4}
                         data-nodes={battle.nodes_per_layer ?? 4}
                         data-teams={
@@ -2114,6 +2198,7 @@ const trNivel = (level?: string) =>
                         data-id={battle.id}
                         data-title={battle.title}
                         data-type={battle.battle_type}
+                        data-bot={battle.bot_difficulty ?? "balanced"}
                         data-subject={battle.subject_id ?? ""}
                         data-grade={battle.grade ?? ""}
                         data-oppa={battle.opponent_a}
@@ -2222,6 +2307,270 @@ const trNivel = (level?: string) =>
         }
 
         {
+          view === "recompensas" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>MOTIVACION</span>
+                  <h1>INSIGNIAS Y PODERES</h1>
+                  <p>
+                    Recompensas que los alumnos obtienen al completar tareas,
+                    misiones y batallas.
+                  </p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="badge-dialog">NUEVA INSIGNIA</button>
+                  <button class="command-btn" type="button" data-open-dialog="powerup-dialog">NUEVO PODER</button>
+                </div>
+              </div>
+              <div class="metric-grid">
+                <article><span>INSIGNIAS</span><strong>{String((rewardsCatalog.badges ?? []).length).padStart(2, "0")}</strong><small>Catalogo</small></article>
+                <article><span>PODERES</span><strong>{String((rewardsCatalog.powerups ?? []).length).padStart(2, "0")}</strong><small>Inventario</small></article>
+                <article><span>PUNTOS/ACIERTO</span><strong>{rewardsCatalog.reward_rules?.points_per_correct_answer ?? 5}</strong><small>Regla actual</small></article>
+                <article><span>PUNTOS/TAREA</span><strong>{rewardsCatalog.reward_rules?.points_per_task ?? 20}</strong><small>Regla actual</small></article>
+              </div>
+              <div class="dashboard-grid two">
+                <section class="game-panel">
+                  <span>CATALOGO</span>
+                  <h2>INSIGNIAS</h2>
+                  <div class="card-grid">
+                    {(rewardsCatalog.badges ?? []).map((b: any) => (
+                      <article class="subject-card searchable">
+                        <h2>{b.name}</h2>
+                        <p>{b.description ?? ""}</p>
+                        <small>{b.category ?? "general"} · {b.points ?? 0} puntos</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+                <section class="game-panel">
+                  <span>COMPRABLES CON PUNTOS</span>
+                  <h2>PODERES</h2>
+                  <div class="card-grid">
+                    {(rewardsCatalog.powerups ?? []).map((p: any) => (
+                      <article class="subject-card searchable">
+                        <h2>{p.name}</h2>
+                        <p>{p.description ?? ""}</p>
+                        <small>{p.rarity ?? "tactico"} · {p.cost_points ?? 0} puntos</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "misiones" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>RETOS</span>
+                  <h1>MISIONES</h1>
+                  <p>Retos por aula o grado que otorgan puntos, insignias y poderes.</p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="mission-dialog">NUEVA MISION</button>
+                </div>
+              </div>
+              <div class="card-grid">
+                {missionsList.length === 0 && (
+                  <section class="game-panel"><p>Aun no hay misiones creadas.</p></section>
+                )}
+                {missionsList.map((m: any) => (
+                  <article class="subject-card searchable">
+                    <h2>{m.title}</h2>
+                    <p>{m.description ?? ""}</p>
+                    <small>
+                      {m.goal_type} ≥ {m.goal_value} · {m.reward_points} puntos · {m.status}
+                    </small>
+                  </article>
+                ))}
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "metas" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>PLANIFICACION</span>
+                  <h1>METAS DE ESTUDIO</h1>
+                  <p>
+                    Objetivos y temas por grado y materia que orientan la
+                    generacion de material con IA.
+                  </p>
+                </div>
+                <div class="row-actions">
+                  <button class="command-btn" type="button" data-open-dialog="goal-dialog">NUEVA META</button>
+                </div>
+              </div>
+              <div class="card-grid">
+                {studyGoalsList.length === 0 && (
+                  <section class="game-panel"><p>Aun no hay metas de estudio.</p></section>
+                )}
+                {studyGoalsList.map((g: any) => (
+                  <article class="subject-card searchable">
+                    <h2>{g.title}</h2>
+                    <p>Grado {g.grade} · {g.status}</p>
+                    <small>{(g.topics ?? []).join(", ")}</small>
+                  </article>
+                ))}
+              </div>
+            </>
+          )
+        }
+
+        {
+          view === "reportes" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>ANALITICA</span>
+                  <h1>REPORTES</h1>
+                  <p>
+                    Desempeno de todas las aulas, docentes y alumnos con el
+                    Indice BattleGraph (IDB) y su distancia a la meta.
+                  </p>
+                </div>
+                <div class="command-actions">
+                  <button
+                    class="command-btn ghost"
+                    data-open-dialog="report-config-dialog"
+                  >
+                    AJUSTAR META
+                  </button>
+                  <a
+                    class="command-btn"
+                    id="report-export"
+                    href="/api/reportes?type=overview&format=csv"
+                    >EXPORTAR CSV</a
+                  >
+                </div>
+              </div>
+              <div class="report-filter">
+                <label>Vista<select id="report-scope"
+                    ><option value="school">Todo el colegio</option
+                    ><option value="section">Un aula</option
+                    >{["owner", "director", "subdirector", "coordinator"].includes(
+                      myRole,
+                    ) && <option value="staff">Un docente</option
+                    >}<option value="student">Un alumno</option></select
+                  ></label
+                ><label id="report-section-wrap" hidden
+                  >Aula<select id="report-section"
+                    >{sections.map((s: any) => (
+                      <option value={s.id}>{s.display_name}</option>
+                    ))}</select
+                  ></label
+                ><label id="report-staff-wrap" hidden
+                  >Docente<select id="report-staff"
+                    >{staff
+                      .filter((p: any) =>
+                        [
+                          "teacher",
+                          "tutor",
+                          "coordinator",
+                          "subdirector",
+                        ].includes(p.role),
+                      )
+                      .map((p: any) => (
+                        <option value={p.id}>{p.full_name}</option>
+                      ))}</select
+                  ></label
+                ><label id="report-student-wrap" hidden
+                  >Alumno<select id="report-student"
+                    >{students.map((s: any) => (
+                      <option value={s.id}>{s.full_name}</option>
+                    ))}</select
+                  ></label
+                ><button class="command-btn" id="report-refresh" type="button">
+                  ACTUALIZAR
+                </button><span class="report-chip" id="report-goal-chip"
+                  >META 80 / IDB</span
+                >
+              </div>
+              <div class="report-loading" id="report-loading">
+                PREPARANDO ANALITICA...
+              </div>
+              <div id="report-content" hidden></div>
+            </>
+          )
+        }
+
+        {
+          view === "asistente" && (
+            <>
+              <div class="command-title">
+                <div>
+                  <span>MEMORIA DE LA CUENTA</span>
+                  <h1>ASISTENTE IA</h1>
+                  <p>
+                    Pregunta sobre tus clases, tus alumnos o como preparar una
+                    actividad. El asistente recuerda el historial de tu cuenta.
+                  </p>
+                </div>
+              </div>
+              <section class="game-panel assistant-view">
+                <span>CONVERSACION · SOLO TU COLEGIO</span>
+                <h2>CHAT</h2>
+                {(assistantMessages ?? []).length === 0 && (
+                  <p>
+                    Inicia la conversacion. Puedo explicarte como funciona cada
+                    modulo, ayudarte con la configuracion y leer tus reportes.
+                    Solo veo la informacion de tu colegio.
+                  </p>
+                )}
+                <div class="assistant-thread">
+                  {(assistantMessages ?? []).map((m: any) => (
+                    <div
+                      class:list={[
+                        "assistant-msg",
+                        m.role === "user" ? "user" : "bot",
+                      ]}
+                    >
+                      <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+                      <p>{m.content}</p>
+                    </div>
+                  ))}
+                </div>
+                <div class="assistant-chips">
+                  {[
+                    "¿Como creo una seccion?",
+                    "¿Como programo una batalla contra bot?",
+                    "¿Como interpreto el reporte de mi aula?",
+                    "Ayudame a configurar mi colegio",
+                  ].map((suggestion) => (
+                    <button
+                      type="button"
+                      class="report-chip"
+                      data-assistant-prompt={suggestion}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+                <form method="post" action="/api/asistente">
+                  <input type="hidden" name="school_id" value={schoolId} />
+                  <input type="hidden" name="redirect" value={view} />
+                  <label
+                    >Pregunta<textarea
+                      name="prompt"
+                      rows="3"
+                      required
+                      maxlength="2000"
+                      class="assistant-prompt"></textarea></label
+                  ><button class="command-btn" type="submit">ENVIAR</button>
+                </form>
+              </section>
+            </>
+          )
+        }
+
+        {
           view === "auditoria" && (
             <>
               <>
@@ -2316,6 +2665,15 @@ const trNivel = (level?: string) =>
                   </article>
                 </>
               </div>
+              {["owner", "director", "subdirector", "coordinator", "tutor", "teacher"].includes(myRole) && (
+                <div class="row-actions academic-actions">
+                  <button class="command-btn" type="button" data-open-dialog="attendance-dialog">ASISTENCIA</button>
+                  <button class="command-btn" type="button" data-open-dialog="grade-item-dialog">CREAR EVALUACION</button>
+                  <button class="command-btn" type="button" data-open-dialog="quick-grade-dialog">REGISTRAR NOTA</button>
+                  <button class="command-btn" type="button" data-open-dialog="observation-dialog">OBSERVACION</button>
+                  <a class="command-btn" href="/api/reportes?type=class">EXPORTAR CLASES</a>
+                </div>
+              )}
               {(academicOverview.students ?? []).length === 0 ? (
                 <section class="academic-empty game-panel">
                   <span>PREPARACIÓN DEL PILOTO</span>
@@ -2643,13 +3001,14 @@ const trNivel = (level?: string) =>
             ))
           }</select
         ></label
+      ><label>Grado<input name="grade" placeholder="5" maxlength="20" /></label
       ><label
         >Archivo<input
           name="file"
           type="file"
           accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp"
         /></label
-      ><small>La carga genera preguntas de muestra para revision.</small><button
+      ><small>Se extrae el texto y luego puedes generar preguntas con IA (revision docente).</small><button
         class="command-btn"
         type="submit">PROCESAR MATERIAL</button
       >
@@ -2745,6 +3104,14 @@ const trNivel = (level?: string) =>
           ><option value="section_vs_section">Seccion vs seccion</option><option
             value="tournament">Torneo</option
           ></select
+        ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced" selected>Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
         ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
@@ -2963,6 +3330,14 @@ const trNivel = (level?: string) =>
             value="tournament">Torneo</option
           ></select
         ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced">Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
+        ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
           name="subject_id"
@@ -3081,11 +3456,22 @@ const trNivel = (level?: string) =>
         >
       </header><p id="confirm-delete-text">
         ¿Seguro que deseas eliminar este elemento?
-      </p><div class="dialog-actions">
+      </p><label class="confirm-typing"
+        >Escribe <b>ELIMINAR</b> para confirmar<input
+          id="confirm-delete-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="ELIMINAR"
+        /></label
+      ><div class="dialog-actions">
         <button class="command-btn ghost" type="button" data-close-dialog
           >CANCELAR</button
-        ><button class="command-btn" type="button" id="confirm-delete-btn"
-          >ELIMINAR</button
+        ><button
+          class="command-btn danger"
+          type="button"
+          id="confirm-delete-btn"
+          disabled>ELIMINAR DEFINITIVAMENTE</button
         >
       </div>
     </form>
@@ -3104,10 +3490,83 @@ const trNivel = (level?: string) =>
     </form><div class="game-modal-frame">
       <iframe
         id="panel-game-iframe"
-        src="/game/BattleGraph.html"
+        src="about:blank"
+        data-src="/game/BattleGraph.html"
         allow="autoplay; fullscreen; focus-without-user-activation"
         title="Juego BattleGraph"></iframe>
     </div>
+  </dialog>
+  <button
+    class="assistant-fab"
+    id="assistant-fab"
+    type="button"
+    data-open-dialog="assistant-dialog"
+    aria-label="Abrir asistente IA"
+    title="Asistente IA de tu colegio"
+    ><span>IA</span><strong>ASISTENTE</strong></button
+  >
+  <dialog class="portal-dialog assistant-dialog" id="assistant-dialog">
+    <form method="post" action="/api/asistente">
+      <input type="hidden" name="school_id" value={schoolId} /><input
+        type="hidden"
+        name="redirect"
+        value={view}
+      /><header>
+        <div>
+          <span>ASISTENTE DEL COLEGIO</span>
+          <h2 id="assistant-dialog-title">Pregunta lo que necesites</h2>
+        </div><button type="button" data-close-dialog>X</button>
+      </header>
+      <div class="assistant-thread">
+        {(assistantMessages ?? []).length === 0 && (
+          <p class="assistant-empty">
+            Puedo explicarte como funciona cada modulo, ayudarte a configurar
+            secciones, materias, tareas y batallas, y leer tus reportes. Solo
+            accedo a la informacion de tu colegio.
+          </p>
+        )}
+        {(assistantMessages ?? []).map((m: any) => (
+          <div
+            class:list={[
+              "assistant-msg",
+              m.role === "user" ? "user" : "bot",
+            ]}
+          >
+            <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+            <p>{m.content}</p>
+          </div>
+        ))}
+      </div>
+      <div class="assistant-chips">
+        {[
+          "¿Como creo una seccion?",
+          "¿Como programo una batalla contra bot?",
+          "¿Como interpreto el reporte de mi aula?",
+          "Ayudame a configurar mi colegio",
+        ].map((suggestion) => (
+          <button
+            type="button"
+            class="report-chip"
+            data-assistant-prompt={suggestion}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+      <label
+        >Tu pregunta<textarea
+          name="prompt"
+          rows="3"
+          required
+          maxlength="2000"
+          class="assistant-prompt"></textarea></label
+      >
+      <div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog
+          >CERRAR</button
+        ><button class="command-btn" type="submit">ENVIAR</button>
+      </div>
+    </form>
   </dialog>
 </PortalLayout>
 <dialog class="portal-dialog academic-dialog" id="attendance-dialog">
@@ -3335,9 +3794,190 @@ const trNivel = (level?: string) =>
   </form>
 </dialog>
 
+<dialog class="portal-dialog" id="badge-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="badge" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>RECOMPENSA</span><h2>Nueva insignia</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Codigo<input name="code" required maxlength="60" placeholder="primer_paso" /></label>
+    <label>Nombre<input name="name" required maxlength="120" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="500"></textarea></label>
+    <div class="dialog-columns">
+      <label>Icono<input name="icon_code" maxlength="3" value="M" /></label>
+      <label>Categoria<input name="category" maxlength="40" value="general" /></label>
+    </div>
+    <label>Puntos<input type="number" name="points" min="0" max="1000" value="15" /></label>
+    <button class="command-btn" type="submit">CREAR INSIGNIA</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="powerup-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="powerup" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>INVENTARIO</span><h2>Nuevo poder</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Codigo<input name="code" required maxlength="60" placeholder="half" /></label>
+    <label>Nombre<input name="name" required maxlength="120" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="500"></textarea></label>
+    <div class="dialog-columns">
+      <label>Efecto<select name="effect">
+        <option value="half">Mitad de opciones</option>
+        <option value="invuln">Escudo</option>
+        <option value="fortify">Fortificar</option>
+        <option value="retopic">Cambio de tema</option>
+        <option value="double">Doble oportunidad</option>
+        <option value="alarm">Alarma</option>
+        <option value="chest">Cofre</option>
+        <option value="clock">Reloj</option>
+      </select></label>
+      <label>Rareza<input name="rarity" maxlength="20" value="tactico" /></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Costo (puntos)<input type="number" name="cost_points" min="0" value="20" /></label>
+      <label>Duracion (s)<input type="number" name="duration_seconds" min="0" value="0" /></label>
+    </div>
+    <button class="command-btn" type="submit">CREAR PODER</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="mission-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="mission" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>RETO</span><h2>Nueva mision</h2></div><button type="button" data-close-dialog>X</button></header>
+    <label>Titulo<input name="title" required maxlength="160" /></label>
+    <label>Descripcion<textarea name="description" rows="2" maxlength="800"></textarea></label>
+    <div class="dialog-columns">
+      <label>Alcance<select name="scope">
+        <option value="section">Aula</option>
+        <option value="grade">Grado</option>
+        <option value="subject">Curso</option>
+        <option value="school">Colegio</option>
+      </select></label>
+      <label>Meta<select name="goal_type">
+        <option value="tasks_completed">Tareas entregadas</option>
+        <option value="tasks_graded">Tareas calificadas</option>
+        <option value="battles_won">Batallas ganadas</option>
+        <option value="battles_played">Batallas jugadas</option>
+        <option value="attendance_streak">Dias de asistencia</option>
+        <option value="grade_average">Promedio >=</option>
+        <option value="xp_earned">XP >=</option>
+      </select></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Valor meta<input type="number" name="goal_value" min="0" step="0.1" value="3" /></label>
+      <label>Recompensa (puntos)<input type="number" name="reward_points" min="0" value="50" /></label>
+    </div>
+    <div class="dialog-columns">
+      <label>Aula<select name="section_id"><option value="">Todas</option>{sections.map((s: any) => (<option value={s.id}>{s.display_name}</option>))}</select></label>
+      <label>Curso<select name="subject_id"><option value="">Todos</option>{subjects.map((s: any) => (<option value={s.id}>{s.name}</option>))}</select></label>
+    </div>
+    <label>Poder de recompensa<select name="reward_powerup_id"><option value="">Sin poder</option>{(rewardsCatalog.powerups ?? []).map((p: any) => (<option value={p.id}>{p.name}</option>))}</select></label>
+    <button class="command-btn" type="submit">CREAR MISION</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog" id="goal-dialog">
+  <form method="post" action="/api/recursos">
+    <input type="hidden" name="action" value="study_goal" /><input type="hidden" name="school_id" value={schoolId} />
+    <header><div><span>PLANIFICACION</span><h2>Nueva meta de estudio</h2></div><button type="button" data-close-dialog>X</button></header>
+    <div class="dialog-columns">
+      <label>Grado<input name="grade" required maxlength="20" placeholder="5" /></label>
+      <label>Curso<select name="subject_id"><option value="">General</option>{subjects.map((s: any) => (<option value={s.id}>{s.name}</option>))}</select></label>
+    </div>
+    <label>Titulo<input name="title" required maxlength="160" /></label>
+    <label>Temas (separados por coma)<textarea name="topics" rows="2" placeholder="Ecuaciones, Geometria"></textarea></label>
+    <label>Objetivos (separados por coma)<textarea name="objectives" rows="2"></textarea></label>
+    <label>Competencias (separadas por coma)<textarea name="competences" rows="2"></textarea></label>
+    <button class="command-btn" type="submit">CREAR META</button>
+  </form>
+</dialog>
+<dialog class="portal-dialog report-config-dialog" id="report-config-dialog">
+  <form method="post" action="/api/reportes">
+    <header>
+      <div>
+        <span>METODOLOGIA DEL DESEMPENO</span><h2>Meta y pesos del IDB</h2>
+      </div><button type="button" data-close-dialog>X</button>
+    </header>
+    <label>Meta institucional (sobre 100)<input id="report-goal-input" name="goal" type="number" min="1" max="100" value="80" required /></label>
+    <div class="dialog-columns">
+      <label>Peso notas %<input id="report-w-grades" name="weight_grades" type="number" min="0" max="100" value="40" /></label>
+      <label>Peso asistencia %<input id="report-w-attendance" name="weight_attendance" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso tareas %<input id="report-w-tasks" name="weight_tasks" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso practica %<input id="report-w-practice" name="weight_practice" type="number" min="0" max="100" value="20" /></label>
+    </div>
+    <p class="report-config-note">
+      El IDB pondera solo los componentes con datos y renormaliza los pesos.
+      Brecha de hasta 5 puntos = meta cumplida; hasta 15 = cerca; mas de 15 = lejos.
+      La metodologia completa esta documentada en docs/METODOLOGIA_DESEMPENO.md.
+    </p>
+    <div class="dialog-actions">
+      <button class="command-btn ghost" type="button" data-close-dialog>CANCELAR</button>
+      <button class="command-btn" type="submit">GUARDAR METODOLOGIA</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
   const SCHOOL_ID =
     document.getElementById("school-holder")?.dataset.schoolId ?? "";
+  // ---- Sonido: arranca en silencio y recuerda la preferencia del usuario ----
+  const SOUND_KEY = "battlegraf_panel_sound";
+  let soundOn = (() => {
+    try {
+      return localStorage.getItem(SOUND_KEY) === "on";
+    } catch {
+      return false;
+    }
+  })();
+  const soundButton = document.getElementById("sound-toggle");
+  const soundLabel = document.getElementById("sound-toggle-label");
+  const renderSound = () => {
+    if (!soundButton) return;
+    soundButton.dataset.sound = soundOn ? "on" : "off";
+    soundButton.setAttribute("aria-pressed", soundOn ? "true" : "false");
+    if (soundLabel) soundLabel.textContent = soundOn ? "ACTIVO" : "SILENCIO";
+  };
+  renderSound();
+  soundButton?.addEventListener("click", () => {
+    soundOn = !soundOn;
+    try {
+      localStorage.setItem(SOUND_KEY, soundOn ? "on" : "off");
+    } catch {}
+    renderSound();
+    const frame = document.getElementById(
+      "panel-game-iframe",
+    ) as HTMLIFrameElement | null;
+    frame?.contentWindow?.postMessage(
+      { type: "battlegraf-sound", muted: !soundOn },
+      "*",
+    );
+  });
+  // ---- Asistente IA: sugerencias y foco ----
+  document
+    .querySelectorAll<HTMLElement>("[data-assistant-prompt]")
+    .forEach((chip) =>
+      chip.addEventListener("click", () => {
+        const text = chip.dataset.assistantPrompt ?? "";
+        const target =
+          chip
+            .closest("form")
+            ?.querySelector<HTMLTextAreaElement>(".assistant-prompt") ??
+          document.querySelector<HTMLTextAreaElement>(
+            "#assistant-dialog .assistant-prompt",
+          ) ??
+          document.querySelector<HTMLTextAreaElement>(
+            ".assistant-view .assistant-prompt",
+          );
+        if (target) {
+          target.value = text;
+          target.focus();
+        }
+      }),
+    );
+  document.getElementById("assistant-fab")?.addEventListener("click", () => {
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLTextAreaElement>(
+          "#assistant-dialog .assistant-prompt",
+        )
+        ?.focus();
+    }, 80);
+  });
   const openDialog = (id: string) =>
     (document.getElementById(id) as HTMLDialogElement | null)?.showModal();
   document
@@ -3436,6 +4076,21 @@ const trNivel = (level?: string) =>
       | null;
     if (el && val !== undefined && val !== null) el.value = String(val);
   };
+  // Nivel del bot: solo se muestra cuando la batalla es alumno vs bot
+  const syncBotFields = (scope?: HTMLElement | null) => {
+    (scope ?? document)
+      .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+      .forEach((sel) => {
+        const field = sel
+          .closest("form")
+          ?.querySelector<HTMLElement>(".bot-difficulty-field");
+        if (field) field.hidden = sel.value !== "student_vs_bot";
+      });
+  };
+  document
+    .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+    .forEach((sel) => sel.addEventListener("change", () => syncBotFields()));
+  syncBotFields();
   document.querySelectorAll<HTMLElement>("[data-edit-staff]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -3596,7 +4251,9 @@ const trNivel = (level?: string) =>
       );
       setVal("edit-battle-dialog", "graph_layers", d.layers ?? 4);
       setVal("edit-battle-dialog", "nodes_per_layer", d.nodes ?? 4);
+      setVal("edit-battle-dialog", "bot_difficulty", d.bot ?? "balanced");
       setVal("edit-battle-dialog", "status", d.status);
+      syncBotFields(document.getElementById("edit-battle-dialog"));
       openDialog("edit-battle-dialog");
     }),
   );
@@ -3624,7 +4281,20 @@ const trNivel = (level?: string) =>
     }),
   );
   // Modal de confirmación para eliminaciones (reemplaza confirm nativo)
+  // Requiere escribir ELIMINAR: evita borrados accidentales.
   let pendingDeleteForm: HTMLFormElement | null = null;
+  const confirmInput = document.getElementById(
+    "confirm-delete-input",
+  ) as HTMLInputElement | null;
+  const confirmDeleteBtn = document.getElementById(
+    "confirm-delete-btn",
+  ) as HTMLButtonElement | null;
+  const syncConfirmDelete = () => {
+    if (confirmDeleteBtn)
+      confirmDeleteBtn.disabled =
+        (confirmInput?.value ?? "").trim().toUpperCase() !== "ELIMINAR";
+  };
+  confirmInput?.addEventListener("input", syncConfirmDelete);
   document.querySelectorAll<HTMLFormElement>("form.inline").forEach((f) => {
     const btn = f.querySelector<HTMLButtonElement>("button[data-confirm]");
     if (!btn) return;
@@ -3635,29 +4305,414 @@ const trNivel = (level?: string) =>
       if (txt)
         txt.textContent =
           btn.dataset.confirm ?? "¿Seguro que deseas eliminar este elemento?";
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
       openDialog("confirm-delete-dialog");
     });
   });
-  document
-    .getElementById("confirm-delete-btn")
-    ?.addEventListener("click", () => {
-      const dlg = document.getElementById(
-        "confirm-delete-dialog",
-      ) as HTMLDialogElement | null;
-      dlg?.close();
-      pendingDeleteForm?.submit();
-    });
+  confirmDeleteBtn?.addEventListener("click", () => {
+    if (confirmDeleteBtn.disabled || !pendingDeleteForm) return;
+    const dlg = document.getElementById(
+      "confirm-delete-dialog",
+    ) as HTMLDialogElement | null;
+    const form = pendingDeleteForm;
+    dlg?.close();
+    form.submit();
+  });
   document
     .getElementById("confirm-delete-dialog")
     ?.addEventListener("close", () => {
       pendingDeleteForm = null;
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
     });
+  // ---- Reportes: graficos de desempeno (IDB), metas y tablas ----
+  const reportRoot = document.getElementById("report-content");
+  if (reportRoot) {
+    const scopeSel = document.getElementById(
+      "report-scope",
+    ) as HTMLSelectElement | null;
+    const sectionSel = document.getElementById(
+      "report-section",
+    ) as HTMLSelectElement | null;
+    const staffSel = document.getElementById(
+      "report-staff",
+    ) as HTMLSelectElement | null;
+    const studentSel = document.getElementById(
+      "report-student",
+    ) as HTMLSelectElement | null;
+    const sectionWrap = document.getElementById("report-section-wrap");
+    const staffWrap = document.getElementById("report-staff-wrap");
+    const studentWrap = document.getElementById("report-student-wrap");
+    const reportLoading = document.getElementById("report-loading");
+    const goalChip = document.getElementById("report-goal-chip");
+    const exportLink = document.getElementById(
+      "report-export",
+    ) as HTMLAnchorElement | null;
+    let overview: any = null;
+    let staffData: any = null;
+    let overviewPromise: Promise<any> | null = null;
+    let staffPromise: Promise<any> | null = null;
+
+    const loadJson = async (url: string) => {
+      try {
+        const res = await fetch(url, {
+          headers: { Accept: "application/json" },
+        });
+        return res.ok ? await res.json() : null;
+      } catch {
+        return null;
+      }
+    };
+    const loadOverview = async () => {
+      if (overview) return overview;
+      if (!overviewPromise)
+        overviewPromise = loadJson("/api/reportes?type=overview&format=json");
+      overview = await overviewPromise;
+      return overview;
+    };
+    const loadStaff = async () => {
+      if (staffData) return staffData;
+      if (!staffPromise)
+        staffPromise = loadJson("/api/reportes?type=staff&format=json");
+      staffData = await staffPromise;
+      return staffData;
+    };
+    const fmt = (value: any, suffix = "") =>
+      value === null || value === undefined ? "—" : `${value}${suffix}`;
+    const statusClass = (gap: any) => gap?.status ?? "sin-datos";
+    const esc = (value: any) =>
+      String(value ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c] as string,
+      );
+    const kpiRow = (items: [string, any, string?][]) =>
+      `<div class="report-kpis">${items
+        .map(
+          ([label, value, hint]) =>
+            `<article class="${hint ?? ""}"><span>${esc(label)}</span><strong>${value}</strong></article>`,
+        )
+        .join("")}</div>`;
+    const barList = (
+      items: { label: string; value: number | null; id?: string; gap?: any }[],
+      goal: number,
+      dataAttr = "",
+    ) =>
+      `<div class="report-bars">${items
+        .map(
+          (item) =>
+            `<button type="button" class="report-bar" ${dataAttr}="${esc(item.id ?? "")}">` +
+            `<span class="report-bar-label">${esc(item.label)}</span>` +
+            `<span class="report-bar-track"><i class="${statusClass(item.gap)}" style="width:${Math.max(0, Math.min(100, item.value ?? 0))}%"></i>` +
+            (goal >= 1 && goal <= 100
+              ? `<b class="report-bar-goal" style="left:${goal}%"></b>`
+              : "") +
+            `</span><strong>${item.value === null || item.value === undefined ? "—" : item.value.toFixed(1)}</strong></button>`,
+        )
+        .join("")}</div>`;
+    const table = (
+      headers: string[],
+      rows: (string | number | null)[][],
+    ) =>
+      `<div class="report-table-wrap"><table class="report-table"><thead><tr>${headers
+        .map((h) => `<th>${esc(h)}</th>`)
+        .join("")}</tr></thead><tbody>${rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map(
+                (cell) =>
+                  `<td>${cell === null || cell === undefined ? "—" : cell}</td>`,
+              )
+              .join("")}</tr>`,
+        )
+        .join("")}</tbody></table></div>`;
+    const sectionName = (id: string) =>
+      (overview?.sections ?? []).find((s: any) => String(s.id) === String(id))
+        ?.display_name ?? "Sin aula";
+
+    const setExport = (scope: string, student?: any) => {
+      if (!exportLink) return;
+      if (scope === "section" && sectionSel?.value)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(sectionSel.value)}&format=csv`;
+      else if (scope === "staff")
+        exportLink.href = "/api/reportes?type=staff&format=csv";
+      else if (scope === "student" && student?.section_id)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(student.section_id)}&format=csv`;
+      else exportLink.href = "/api/reportes?type=overview&format=csv";
+    };
+
+    const applyConfig = (data: any) => {
+      if (!data?.config) return;
+      const goal = data.config.goal ?? 80;
+      if (goalChip) goalChip.textContent = `META ${goal} / IDB`;
+      const set = (id: string, value: any) => {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (el && value !== undefined) el.value = String(value);
+      };
+      set("report-goal-input", goal);
+      const weights = data.config.weights ?? {};
+      set("report-w-grades", weights.grades);
+      set("report-w-attendance", weights.attendance);
+      set("report-w-tasks", weights.tasks);
+      set("report-w-practice", weights.practice);
+    };
+
+    const render = async () => {
+      const scope = scopeSel?.value ?? "school";
+      if (sectionWrap) sectionWrap.hidden = scope !== "section";
+      if (staffWrap) staffWrap.hidden = scope !== "staff";
+      if (studentWrap) studentWrap.hidden = scope !== "student";
+      if (reportLoading) reportLoading.hidden = false;
+      reportRoot.hidden = true;
+      let html = "";
+      try {
+        if (scope === "staff") {
+          const data = await loadStaff();
+          await loadOverview();
+          const staffList = data?.staff ?? [];
+          const goal = overview?.config?.goal ?? 80;
+          const selectedId = staffSel?.value ?? staffList[0]?.id ?? "";
+          const selected = staffList.find(
+            (s: any) => String(s.id) === String(selectedId),
+          );
+          html += kpiRow([
+            ["DOCENTES", staffList.length],
+            ["IDB DEL DOCENTE", fmt(selected?.performance)],
+            ["BRECHA A META", fmt(selected?.gap?.distance)],
+            ["ASISTENCIA", fmt(selected?.attendance, "%")],
+          ]);
+          html += `<section class="game-panel"><span>COMPARATIVO</span><h2>Desempeno por docente</h2>${barList(
+            staffList.map((s: any) => ({
+              label: s.full_name ?? "Docente",
+              value: s.performance,
+              id: s.id,
+              gap: s.gap,
+            })),
+            goal,
+            "data-staff",
+          )}</section>`;
+          if (selected) {
+            const theirSections = selected.sections ?? [];
+            const theirStudents = (overview?.students ?? []).filter(
+              (st: any) =>
+                theirSections.some(
+                  (sec: any) => String(sec.id) === String(st.section_id),
+                ),
+            );
+            html += `<section class="game-panel"><span>${esc(selected.full_name)}</span><h2>Detalle del docente</h2><p>${selected.subjects?.join(" · ") || "Sin cursos asignados"} · ${theirSections.map((s: any) => esc(s.display_name)).join(", ") || "Sin aulas"}</p>${table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas"],
+              theirStudents.map((st: any) => [
+                esc(st.full_name),
+                esc(sectionName(st.section_id)),
+                fmt(st.performance),
+                fmt(st.grade_average, "%"),
+                fmt(st.attendance_rate, "%"),
+                `${st.tasks_done ?? 0}/${st.tasks_expected ?? 0}`,
+              ]),
+            )}</section>`;
+          }
+          setExport("staff");
+        } else {
+          const data = await loadOverview();
+          if (!data) throw new Error("sin datos");
+          applyConfig(data);
+          const goal = data.config?.goal ?? 80;
+          if (scope === "section") {
+            const section =
+              data.sections.find(
+                (s: any) => String(s.id) === String(sectionSel?.value),
+              ) ?? data.sections[0];
+            if (sectionSel && section)
+              sectionSel.value = String(section.id);
+            const members = data.students.filter(
+              (s: any) => String(s.section_id) === String(section?.id),
+            );
+            html += kpiRow([
+              ["IDB DEL AULA", fmt(section?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(section?.gap?.distance)],
+              ["ALUMNOS", members.length],
+              ["ASISTENCIA", fmt(section?.attendance, "%")],
+              ["TAREAS", fmt(section?.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>${esc(section?.display_name ?? "")}</span><h2>Desempeno por alumno</h2>${barList(
+              members
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => ({
+                  label: s.full_name ?? "Alumno",
+                  value: s.performance,
+                  id: s.id,
+                  gap: s.gap,
+                })),
+              goal,
+              "data-student",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (section?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              members.map((s: any) => [
+                esc(s.full_name),
+                fmt(s.performance),
+                fmt(s.grade_average, "%"),
+                fmt(s.attendance_rate, "%"),
+                `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                s.points ?? 0,
+                fmt(s.gap?.distance),
+              ]),
+            );
+            setExport("section");
+          } else if (scope === "student") {
+            const student =
+              data.students.find(
+                (s: any) => String(s.id) === String(studentSel?.value),
+              ) ?? data.students[0];
+            if (studentSel && student) studentSel.value = String(student.id);
+            html += kpiRow([
+              ["IDB DEL ALUMNO", fmt(student?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(student?.gap?.distance)],
+              ["NOTAS", fmt(student?.grade_average, "%")],
+              ["ASISTENCIA", fmt(student?.attendance_rate, "%")],
+              ["TAREAS", `${student?.tasks_done ?? 0}/${student?.tasks_expected ?? 0}`],
+              ["PUNTOS", student?.points ?? 0],
+              ["BATALLAS", `${student?.battles ?? 0} (${student?.wins ?? 0} ganadas)`],
+            ]);
+            html += `<section class="game-panel"><span>${esc(student?.full_name ?? "")} · ${esc(sectionName(student?.section_id))}</span><h2>Desempeno por materia</h2>${barList(
+              (student?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}${table(
+              ["Indicador", "Valor"],
+              [
+                ["Promedio de notas", fmt(student?.grade_average, "%")],
+                ["Asistencia", fmt(student?.attendance_rate, "%")],
+                ["Tareas entregadas", `${student?.tasks_done ?? 0} de ${student?.tasks_expected ?? 0}`],
+                ["Cumplimiento de tareas", fmt(student?.tasks_rate, "%")],
+                ["Practica (puntos)", fmt(student?.practice, "%")],
+                ["Insignias", student?.badges ?? 0],
+                ["Victorias en batallas", student?.wins ?? 0],
+              ],
+            )}</section>`;
+            setExport("student", student);
+          } else {
+            const school = data.school ?? {};
+            html += kpiRow([
+              ["IDB DEL COLEGIO", fmt(school.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(school.gap?.distance)],
+              ["AULAS", school.sections ?? 0],
+              ["ALUMNOS", school.students ?? 0],
+              ["NOTAS", fmt(school.grades, "%")],
+              ["ASISTENCIA", fmt(school.attendance, "%")],
+              ["TAREAS", fmt(school.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>TODAS LAS AULAS</span><h2>Desempeno por aula</h2>${barList(
+              (data.sections ?? []).map((s: any) => ({
+                label: s.display_name,
+                value: s.performance,
+                id: s.id,
+                gap: s.gap,
+              })),
+              goal,
+              "data-section",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (data.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              (data.students ?? [])
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => [
+                  esc(s.full_name),
+                  esc(sectionName(s.section_id)),
+                  fmt(s.performance),
+                  fmt(s.grade_average, "%"),
+                  fmt(s.attendance_rate, "%"),
+                  `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                  s.points ?? 0,
+                  fmt(s.gap?.distance),
+                ]),
+            );
+            setExport("school");
+          }
+        }
+        reportRoot.innerHTML = html;
+      } catch {
+        reportRoot.innerHTML = `<div class="report-loading">No se pudo cargar la analitica. Intenta actualizar.</div>`;
+      } finally {
+        if (reportLoading) reportLoading.hidden = true;
+        reportRoot.hidden = false;
+      }
+    };
+
+    scopeSel?.addEventListener("change", () => void render());
+    sectionSel?.addEventListener("change", () => void render());
+    staffSel?.addEventListener("change", () => void render());
+    studentSel?.addEventListener("change", () => void render());
+    document.getElementById("report-refresh")?.addEventListener("click", () => {
+      overview = null;
+      staffData = null;
+      overviewPromise = null;
+      staffPromise = null;
+      void render();
+    });
+    reportRoot.addEventListener("click", (event) => {
+      const bar = (event.target as HTMLElement).closest<HTMLElement>(".report-bar");
+      if (!bar || !overview) return;
+      const sectionId = bar.dataset.section;
+      const studentId = bar.dataset.student;
+      const staffId = bar.dataset.staff;
+      if (sectionId && sectionSel && scopeSel) {
+        sectionSel.value = sectionId;
+        scopeSel.value = "section";
+        void render();
+      } else if (studentId && studentSel && scopeSel) {
+        const student = overview.students.find(
+          (s: any) => String(s.id) === String(studentId),
+        );
+        if (student) {
+          studentSel.value = studentId;
+          scopeSel.value = "student";
+          void render();
+        }
+      } else if (staffId && staffSel && scopeSel) {
+        staffSel.value = staffId;
+        scopeSel.value = "staff";
+        void render();
+      }
+    });
+    void render();
+  }
   // ---- Modal del juego (batalla vs bot con preguntas del sistema) ----
   document.querySelectorAll<HTMLElement>("[data-play-battle]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const subject = b.dataset.subject ?? "";
       const turnSeconds = b.dataset.time ?? "";
+      const botDifficulty = b.dataset.bot ?? "";
       const layers = b.dataset.layers ?? "";
       const nodes = b.dataset.nodes ?? "";
       const teams = b.dataset.teams ?? "2";
@@ -3669,13 +4724,22 @@ const trNivel = (level?: string) =>
       ) as HTMLDialogElement | null;
       const title = document.getElementById("game-dialog-title");
       if (!frame || !dlg) return;
-      let src =
-        "/game/BattleGraph.html?school_id=" + encodeURIComponent(SCHOOL_ID);
+      const gameBase = frame.dataset.src ?? "/game/BattleGraph.html";
+      let src = gameBase + "?school_id=" + encodeURIComponent(SCHOOL_ID);
       if (subject) src += "&subject=" + encodeURIComponent(subject);
       if (turnSeconds) src += "&time=" + encodeURIComponent(turnSeconds);
+      if (botDifficulty)
+        src += "&bot_difficulty=" + encodeURIComponent(botDifficulty);
       if (layers) src += "&layers=" + encodeURIComponent(layers);
       if (nodes) src += "&nodes=" + encodeURIComponent(nodes);
       if (teams) src += "&teams=" + encodeURIComponent(teams);
+      if (!soundOn) src += "&mute=1";
+      frame.onload = () => {
+        frame.contentWindow?.postMessage(
+          { type: "battlegraf-sound", muted: !soundOn },
+          "*",
+        );
+      };
       frame.src = src;
       if (title) title.textContent = b.dataset.title ?? "Alumno vs bot";
       dlg.showModal();

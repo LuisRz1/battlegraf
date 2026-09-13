@@ -10,8 +10,25 @@ import '../../widgets/retro_ui.dart';
 import 'bot_battle_demo_controller.dart';
 
 /// Public, backend-free prototype of a complete turn-based BattleGraph match.
+///
+/// Tambien se usa para partidas reales del colegio: si se entrega [pool], el
+/// tablero usa esas preguntas (del endpoint publico) en lugar de la demo local.
 class BotBattleDemoView extends StatefulWidget {
-  const BotBattleDemoView({super.key});
+  const BotBattleDemoView({
+    super.key,
+    this.pool,
+    this.onFinished,
+    this.initialAbilities,
+    this.layers,
+    this.nodesPerLayer,
+  });
+
+  final List<DemoQuestion>? pool;
+  final void Function(DemoBattleSide winner, int playerScore, int botScore)?
+  onFinished;
+  final Map<String, int>? initialAbilities;
+  final int? layers;
+  final int? nodesPerLayer;
 
   @override
   State<BotBattleDemoView> createState() => _BotBattleDemoViewState();
@@ -27,11 +44,17 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
   int _observedTurn = 1;
   String? _selectedOption;
   bool _reduceMotion = false;
+  bool _reported = false;
 
   @override
   void initState() {
     super.initState();
-    _battle = BotBattleDemoController()..addListener(_onBattleChanged);
+    _battle = BotBattleDemoController(
+      pool: widget.pool,
+      initialAbilities: widget.initialAbilities,
+      layers: widget.layers,
+      nodesPerLayer: widget.nodesPerLayer,
+    )..addListener(_onBattleChanged);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
@@ -67,6 +90,15 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
 
   void _onBattleChanged() {
     if (!mounted) return;
+
+    if (_battle.isFinished && !_reported) {
+      _reported = true;
+      widget.onFinished?.call(
+        _battle.winner ?? DemoBattleSide.purple,
+        _battle.redCorrect,
+        _battle.purpleCorrect,
+      );
+    }
 
     if (_observedTurn != _battle.turnNumber) {
       _observedTurn = _battle.turnNumber;
@@ -249,6 +281,11 @@ class _BotBattleDemoViewState extends State<BotBattleDemoView> {
       return _DemoQuestionPanel(
         key: const ValueKey('question'),
         question: question,
+        options: _battle.activeOptions,
+        helpTokens: _battle.helpTokens,
+        onUseHelp: () => setState(() {
+          _battle.useHelp();
+        }),
         selectedOption: _selectedOption,
         onSelect: (value) => setState(() => _selectedOption = value),
         onSubmit: _selectedOption == null ? null : _submitAnswer,
@@ -557,12 +594,18 @@ class _DemoQuestionPanel extends StatelessWidget {
   const _DemoQuestionPanel({
     super.key,
     required this.question,
+    required this.options,
+    required this.helpTokens,
+    required this.onUseHelp,
     required this.selectedOption,
     required this.onSelect,
     required this.onSubmit,
   });
 
   final DemoQuestion question;
+  final List<MapEntry<String, String>> options;
+  final int helpTokens;
+  final VoidCallback? onUseHelp;
   final String? selectedOption;
   final ValueChanged<String> onSelect;
   final VoidCallback? onSubmit;
@@ -620,7 +663,7 @@ class _DemoQuestionPanel extends StatelessWidget {
               mainAxisSpacing: 6,
               crossAxisSpacing: 6,
               children: [
-                for (final option in question.options.entries)
+                for (final option in options)
                   _AnswerOption(
                     optionId: option.key,
                     text: option.value,
@@ -630,6 +673,18 @@ class _DemoQuestionPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            if (helpTokens > 0) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: OutlinedButton(
+                  key: const Key('demo-use-power'),
+                  onPressed: onUseHelp,
+                  child: Text('USAR PODER (x$helpTokens)'),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             SizedBox(
               width: double.infinity,
               height: 38,

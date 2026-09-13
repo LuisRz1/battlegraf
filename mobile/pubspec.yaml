@@ -1,7 +1,7 @@
 name: battlegraf_mobile
 description: BattleGraph para estudiantes, docentes, tutores y directivos.
 publish_to: "none"
-version: 0.4.0+4
+version: 0.7.1+10
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -18,6 +18,7 @@ dependencies:
   shared_preferences: ^2.5.5
   supabase_flutter: ^2.17.2
   web_socket_channel: ^3.0.3
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -28,26 +29,30 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "../public/game/BattleGraph.icon.png"
+  image_path: "assets/images/battlegraph_icon.png"
   min_sdk_android: 21
   remove_alpha_ios: true
-  background_color_ios: "#1B0733"
+  background_color_ios: "#0D0C14"
 
 flutter_native_splash:
-  color: "#13041F"
-  image: "../public/game/BattleGraph.icon.png"
+  color: "#0D0C14"
+  image: "assets/images/battlegraph_icon.png"
   android: true
   ios: true
   web: false
   android_12:
-    color: "#13041F"
-    image: "../public/game/BattleGraph.icon.png"
+    color: "#0D0C14"
+    image: "assets/images/battlegraph_icon.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/fonts/
+    - assets/images/
   fonts:
+    - family: VcrOsdMono
+      fonts:
+        - asset: assets/fonts/VCR_OSD_MONO_1.001.ttf
     - family: PressStart2P
       fonts:
         - asset: assets/fonts/PressStart2P-Regular.ttf

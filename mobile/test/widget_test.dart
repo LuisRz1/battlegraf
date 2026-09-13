@@ -13,7 +13,7 @@ void main() {
   testWidgets('BattleGraph app renders splash', (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: BattleGraphApp()));
     expect(find.text('BATTLE'), findsOneWidget);
-    expect(find.text('GRAF'), findsOneWidget);
+    expect(find.text('GRAPH'), findsOneWidget);
   });
 
   group('Battle models', () {

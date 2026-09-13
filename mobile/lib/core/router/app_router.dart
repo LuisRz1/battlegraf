@@ -6,11 +6,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/views/battle/bot_battle_demo_view.dart';
+import '../../presentation/views/battle/battle_setup_view.dart';
+import '../../presentation/views/battle/battle_play_view.dart';
+import '../../presentation/views/battle/godot_battle_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
 import '../../presentation/views/auth/register_view.dart';
 import '../../presentation/views/academics/academic_overview_view.dart';
+import '../../presentation/views/student/student_dashboard_view.dart';
+import '../../presentation/views/student/student_detail_view.dart';
+import '../../presentation/views/assistant/assistant_view.dart';
 import '../../features/institution/presentation/views/institution_hub_view.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -55,6 +61,47 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/battle/demo-bot',
         builder: (context, state) => const BotBattleDemoView(),
+      ),
+      GoRoute(
+        path: '/student',
+        builder: (context, state) => const StudentDashboardView(),
+      ),
+      GoRoute(
+        path: '/student-detail',
+        builder: (context, state) => StudentDetailView(
+          studentId: state.uri.queryParameters['student'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/battle/setup',
+        builder: (context, state) => const BattleSetupView(),
+      ),
+      GoRoute(
+        path: '/battle/play',
+        builder: (context, state) => BattlePlayView(
+          topic: state.uri.queryParameters['topic'],
+          powers: (state.uri.queryParameters['powers'] ?? '')
+              .split(',')
+              .where((value) => value.isNotEmpty)
+              .toList(),
+          layers: int.tryParse(state.uri.queryParameters['layers'] ?? ''),
+          nodesPerLayer: int.tryParse(state.uri.queryParameters['nodes'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: '/battle/godot',
+        builder: (context, state) => GodotBattleView(
+          topic: state.uri.queryParameters['topic'],
+          layers: int.tryParse(state.uri.queryParameters['layers'] ?? ''),
+          nodesPerLayer: int.tryParse(state.uri.queryParameters['nodes'] ?? ''),
+          botDifficulty: state.uri.queryParameters['bot'] ?? 'balanced',
+          muted: state.uri.queryParameters['mute'] == '1',
+          teams: int.tryParse(state.uri.queryParameters['teams'] ?? '') ?? 2,
+        ),
+      ),
+      GoRoute(
+        path: '/assistant',
+        builder: (context, state) => const AssistantView(),
       ),
     ],
   );

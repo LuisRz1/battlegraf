@@ -341,7 +341,7 @@ class _GraphPainter extends CustomPainter {
       final rect = node == null ? null : layout.nodes[node];
       if (rect == null) continue;
       final side = entry.key == 0 ? 0 : 1;
-      final color = side == 0 ? AppColors.brightRed : AppColors.neonPurple;
+      final color = side == 0 ? AppColors.aliados : AppColors.imperio;
       final center = rect.center.translate(
         side == 0 ? rect.width * .36 : -rect.width * .36,
         side == 0 ? rect.height * .34 : -rect.height * .34,
@@ -404,12 +404,12 @@ class _GraphPainter extends CustomPainter {
 
   void _drawEdges(Canvas canvas) {
     final glowPaint = Paint()
-      ..color = AppColors.neonPurple.withAlpha(65)
+      ..color = AppColors.aliados.withAlpha(65)
       ..strokeWidth = 8
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7)
       ..style = PaintingStyle.stroke;
     final paint = Paint()
-      ..color = AppColors.neonPurple.withAlpha(180)
+      ..color = AppColors.aliados.withAlpha(180)
       ..strokeWidth = 2.4
       ..style = PaintingStyle.stroke;
 
@@ -743,16 +743,16 @@ class _GraphPainter extends CustomPainter {
   Color _ownerColor(NodeOwner owner) {
     switch (owner) {
       case NodeOwner.player:
-        return AppColors.brightRed;
+        return AppColors.aliados;
       case NodeOwner.opponent:
-        return AppColors.neonPurple;
+        return AppColors.imperio;
       case NodeOwner.neutral:
         return AppColors.darkCard;
     }
   }
 
   Color get ownerColorForTurn =>
-      currentTurnIndex == 0 ? AppColors.brightRed : AppColors.neonPurple;
+      currentTurnIndex == 0 ? AppColors.aliados : AppColors.imperio;
 
   int? _baseSide(Node node) {
     if (graph.nodes.isEmpty) return null;

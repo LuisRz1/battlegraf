@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models/school_task.dart';
 import '../../providers/task_provider.dart';
+import '../../widgets/panel_ui.dart';
 import '../../widgets/retro_controls.dart';
 import '../../widgets/retro_ui.dart';
 
+/// Tareas a entregar — estilo panel web (cajas con borde oro).
 class TaskListView extends ConsumerStatefulWidget {
   const TaskListView({super.key});
 
@@ -27,47 +27,59 @@ class _TaskListViewState extends ConsumerState<TaskListView> {
   Widget build(BuildContext context) {
     final state = ref.watch(taskProvider);
     return Scaffold(
+      backgroundColor: AppColors.fondoGame,
       body: BattleBackdrop(
         child: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: RetroScreenHeader(
-                  title: 'TAREAS',
-                  onBack: () => context.go('/lobby'),
-                  actionLabel: 'ACTUALIZAR',
-                  onAction: () => ref.read(taskProvider.notifier).loadTasks(),
-                  accent: AppColors.cyan,
+              PanelHeader(
+                span: 'MISIONES PENDIENTES',
+                title: 'TAREAS',
+                description: 'Lo que tu docente espera de ti',
+                action: PanelButton(
+                  label: 'ACTUALIZAR',
+                  ghost: true,
+                  onTap: () => ref.read(taskProvider.notifier).loadTasks(),
                 ),
               ),
-              const SizedBox(height: 10),
               if (state.error != null || state.feedback != null)
-                _StatusBanner(
-                  message: state.error ?? state.feedback!,
-                  isError: state.error != null,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: PanelBox(
+                    span: state.error != null ? 'ERROR' : 'EXITO',
+                    borderColor: state.error != null ? AppColors.rojoAccion : AppColors.legion,
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      state.error ?? state.feedback!,
+                      style: TextStyle(
+                        fontFamily: AppTheme.bodyFont,
+                        color: state.error != null ? AppColors.imperio : AppColors.legion,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
                 ),
               Expanded(
                 child: state.isLoading && state.tasks.isEmpty
-                    ? const PixelLoader(
-                        label: 'CARGANDO TAREAS',
-                        color: AppColors.cyan,
+                    ? const Center(
+                        child: HudLabel('CARGANDO TAREAS', color: AppColors.oro300),
                       )
                     : state.tasks.isEmpty
-                    ? const _EmptyTasks()
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: state.tasks.length,
-                        itemBuilder: (context, index) {
-                          final task = state.tasks[index];
-                          return _TaskCard(
-                                task: task,
-                                onTap: () => _openTask(task),
-                              )
-                              .animate()
-                              .fadeIn(delay: (index * 70).ms)
-                              .slideX(begin: 0.15);
-                        },
+                    ? const PanelEmpty(
+                        title: 'SIN TAREAS PENDIENTES',
+                        message: 'Cuando tu docente publique misiones, apareceran aqui.',
+                        icon: Icons.assignment_turned_in,
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                        children: [
+                          for (var i = 0; i < state.tasks.length; i++)
+                            _TaskCard(
+                              task: state.tasks[i],
+                              onTap: () => _openTask(state.tasks[i]),
+                            ),
+                        ],
                       ),
               ),
             ],
@@ -81,7 +93,7 @@ class _TaskListViewState extends ConsumerState<TaskListView> {
     if (task.taskType == 'file_upload') {
       showRetroMessage(
         context,
-        'La entrega de archivos se habilitará en el siguiente paso.',
+        'La entrega de archivos se habilitara en el siguiente paso.',
       );
       return;
     }
@@ -94,18 +106,18 @@ class _TaskListViewState extends ConsumerState<TaskListView> {
           builder: (context, setDialogState) {
             return RetroDialog(
               title: task.title,
-              accent: AppColors.cyan,
+              accent: AppColors.oro500,
               actions: [
                 RetroActionButton(
                   label: 'CANCELAR',
                   compact: true,
-                  accent: AppColors.shadowPurple,
+                  accent: AppColors.piedra600,
                   onPressed: () => Navigator.of(dialogContext).pop(),
                 ),
                 RetroActionButton(
                   label: 'ENTREGAR',
                   compact: true,
-                  accent: AppColors.cyan,
+                  accent: AppColors.oro500,
                   onPressed: () async {
                     final answer = task.options.isNotEmpty
                         ? selected
@@ -132,7 +144,7 @@ class _TaskListViewState extends ConsumerState<TaskListView> {
                         code: option.key,
                         text: option.value,
                         selected: selected == option.key,
-                        accent: AppColors.cyan,
+                        accent: AppColors.oro500,
                         onTap: () {
                           setDialogState(() => selected = option.key);
                         },
@@ -172,85 +184,33 @@ class _TaskCard extends StatelessWidget {
         : '${dueDate.day.toString().padLeft(2, '0')}/'
               '${dueDate.month.toString().padLeft(2, '0')}/${dueDate.year}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        child: PixelPanel(
-          accent: AppColors.cyan,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const SchoolTower(color: AppColors.cyan, size: 42),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      task.title,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                  ),
-                  Text(
-                    '${task.xpReward} XP',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelLarge?.copyWith(color: AppColors.gold),
-                  ),
-                ],
+      padding: const EdgeInsets.only(bottom: 10),
+      child: PanelBox(
+        span: task.subject.toUpperCase(),
+        title: task.title,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              task.description,
+              style: const TextStyle(
+                fontFamily: AppTheme.bodyFont,
+                color: AppColors.crema100,
+                fontSize: 13.5,
+                height: 1.4,
               ),
-              const SizedBox(height: 10),
-              Text(task.description),
-              const SizedBox(height: 12),
-              Text(
-                '$dueLabel · ${task.subject.toUpperCase()}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBanner extends StatelessWidget {
-  final String message;
-  final bool isError;
-
-  const _StatusBanner({required this.message, required this.isError});
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = isError ? AppColors.brightRed : AppColors.cyan;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: PixelPanel(
-        accent: accent,
-        padding: const EdgeInsets.all(10),
-        child: HudLabel(message, color: accent),
-      ),
-    );
-  }
-}
-
-class _EmptyTasks extends StatelessWidget {
-  const _EmptyTasks();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: PixelPanel(
-          accent: AppColors.cyan,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SchoolTower(color: AppColors.cyan, size: 74),
-              SizedBox(height: 12),
-              HudLabel('NO HAY TAREAS DISPONIBLES', color: AppColors.cyan),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                StatPair(value: '${task.xpReward}', label: 'XP'),
+                const SizedBox(width: 18),
+                StatPair(value: dueLabel, label: 'ENTREGA'),
+                const Spacer(),
+                PanelMiniButton(label: 'ENTREGAR', onTap: onTap),
+              ],
+            ),
+          ],
         ),
       ),
     );

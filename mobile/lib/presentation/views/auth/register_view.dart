@@ -407,7 +407,7 @@ class _RoleCard extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontFamily: 'PressStart2P',
+                      fontFamily: 'VcrOsdMono',
                       color: color,
                       fontSize: 16,
                     ),
@@ -417,7 +417,7 @@ class _RoleCard extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       color: AppColors.offWhite,
-                      fontFamily: 'SpaceMono',
+                      fontFamily: 'VcrOsdMono',
                     ),
                   ),
                 ],
