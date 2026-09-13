@@ -4169,3 +4169,152 @@
     transform: none;
   }
 }
+
+/* ============================================================
+   Modales vivos y de una sola vista: columnas, cabecera y
+   acciones fijas, y confirmacion de borrado con texto.
+   ============================================================ */
+.portal-dialog {
+  width: min(48rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 1.5rem);
+  overflow: hidden;
+}
+.portal-dialog form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 0.8rem 1rem;
+  max-height: calc(100dvh - 1.5rem);
+  padding: 0 1.25rem 1.1rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.portal-dialog form > header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 -1.25rem;
+  padding: 1.05rem 1.25rem 0.85rem;
+  background: linear-gradient(180deg, #1a1524, #14111a 88%);
+  box-shadow: 0 1px 0 #4a3a29;
+}
+.portal-dialog form > header::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--module-accent, #e64752),
+    transparent 70%
+  );
+}
+.portal-dialog form > header,
+.portal-dialog form > p,
+.portal-dialog form > small,
+.portal-dialog form > textarea,
+.portal-dialog form > .dialog-columns,
+.portal-dialog form > .dialog-actions,
+.portal-dialog form > .attendance-editor,
+.portal-dialog form > .academic-legend,
+.portal-dialog form > table,
+.portal-dialog form > ul,
+.portal-dialog form > .modal-summary,
+.portal-dialog form > .command-btn,
+.portal-dialog form > .pixel-btn {
+  grid-column: 1 / -1;
+}
+.portal-dialog form > .dialog-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+  margin: 0.3rem -1.25rem -1.1rem;
+  padding: 0.85rem 1.25rem 1rem;
+  background: linear-gradient(0deg, #14111a, #14111a 78%, transparent);
+  border-top: 1px solid #3a2c33;
+}
+.portal-dialog input,
+.portal-dialog select,
+.portal-dialog textarea {
+  font-size: 0.74rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.portal-dialog input:focus-visible,
+.portal-dialog select:focus-visible,
+.portal-dialog textarea:focus-visible {
+  outline: none;
+  border-color: var(--module-accent, #d5a73b);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--module-accent, #d5a73b) 30%, transparent);
+}
+.portal-dialog label {
+  font-size: 0.64rem;
+}
+
+/* Dialogos compactos o de contenido: una sola columna */
+.confirm-dialog form,
+.detail-dialog form,
+.rank-dialog form,
+.badge-dialog form,
+.powerup-dialog form,
+.tracking-dialog form,
+.game-modal-dialog form {
+  grid-template-columns: 1fr;
+}
+.confirm-dialog,
+.detail-dialog,
+.rank-dialog,
+.badge-dialog,
+.powerup-dialog {
+  width: min(30rem, calc(100% - 2rem));
+}
+.tracking-dialog {
+  width: min(54rem, calc(100% - 2rem));
+}
+.confirm-typing {
+  display: grid;
+  gap: 0.3rem;
+  color: #c6b39d;
+}
+.confirm-typing b {
+  color: #f0837f;
+  letter-spacing: 0.12em;
+}
+.confirm-typing input {
+  font-family: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.command-btn.danger {
+  border-color: #a02c36;
+  background: linear-gradient(180deg, #7e2028, #5c161d);
+  color: #ffe3dc;
+}
+.command-btn.danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(0.4);
+}
+.command-btn.danger:not(:disabled):hover {
+  border-color: #e64752;
+  box-shadow: 0 0 0 2px rgba(230, 71, 82, 0.25);
+}
+.portal-dialog::backdrop {
+  animation: backdropIn 0.25s ease;
+}
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

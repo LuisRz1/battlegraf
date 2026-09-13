@@ -3362,11 +3362,22 @@ const trNivel = (level?: string) =>
         >
       </header><p id="confirm-delete-text">
         ¿Seguro que deseas eliminar este elemento?
-      </p><div class="dialog-actions">
+      </p><label class="confirm-typing"
+        >Escribe <b>ELIMINAR</b> para confirmar<input
+          id="confirm-delete-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="ELIMINAR"
+        /></label
+      ><div class="dialog-actions">
         <button class="command-btn ghost" type="button" data-close-dialog
           >CANCELAR</button
-        ><button class="command-btn" type="button" id="confirm-delete-btn"
-          >ELIMINAR</button
+        ><button
+          class="command-btn danger"
+          type="button"
+          id="confirm-delete-btn"
+          disabled>ELIMINAR DEFINITIVAMENTE</button
         >
       </div>
     </form>
@@ -4031,7 +4042,20 @@ const trNivel = (level?: string) =>
     }),
   );
   // Modal de confirmación para eliminaciones (reemplaza confirm nativo)
+  // Requiere escribir ELIMINAR: evita borrados accidentales.
   let pendingDeleteForm: HTMLFormElement | null = null;
+  const confirmInput = document.getElementById(
+    "confirm-delete-input",
+  ) as HTMLInputElement | null;
+  const confirmDeleteBtn = document.getElementById(
+    "confirm-delete-btn",
+  ) as HTMLButtonElement | null;
+  const syncConfirmDelete = () => {
+    if (confirmDeleteBtn)
+      confirmDeleteBtn.disabled =
+        (confirmInput?.value ?? "").trim().toUpperCase() !== "ELIMINAR";
+  };
+  confirmInput?.addEventListener("input", syncConfirmDelete);
   document.querySelectorAll<HTMLFormElement>("form.inline").forEach((f) => {
     const btn = f.querySelector<HTMLButtonElement>("button[data-confirm]");
     if (!btn) return;
@@ -4042,22 +4066,26 @@ const trNivel = (level?: string) =>
       if (txt)
         txt.textContent =
           btn.dataset.confirm ?? "¿Seguro que deseas eliminar este elemento?";
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
       openDialog("confirm-delete-dialog");
     });
   });
-  document
-    .getElementById("confirm-delete-btn")
-    ?.addEventListener("click", () => {
-      const dlg = document.getElementById(
-        "confirm-delete-dialog",
-      ) as HTMLDialogElement | null;
-      dlg?.close();
-      pendingDeleteForm?.submit();
-    });
+  confirmDeleteBtn?.addEventListener("click", () => {
+    if (confirmDeleteBtn.disabled || !pendingDeleteForm) return;
+    const dlg = document.getElementById(
+      "confirm-delete-dialog",
+    ) as HTMLDialogElement | null;
+    const form = pendingDeleteForm;
+    dlg?.close();
+    form.submit();
+  });
   document
     .getElementById("confirm-delete-dialog")
     ?.addEventListener("close", () => {
       pendingDeleteForm = null;
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
     });
   // ---- Modal del juego (batalla vs bot con preguntas del sistema) ----
   document.querySelectorAll<HTMLElement>("[data-play-battle]").forEach((b) =>
