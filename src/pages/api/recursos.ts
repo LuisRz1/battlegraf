@@ -379,9 +379,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const r = await api("POST", `/${schoolId}/battles`, {
       title: clean(form.get("title"), 140),
       battle_type: clean(form.get("battle_type"), 30) || "student_vs_bot",
+      subject_id: clean(form.get("subject_id"), 40) || null,
+      grade: clean(form.get("grade"), 20) || null,
       opponent_a: clean(form.get("opponent_a"), 80) || "Equipo Rojo",
       opponent_b: clean(form.get("opponent_b"), 80) || "Equipo Morado",
       scheduled_at: clean(form.get("scheduled_at"), 40) || null,
+      graph_layers: Number(clean(form.get("graph_layers"), 2)) || 4,
+      nodes_per_layer: Number(clean(form.get("nodes_per_layer"), 2)) || 4,
+      bot_difficulty: clean(form.get("bot_difficulty"), 20) || "balanced",
       status: clean(form.get("status"), 20) || "scheduled",
     });
     return go(redirect, r.ok ? "created=battle" : "error=save", "batallas");
@@ -398,6 +403,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       scheduled_at: clean(form.get("scheduled_at"), 40) || null,
       graph_layers: Number(clean(form.get("graph_layers"), 2)) || 4,
       nodes_per_layer: Number(clean(form.get("nodes_per_layer"), 2)) || 4,
+      bot_difficulty: clean(form.get("bot_difficulty"), 20) || null,
       status: clean(form.get("status"), 20) || "scheduled",
     });
     return go(redirect, r.ok ? "saved=change" : "error=save", "batallas");

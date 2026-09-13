@@ -88,6 +88,7 @@ class BattleIn(BaseModel):
     scheduled_at: str | None = None
     graph_layers: int = 4
     nodes_per_layer: int = 4
+    bot_difficulty: str = "balanced"
     status: str = "scheduled"
 
 
@@ -166,6 +167,7 @@ class BattleUpdate(BaseModel):
     scheduled_at: str | None = None
     graph_layers: int | None = None
     nodes_per_layer: int | None = None
+    bot_difficulty: str | None = None
     status: str | None = None
 
 
@@ -657,7 +659,7 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             .select(
                 "id, school_id, title, battle_type, subject_id, grade, "
                 "opponent_a, opponent_b, scheduled_at, graph_layers, "
-                "nodes_per_layer, status"
+                "nodes_per_layer, bot_difficulty, status"
             )
             .eq("school_id", school_id)
             .execute()
@@ -2700,6 +2702,7 @@ async def create_battle(
                 "scheduled_at": body.scheduled_at,
                 "graph_layers": body.graph_layers,
                 "nodes_per_layer": body.nodes_per_layer,
+                "bot_difficulty": body.bot_difficulty,
                 "status": body.status,
                 "is_demo": False,
             }

@@ -2179,6 +2179,7 @@ const trNivel = (level?: string) =>
                             ?.name ?? ""
                         }
                         data-time={settings.battle_rules?.turn_seconds ?? 30}
+                        data-bot={battle.bot_difficulty ?? "balanced"}
                         data-layers={battle.graph_layers ?? 4}
                         data-nodes={battle.nodes_per_layer ?? 4}
                         data-teams={
@@ -2197,6 +2198,7 @@ const trNivel = (level?: string) =>
                         data-id={battle.id}
                         data-title={battle.title}
                         data-type={battle.battle_type}
+                        data-bot={battle.bot_difficulty ?? "balanced"}
                         data-subject={battle.subject_id ?? ""}
                         data-grade={battle.grade ?? ""}
                         data-oppa={battle.opponent_a}
@@ -3027,6 +3029,14 @@ const trNivel = (level?: string) =>
             value="tournament">Torneo</option
           ></select
         ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced" selected>Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
+        ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
           name="subject_id"
@@ -3243,6 +3253,14 @@ const trNivel = (level?: string) =>
           ><option value="section_vs_section">Seccion vs seccion</option><option
             value="tournament">Torneo</option
           ></select
+        ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced">Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
         ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
@@ -3854,6 +3872,21 @@ const trNivel = (level?: string) =>
       | null;
     if (el && val !== undefined && val !== null) el.value = String(val);
   };
+  // Nivel del bot: solo se muestra cuando la batalla es alumno vs bot
+  const syncBotFields = (scope?: HTMLElement | null) => {
+    (scope ?? document)
+      .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+      .forEach((sel) => {
+        const field = sel
+          .closest("form")
+          ?.querySelector<HTMLElement>(".bot-difficulty-field");
+        if (field) field.hidden = sel.value !== "student_vs_bot";
+      });
+  };
+  document
+    .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+    .forEach((sel) => sel.addEventListener("change", () => syncBotFields()));
+  syncBotFields();
   document.querySelectorAll<HTMLElement>("[data-edit-staff]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -4014,7 +4047,9 @@ const trNivel = (level?: string) =>
       );
       setVal("edit-battle-dialog", "graph_layers", d.layers ?? 4);
       setVal("edit-battle-dialog", "nodes_per_layer", d.nodes ?? 4);
+      setVal("edit-battle-dialog", "bot_difficulty", d.bot ?? "balanced");
       setVal("edit-battle-dialog", "status", d.status);
+      syncBotFields(document.getElementById("edit-battle-dialog"));
       openDialog("edit-battle-dialog");
     }),
   );
@@ -4093,6 +4128,7 @@ const trNivel = (level?: string) =>
       e.stopPropagation();
       const subject = b.dataset.subject ?? "";
       const turnSeconds = b.dataset.time ?? "";
+      const botDifficulty = b.dataset.bot ?? "";
       const layers = b.dataset.layers ?? "";
       const nodes = b.dataset.nodes ?? "";
       const teams = b.dataset.teams ?? "2";
@@ -4108,6 +4144,8 @@ const trNivel = (level?: string) =>
       let src = gameBase + "?school_id=" + encodeURIComponent(SCHOOL_ID);
       if (subject) src += "&subject=" + encodeURIComponent(subject);
       if (turnSeconds) src += "&time=" + encodeURIComponent(turnSeconds);
+      if (botDifficulty)
+        src += "&bot_difficulty=" + encodeURIComponent(botDifficulty);
       if (layers) src += "&layers=" + encodeURIComponent(layers);
       if (nodes) src += "&nodes=" + encodeURIComponent(nodes);
       if (teams) src += "&teams=" + encodeURIComponent(teams);
