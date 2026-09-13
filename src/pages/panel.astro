@@ -2455,8 +2455,10 @@ const trNivel = (level?: string) =>
                 <label>Vista<select id="report-scope"
                     ><option value="school">Todo el colegio</option
                     ><option value="section">Un aula</option
-                    ><option value="staff">Un docente</option
-                    ><option value="student">Un alumno</option></select
+                    >{["owner", "director", "subdirector", "coordinator"].includes(
+                      myRole,
+                    ) && <option value="staff">Un docente</option
+                    >}<option value="student">Un alumno</option></select
                   ></label
                 ><label id="report-section-wrap" hidden
                   >Aula<select id="report-section"

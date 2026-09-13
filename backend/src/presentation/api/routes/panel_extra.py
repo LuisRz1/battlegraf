@@ -17,6 +17,7 @@ from src.infrastructure.ai.openai_agent import build_question_agent
 from src.infrastructure.database.supabase_admin import supabase_admin
 from src.presentation.api.routes.panel import (
     Msg,
+    _accessible_students,
     _current_uid,
     _first,
     _own_student_profile,
@@ -1045,7 +1046,12 @@ def _avg(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 1)
 
 
-def _school_metrics(supabase: Any, school_id: str) -> dict:
+def _school_metrics(
+    supabase: Any,
+    school_id: str,
+    member: dict | None = None,
+    uid: str | None = None,
+) -> dict:
     config = _report_config(supabase, school_id)
     weights = config["weights"]
     goal = float(config["goal"])
@@ -1066,6 +1072,25 @@ def _school_metrics(supabase: Any, school_id: str) -> dict:
         .data
         or []
     )
+    # Alcance real del rol: un docente/tutor ve su aula, no todo el colegio.
+    if member is not None:
+        accessible = _accessible_students(supabase, school_id, member, uid or "")
+        allowed = {str(row["id"]) for row in accessible}
+        students = [row for row in students if str(row["id"]) in allowed]
+        allowed_sections = {
+            str(row.get("section_id"))
+            for row in students
+            if row.get("section_id")
+        }
+        if member.get("role") not in {
+            "owner",
+            "director",
+            "subdirector",
+            "coordinator",
+        }:
+            sections = [
+                row for row in sections if str(row["id"]) in allowed_sections
+            ]
     subjects = (
         supabase.table("subjects")
         .select("id, name, color")
@@ -1380,8 +1405,8 @@ async def report_overview(
 ):
     """Vista agregada de todas las aulas para los graficos del panel."""
     supabase = supabase_admin()
-    await _require_member(supabase, uid, school_id, STAFF_ROLES)
-    data = _school_metrics(supabase, school_id)
+    member = await _require_member(supabase, uid, school_id, STAFF_ROLES)
+    data = _school_metrics(supabase, school_id, member, uid)
     section_names = {
         str(s["id"]): s.get("display_name") for s in data["sections"]
     }
@@ -1471,8 +1496,8 @@ async def report_student(
 ):
     """Expediente de desempeno de un alumno del colegio."""
     supabase = supabase_admin()
-    await _require_member(supabase, uid, school_id, STAFF_ROLES)
-    data = _school_metrics(supabase, school_id)
+    member = await _require_member(supabase, uid, school_id, STAFF_ROLES)
+    data = _school_metrics(supabase, school_id, member, uid)
     for row in data["students"]:
         if str(row["id"]) == str(student_id):
             row = dict(row)
