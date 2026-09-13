@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 /// Paleta del sistema web (global.css) replicada en el aplicativo móvil.
@@ -20,7 +21,9 @@ class AppColors {
   // Acento principal: rojo -> magenta -> morado (sin dorado)
   static const Color oro300 = Color(0xFFFF6FB0); // magenta claro (highlight)
   static const Color oro500 = Color(0xFFE11D48); // rojo (botones / primario)
-  static const Color oro700 = Color(0xFF8E1030); // rojo profundo (bordes/botones)
+  static const Color oro700 = Color(
+    0xFF8E1030,
+  ); // rojo profundo (bordes/botones)
   static const Color bordeOro = Color(0xFF4A1E52); // borde morado de tarjetas
 
   // Acentos (bandos y temas)
@@ -34,22 +37,22 @@ class AppColors {
   static const Color textoSeco = Color(0xFF8B7BA8);
 
   // Compatibilidad con nombres antiguos (re-mapeados a la paleta roja/morada)
-    static const Color voidBlack = piedra950;
-    static const Color deepPurple = piedra800;
-    static const Color royalPurple = piedra700;
-    static const Color darkCard = fondoCard;
-    static const Color panelBackground = fondoPanel;
-    static const Color deepBackground = fondoGame;
-    static const Color shadowPurple = piedra600;
-    static const Color mutedInk = crema500;
-    static const Color crimsonRed = oro700;
-    static const Color brightRed = Color(0xFFFF3B5C);
-    static const Color magenta = Color(0xFFD946EF);
-    static const Color neonPurple = Color(0xFFA855F7);
-    static const Color cyan = Color(0xFF8B5CF6);
-    static const Color gold = oro300;
-    static const Color offWhite = crema100;
-  }
+  static const Color voidBlack = piedra950;
+  static const Color deepPurple = piedra800;
+  static const Color royalPurple = piedra700;
+  static const Color darkCard = fondoCard;
+  static const Color panelBackground = fondoPanel;
+  static const Color deepBackground = fondoGame;
+  static const Color shadowPurple = piedra600;
+  static const Color mutedInk = crema500;
+  static const Color crimsonRed = oro700;
+  static const Color brightRed = Color(0xFFFF3B5C);
+  static const Color magenta = Color(0xFFD946EF);
+  static const Color neonPurple = Color(0xFFA855F7);
+  static const Color cyan = Color(0xFF8B5CF6);
+  static const Color gold = oro300;
+  static const Color offWhite = crema100;
+}
 
 class AppTheme {
   /// Una sola tipografía en todo el aplicativo, igual que el sistema web.
@@ -60,6 +63,16 @@ class AppTheme {
     return ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       scaffoldBackgroundColor: AppColors.fondoGame,
       colorScheme: const ColorScheme.dark(
         primary: AppColors.oro500,
@@ -71,7 +84,7 @@ class AppTheme {
         error: AppColors.rojoAccion,
         onError: AppColors.crema100,
       ),
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.piedra950,
         foregroundColor: AppColors.crema100,
         elevation: 0,
@@ -136,8 +149,14 @@ class AppTheme {
           borderRadius: BorderRadius.circular(4),
           borderSide: const BorderSide(color: AppColors.oro500, width: 1.6),
         ),
-        labelStyle: const TextStyle(color: AppColors.crema500, fontFamily: bodyFont),
-        hintStyle: const TextStyle(color: AppColors.crema500, fontFamily: bodyFont),
+        labelStyle: const TextStyle(
+          color: AppColors.crema500,
+          fontFamily: bodyFont,
+        ),
+        hintStyle: const TextStyle(
+          color: AppColors.crema500,
+          fontFamily: bodyFont,
+        ),
         prefixIconColor: AppColors.oro500,
       ),
       dialogTheme: DialogThemeData(
@@ -151,12 +170,17 @@ class AppTheme {
         backgroundColor: AppColors.piedra900,
         selectedColor: AppColors.oro500,
         side: const BorderSide(color: AppColors.bordeOro, width: 1.2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        labelStyle: const TextStyle(
+          fontFamily: bodyFont,
+          color: AppColors.crema100,
+          fontSize: 13,
         ),
-        labelStyle: TextStyle(fontFamily: bodyFont, color: AppColors.crema100, fontSize: 13),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.bordeOro, thickness: 1),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.bordeOro,
+        thickness: 1,
+      ),
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontFamily: displayFont,

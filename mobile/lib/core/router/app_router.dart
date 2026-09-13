@@ -8,6 +8,7 @@ import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/views/battle/bot_battle_demo_view.dart';
 import '../../presentation/views/battle/battle_setup_view.dart';
 import '../../presentation/views/battle/battle_play_view.dart';
+import '../../presentation/views/battle/godot_battle_view.dart';
 import '../../presentation/views/login/login_view.dart';
 import '../../presentation/views/lobby/lobby_view.dart';
 import '../../presentation/views/splash/splash_view.dart';
@@ -85,6 +86,17 @@ final routerProvider = Provider<GoRouter>((ref) {
               .toList(),
           layers: int.tryParse(state.uri.queryParameters['layers'] ?? ''),
           nodesPerLayer: int.tryParse(state.uri.queryParameters['nodes'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: '/battle/godot',
+        builder: (context, state) => GodotBattleView(
+          topic: state.uri.queryParameters['topic'],
+          layers: int.tryParse(state.uri.queryParameters['layers'] ?? ''),
+          nodesPerLayer: int.tryParse(state.uri.queryParameters['nodes'] ?? ''),
+          botDifficulty: state.uri.queryParameters['bot'] ?? 'balanced',
+          muted: state.uri.queryParameters['mute'] == '1',
+          teams: int.tryParse(state.uri.queryParameters['teams'] ?? '') ?? 2,
         ),
       ),
       GoRoute(
