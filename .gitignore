@@ -50,6 +50,8 @@ docker-compose.override.yml
 
 # Flutter
 mobile/.dart_tool/
+mobile/android/.kotlin/
+mobile/android/app/.cxx/
 mobile/.packages
 mobile/build/
 mobile/.flutter-plugins
