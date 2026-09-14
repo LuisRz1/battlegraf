@@ -521,8 +521,10 @@ const trEstado = (status?: string) =>
 const trEntrega = (type?: string) =>
   ({
     assessment: "Evaluacion",
-    written: "Escrita",
+    quiz: "Alternativas",
+    written: "Respuesta escrita",
     upload: "Documento",
+    document: "Documento",
     mixed: "Mixta",
   })[type ?? ""] ??
   type ??
@@ -1396,6 +1398,11 @@ const trNivel = (level?: string) =>
                               data-level={section.level}
                               data-label={section.section_label}
                               data-tutor={section.tutor_name ?? ""}
+                              data-subjects={JSON.stringify(
+                                sectionSubjects
+                                  .filter((x) => x.section_id === section.id)
+                                  .map((x) => x.subject_id),
+                              )}
                             >
                               Editar aula
                             </button>
@@ -2900,7 +2907,22 @@ const trNivel = (level?: string) =>
         >Seccion<input name="section_label" required placeholder="A" /></label
       ><label
         >Tutor<input name="tutor_name" placeholder="Nombre del tutor" /></label
-      ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      ><div class="dialog-full subject-picker" id="edit-section-subjects">
+        <span>Cursos del aula (elige cuales lleva esta seccion)</span>
+        <div class="subject-picker-grid">
+          {subjects.map((subject) => (
+            <label class="check-label">
+              <input type="checkbox" name="subject_ids" value={subject.id} />
+              {subject.name}
+            </label>
+          ))}
+        </div>
+        <small>Desmarca los cursos que esta aula no lleva.</small>
+      </div><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="edit-subject-dialog">
@@ -2987,7 +3009,27 @@ const trNivel = (level?: string) =>
         >Seccion<input name="section_label" required placeholder="A" /></label
       ><label
         >Tutor<input name="tutor_name" placeholder="Nombre del tutor" /></label
-      ><button class="command-btn" type="submit">CREAR Y CONFIGURAR</button>
+      ><div class="dialog-full subject-picker">
+        <span>Cursos del aula (elige cuales lleva esta seccion)</span>
+        <div class="subject-picker-grid">
+          {subjects.map((subject) => (
+            <label class="check-label">
+              <input
+                type="checkbox"
+                name="subject_ids"
+                value={subject.id}
+                checked
+              />
+              {subject.name}
+            </label>
+          ))}
+        </div>
+        <small>Desmarca los cursos que esta aula no lleva.</small>
+      </div><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">CREAR Y CONFIGURAR</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="subject-dialog">
@@ -4158,7 +4200,7 @@ const trNivel = (level?: string) =>
       // no abrir si pulsan botones internos o la zona de acciones (editar/eliminar)
       if (
         (e.target as HTMLElement).closest(
-          "button,a,input,select,label,form,.row-actions,.class-actions",
+          "button,a,input,select,label,form,summary,details,.row-actions,.class-actions",
         )
       )
         return;
@@ -4450,6 +4492,17 @@ const trNivel = (level?: string) =>
       setVal("edit-section-dialog", "level", d.level);
       setVal("edit-section-dialog", "section_label", d.label);
       setVal("edit-section-dialog", "tutor_name", d.tutor);
+      let subjectIds: string[] = [];
+      try {
+        subjectIds = JSON.parse(d.subjects ?? "[]");
+      } catch {}
+      document
+        .querySelectorAll<HTMLInputElement>(
+          "#edit-section-subjects input[type=checkbox]",
+        )
+        .forEach((cb) => {
+          cb.checked = subjectIds.includes(cb.value);
+        });
       openDialog("edit-section-dialog");
     }),
   );

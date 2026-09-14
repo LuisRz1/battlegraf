@@ -93,8 +93,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       grade: clean(form.get("grade"), 12),
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
+      subject_ids: form
+        .getAll("subject_ids")
+        .map((value) => String(value).slice(0, 40))
+        .filter(Boolean),
     });
-    return go(redirect, r.ok ? "created=section"         : fail(r.detail), "secciones");
+    return go(redirect, r.ok ? "created=section" : fail(r.detail), "secciones");
   }
   if (action === "update_section") {
     const id = clean(form.get("id"), 40);
@@ -103,8 +107,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       grade: clean(form.get("grade"), 12),
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
+      subject_ids: form
+        .getAll("subject_ids")
+        .map((value) => String(value).slice(0, 40))
+        .filter(Boolean),
     });
-    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "secciones");
+    return go(redirect, r.ok ? "saved=change" : fail(r.detail), "secciones");
   }
   if (action === "delete_section") {
     const id = clean(form.get("id"), 40);

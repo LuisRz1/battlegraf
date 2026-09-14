@@ -37,6 +37,7 @@ class SectionIn(BaseModel):
     grade: str = Field(min_length=1, max_length=12)
     section_label: str = Field(min_length=1, max_length=8)
     tutor_name: str | None = None
+    subject_ids: list[str] | None = None
 
 
 class SubjectIn(BaseModel):
@@ -118,6 +119,7 @@ class SectionUpdate(BaseModel):
     grade: str | None = Field(default=None, min_length=1, max_length=12)
     section_label: str | None = Field(default=None, min_length=1, max_length=8)
     tutor_name: str | None = None
+    subject_ids: list[str] | None = None
 
 
 class SubjectUpdate(BaseModel):
@@ -955,13 +957,25 @@ async def create_section(
     )
     sec_id = resp.data[0].get("id") if resp.data else None
     try:  # noqa: SIM105
-        subs = (
-            supabase.table("subjects").select("id").eq("school_id", school_id).execute()
-        )
-        if subs.data:
-            supabase.table("section_subjects").insert(
-                [{"section_id": sec_id, "subject_id": s["id"]} for s in subs.data]
-            ).execute()
+        if body.subject_ids is not None:
+            chosen = [
+                {"section_id": sec_id, "subject_id": sid}
+                for sid in body.subject_ids
+                if sid
+            ]
+            if chosen:
+                supabase.table("section_subjects").insert(chosen).execute()
+        else:
+            subs = (
+                supabase.table("subjects")
+                .select("id")
+                .eq("school_id", school_id)
+                .execute()
+            )
+            if subs.data:
+                supabase.table("section_subjects").insert(
+                    [{"section_id": sec_id, "subject_id": s["id"]} for s in subs.data]
+                ).execute()
         supabase.table("clans").insert(
             [
                 {
@@ -1019,6 +1033,20 @@ async def update_section(
         label = patch.get("section_label", row.get("section_label", "")).upper()
         patch["display_name"] = f"{grade}. {level} {label}"
     supabase.table("sections").update(patch).eq("id", section_id).execute()
+    if body.subject_ids is not None:
+        try:  # noqa: SIM105
+            supabase.table("section_subjects").delete().eq(
+                "section_id", section_id
+            ).execute()
+            chosen = [
+                {"section_id": section_id, "subject_id": sid}
+                for sid in body.subject_ids
+                if sid
+            ]
+            if chosen:
+                supabase.table("section_subjects").insert(chosen).execute()
+        except Exception:  # noqa: BLE001
+            pass
     return Msg(detail="Seccion actualizada")
 
 
