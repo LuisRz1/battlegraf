@@ -4660,12 +4660,15 @@
   right: 0;
   top: calc(100% + 0.35rem);
   z-index: 25;
-  display: grid;
+  display: none;
   min-width: 13.5rem;
   padding: 0.35rem;
   border: 1px solid #6b4a2a;
   background: linear-gradient(180deg, #1b1622, #0f0d13);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.action-menu[open] > .action-menu-panel {
+  display: grid;
 }
 .action-menu-panel form.inline {
   display: block;
