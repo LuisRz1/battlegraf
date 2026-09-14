@@ -264,6 +264,7 @@ const materials = (materialsResult.data ?? []) as any[];
 const questions = (questionsResult.data ?? []) as any[];
 const staff = (staffResult.data ?? []) as any[];
 const subjectTeachers = (dashboard.subject_teachers ?? []) as any[];
+const sectionSubjects = (dashboard.section_subjects ?? []) as any[];
 const assignments = (assignmentsResult.data ?? []) as any[];
 const battles = (battlesResult.data ?? []) as any[];
 const ranks = (ranksResult.data ?? []) as any[];
@@ -455,6 +456,7 @@ const viewTitle =
 const created = Astro.url.searchParams.get("created");
 const deleted = Astro.url.searchParams.get("saved") === "deleted";
 const hasError = Astro.url.searchParams.has("error");
+const guardReason = (Astro.url.searchParams.get("reason") ?? "").slice(0, 220);
 const messages: Record<string, string> = {
   section: "Seccion creada con materias y clanes.",
   subject: "Materia creada y asignada.",
@@ -661,14 +663,17 @@ const trNivel = (level?: string) =>
                 <>
                   <strong>
                     {hasError
-                      ? "OPERACION NO COMPLETADA"
+                      ? guardReason
+                        ? "OPERACION NO PERMITIDA"
+                        : "OPERACION NO COMPLETADA"
                       : deleted
                         ? "ELEMENTO ELIMINADO"
                         : "CAMBIO APLICADO"}
                   </strong>
                   <p>
                     {hasError
-                      ? "No pudimos guardar el cambio. Revisa los datos."
+                      ? guardReason ||
+                        "No pudimos guardar el cambio. Revisa los datos."
                       : created
                         ? (messages[created] ?? "Cambio guardado.")
                         : deleted
@@ -1335,7 +1340,7 @@ const trNivel = (level?: string) =>
                       class="territory-card searchable"
                       data-detail-card
                       data-detail-title={section.display_name}
-                      data-detail-body={`Codigo ${section.code}. Estudiantes: ${students.filter((s) => s.section_id === section.id).length} · Tutor: ${section.tutor_name ?? "Sin asignar"} · Clanes: ${clans.filter((c) => c.section_id === section.id).length}.`}
+                      data-detail-body={`Codigo ${section.code}. Estudiantes: ${students.filter((s) => s.section_id === section.id).length} · Tutor: ${section.tutor_name ?? "Sin asignar"} · Cursos: ${sectionSubjects.filter((x) => x.section_id === section.id).length} · Clanes: ${clans.filter((c) => c.section_id === section.id).length}.`}
                     >
                       <span>SECCION {String(i + 1).padStart(2, "0")}</span>
                       <i>{trEstado(section.status)}</i>
@@ -1360,6 +1365,16 @@ const trNivel = (level?: string) =>
                           <dd>{section.tutor_name ?? "Sin asignar"}</dd>
                         </div>
                         <div>
+                          <dt>CURSOS</dt>
+                          <dd>
+                            {
+                              sectionSubjects.filter(
+                                (x) => x.section_id === section.id,
+                              ).length
+                            }
+                          </dd>
+                        </div>
+                        <div>
                           <dt>CLANES</dt>
                           <dd>
                             {
@@ -1370,35 +1385,40 @@ const trNivel = (level?: string) =>
                         </div>
                       </dl>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-section
-                          data-id={section.id}
-                          data-grade={section.grade}
-                          data-level={section.level}
-                          data-label={section.section_label}
-                          data-tutor={section.tutor_name ?? ""}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_section"
-                          />
-                          <input type="hidden" name="id" value={section.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta seccion? Se borraran sus datos vinculados."
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del aula" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-section
+                              data-id={section.id}
+                              data-grade={section.grade}
+                              data-level={section.level}
+                              data-label={section.section_label}
+                              data-tutor={section.tutor_name ?? ""}
+                            >
+                              Editar aula
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_section"
+                              />
+                              <input type="hidden" name="id" value={section.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar este aula? Solo se permite si no tiene estudiantes, cursos, tareas ni asistencia registrada."
+                              >
+                                Eliminar aula
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -1487,20 +1507,71 @@ const trNivel = (level?: string) =>
                             }
                           </dd>
                         </div>
+                        <div>
+                          <dt>AULAS</dt>
+                          <dd>
+                            {
+                              sectionSubjects.filter(
+                                (x) => x.subject_id === subject.id,
+                              ).length
+                            }
+                          </dd>
+                        </div>
                       </dl>
                       <div class="row-actions">
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-assign-teacher
-                          data-subject={subject.id}
-                          data-subject-name={subject.name}
-                        >
-                          ASIGNAR PROFESOR
-                        </button>
-                        {subjectTeachers
-                          .filter((t) => t.subject_id === subject.id)
-                          .map((t) => (
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del curso" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-assign-teacher
+                              data-subject={subject.id}
+                              data-subject-name={subject.name}
+                            >
+                              Asignar profesor
+                            </button>
+                            {subjectTeachers
+                              .filter((t) => t.subject_id === subject.id)
+                              .map((t) => (
+                                <form
+                                  method="post"
+                                  action="/api/recursos"
+                                  class="inline"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="action"
+                                    value="remove_teacher"
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="subject_id"
+                                    value={subject.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="staff_id"
+                                    value={t.staff_id}
+                                  />
+                                  <button
+                                    class="danger"
+                                    data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
+                                  >
+                                    Quitar a{" "}
+                                    {t.staff_profiles?.full_name ?? "profesor"}
+                                  </button>
+                                </form>
+                              ))}
+                            <button
+                              type="button"
+                              data-edit-subject
+                              data-id={subject.id}
+                              data-name={subject.name}
+                              data-icon={subject.icon_code}
+                              data-color={subject.color}
+                            >
+                              Editar curso
+                            </button>
                             <form
                               method="post"
                               action="/api/recursos"
@@ -1509,78 +1580,50 @@ const trNivel = (level?: string) =>
                               <input
                                 type="hidden"
                                 name="action"
-                                value="remove_teacher"
+                                value="toggle_subject"
                               />
                               <input
                                 type="hidden"
-                                name="subject_id"
+                                name="id"
                                 value={subject.id}
                               />
                               <input
                                 type="hidden"
-                                name="staff_id"
-                                value={t.staff_id}
+                                name="is_enabled"
+                                value={
+                                  subject.is_enabled === false ? "true" : "false"
+                                }
                               />
-                              <button
-                                class="btn-del"
-                                data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
-                              >
-                                QUITAR
+                              <button>
+                                {subject.is_enabled === false
+                                  ? "Activar curso"
+                                  : "Desactivar curso"}
                               </button>
                             </form>
-                          ))}
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="toggle_subject"
-                          />
-                          <input type="hidden" name="id" value={subject.id} />
-                          <input
-                            type="hidden"
-                            name="is_enabled"
-                            value={
-                              subject.is_enabled === false ? "true" : "false"
-                            }
-                          />
-                          <button class="btn-edit">
-                            {subject.is_enabled === false
-                              ? "ACTIVAR CURSO"
-                              : "DESACTIVAR CURSO"}
-                          </button>
-                        </form>
-                        <button
-                          class="btn-edit"
-                          data-edit-subject
-                          data-id={subject.id}
-                          data-name={subject.name}
-                          data-icon={subject.icon_code}
-                          data-color={subject.color}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_subject"
-                          />
-                          <input type="hidden" name="id" value={subject.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta materia? Se quitaran sus preguntas y materiales vinculados."
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_subject"
+                              />
+                              <input
+                                type="hidden"
+                                name="id"
+                                value={subject.id}
+                              />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar este curso? Solo se permite si no tiene profesores, aulas, tareas, preguntas ni materiales vinculados."
+                              >
+                                Eliminar curso
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -1692,36 +1735,41 @@ const trNivel = (level?: string) =>
                       <span>{person.scope_label}</span>
                       <i>{trEstado(person.status)}</i>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-staff
-                          data-id={person.id}
-                          data-full={person.full_name}
-                          data-email={person.email ?? ""}
-                          data-role={person.role}
-                          data-scope={person.scope_label ?? ""}
-                          data-status={person.status ?? "active"}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_staff"
-                          />
-                          <input type="hidden" name="id" value={person.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Seguro de eliminar a esta persona?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la persona" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-staff
+                              data-id={person.id}
+                              data-full={person.full_name}
+                              data-email={person.email ?? ""}
+                              data-role={person.role}
+                              data-scope={person.scope_label ?? ""}
+                              data-status={person.status ?? "active"}
+                            >
+                              Editar permisos
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_staff"
+                              />
+                              <input type="hidden" name="id" value={person.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar a esta persona? Solo se permite si no tiene cursos, clases ni tutorias asignadas."
+                              >
+                                Eliminar persona
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1738,43 +1786,47 @@ const trNivel = (level?: string) =>
                       </span>
                       <i>{trEstado(student.status)}</i>
                       <div class="row-actions">
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-student-tracking
-                          data-id={student.id}
-                          data-name={student.full_name}
-                        >
-                          VER
-                        </button>
-                        <button
-                          class="btn-edit"
-                          data-edit-student
-                          data-id={student.id}
-                          data-full={student.full_name}
-                          data-email={student.email ?? ""}
-                          data-section={student.section_id ?? ""}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_student"
-                          />
-                          <input type="hidden" name="id" value={student.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Seguro de eliminar a este alumno?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del alumno" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-student-tracking
+                              data-id={student.id}
+                              data-name={student.full_name}
+                            >
+                              Ver expediente
+                            </button>
+                            <button
+                              type="button"
+                              data-edit-student
+                              data-id={student.id}
+                              data-full={student.full_name}
+                              data-email={student.email ?? ""}
+                              data-section={student.section_id ?? ""}
+                            >
+                              Editar alumno
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_student"
+                              />
+                              <input type="hidden" name="id" value={student.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar a este alumno? Solo se permite si no tiene tareas entregadas, batallas, puntos ni asistencia."
+                              >
+                                Eliminar alumno
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1858,43 +1910,49 @@ const trNivel = (level?: string) =>
                         PREGUNTAS
                       </span>
                       <div class="row-actions">
-                        <button
-                          data-detail-title={material.title}
-                          data-detail-body={`Estado ${trEstado(material.processing_status)}.`}
-                        >
-                          ABRIR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="generate_material"
-                          />
-                          <input type="hidden" name="id" value={material.id} />
-                          <button class="btn-edit">GENERAR IA</button>
-                        </form>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_material"
-                          />
-                          <input type="hidden" name="id" value={material.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar este material y sus preguntas?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del material" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-detail-title={material.title}
+                              data-detail-body={`Estado ${trEstado(material.processing_status)}.`}
+                            >
+                              Abrir detalle
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="generate_material"
+                              />
+                              <input type="hidden" name="id" value={material.id} />
+                              <button>Generar con IA</button>
+                            </form>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_material"
+                              />
+                              <input type="hidden" name="id" value={material.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar este material? Se quitaran sus preguntas generadas."
+                              >
+                                Eliminar material
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1960,62 +2018,67 @@ const trNivel = (level?: string) =>
                       <b>Q-{String(i + 1).padStart(3, "0")}</b>
                       <i>{relationName(question.subjects) ?? "General"}</i>
                       <strong>{question.question}</strong>
-                      {question.status !== "approved" && (
-                        <small>{trEstado(question.status)}</small>
-                      )}
                       <div class="row-actions">
-                        {question.status !== "approved" ? (
-                          <form
-                            method="post"
-                            action="/api/recursos"
-                            class="inline"
-                          >
-                            <input
-                              type="hidden"
-                              name="action"
-                              value="approve_question"
-                            />
-                            <input
-                              type="hidden"
-                              name="question_id"
-                              value={question.id}
-                            />
-                            <button>REVISAR Y APROBAR</button>
-                          </form>
-                        ) : (
+                        {question.status !== "approved" && (
+                          <b class="pending-tag">{trEstado(question.status)}</b>
+                        )}
+                        {question.status === "approved" && (
                           <b class="approved-tag">APROBADA</b>
                         )}
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-edit-question
-                          data-id={question.id}
-                          data-subject={question.subject_id ?? ""}
-                          data-question={question.question}
-                          data-options={JSON.stringify(question.options ?? [])}
-                          data-correct={question.correct_index ?? 0}
-                          data-status={question.status}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_question"
-                          />
-                          <input type="hidden" name="id" value={question.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta pregunta?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la pregunta" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            {question.status !== "approved" && (
+                              <form
+                                method="post"
+                                action="/api/recursos"
+                                class="inline"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="action"
+                                  value="approve_question"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="question_id"
+                                  value={question.id}
+                                />
+                                <button>Revisar y aprobar</button>
+                              </form>
+                            )}
+                            <button
+                              type="button"
+                              data-edit-question
+                              data-id={question.id}
+                              data-subject={question.subject_id ?? ""}
+                              data-question={question.question}
+                              data-options={JSON.stringify(question.options ?? [])}
+                              data-correct={question.correct_index ?? 0}
+                              data-status={question.status}
+                            >
+                              Editar pregunta
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_question"
+                              />
+                              <input type="hidden" name="id" value={question.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar esta pregunta del banco?"
+                              >
+                                Eliminar pregunta
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -2058,44 +2121,51 @@ const trNivel = (level?: string) =>
                       </div>
                       <b>{relationName(task.subjects) ?? "General"}</b>
                       <h2>{task.title}</h2>
-                      <p>
-                        {relationName(task.sections) ?? "Todas"} -{" "}
-                        {trEntrega(task.delivery_type)}
-                      </p>
-                      <strong>{task.xp_reward} XP</strong>
+                      <div class="assignment-meta">
+                        <span>{relationName(task.sections) ?? "Todas las aulas"}</span>
+                        <span>{trEntrega(task.delivery_type)}</span>
+                        <span class="gold">{task.xp_reward} XP</span>
+                      </div>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-assignment
-                          data-id={task.id}
-                          data-title={task.title}
-                          data-section={task.section_id ?? ""}
-                          data-subject={task.subject_id ?? ""}
-                          data-type={task.delivery_type}
-                          data-due={task.due_at ?? ""}
-                          data-xp={task.xp_reward ?? 80}
-                          data-status={task.status}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_assignment"
-                          />
-                          <input type="hidden" name="id" value={task.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta tarea?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la tarea" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-assignment
+                              data-id={task.id}
+                              data-title={task.title}
+                              data-section={task.section_id ?? ""}
+                              data-subject={task.subject_id ?? ""}
+                              data-type={task.delivery_type}
+                              data-due={task.due_at ?? ""}
+                              data-xp={task.xp_reward ?? 80}
+                              data-points={task.points ?? 100}
+                              data-instructions={task.instructions ?? ""}
+                              data-status={task.status}
+                            >
+                              Editar tarea
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_assignment"
+                              />
+                              <input type="hidden" name="id" value={task.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar esta tarea? Solo se permite si ningun alumno la ha entregado."
+                              >
+                                Eliminar tarea
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -2174,7 +2244,7 @@ const trNivel = (level?: string) =>
                     </small>
                     <div class="row-actions">
                       <button
-                        class="btn-edit"
+                        class="command-btn"
                         data-play-battle
                         data-title={battle.title}
                         data-subject={
@@ -2195,38 +2265,47 @@ const trNivel = (level?: string) =>
                       >
                         JUGAR
                       </button>
-                      <button
-                        class="btn-edit"
-                        data-edit-battle
-                        data-id={battle.id}
-                        data-title={battle.title}
-                        data-type={battle.battle_type}
-                        data-bot={battle.bot_difficulty ?? "balanced"}
-                        data-subject={battle.subject_id ?? ""}
-                        data-grade={battle.grade ?? ""}
-                        data-oppa={battle.opponent_a}
-                        data-oppb={battle.opponent_b}
-                        data-when={battle.scheduled_at ?? ""}
-                        data-layers={battle.graph_layers ?? 4}
-                        data-nodes={battle.nodes_per_layer ?? 4}
-                        data-status={battle.status}
-                      >
-                        EDITAR
-                      </button>
-                      <form method="post" action="/api/recursos" class="inline">
-                        <input
-                          type="hidden"
-                          name="action"
-                          value="delete_battle"
-                        />
-                        <input type="hidden" name="id" value={battle.id} />
-                        <button
-                          class="btn-del"
-                          data-confirm="Eliminar esta batalla?"
-                        >
-                          ELIMINAR
-                        </button>
-                      </form>
+                      <details class="action-menu">
+                        <summary aria-label="Acciones de la batalla" title="Acciones">⋮</summary>
+                        <div class="action-menu-panel">
+                          <button
+                            type="button"
+                            data-edit-battle
+                            data-id={battle.id}
+                            data-title={battle.title}
+                            data-type={battle.battle_type}
+                            data-bot={battle.bot_difficulty ?? "balanced"}
+                            data-subject={battle.subject_id ?? ""}
+                            data-grade={battle.grade ?? ""}
+                            data-oppa={battle.opponent_a}
+                            data-oppb={battle.opponent_b}
+                            data-when={battle.scheduled_at ?? ""}
+                            data-layers={battle.graph_layers ?? 4}
+                            data-nodes={battle.nodes_per_layer ?? 4}
+                            data-status={battle.status}
+                          >
+                            Editar batalla
+                          </button>
+                          <form
+                            method="post"
+                            action="/api/recursos"
+                            class="inline"
+                          >
+                            <input
+                              type="hidden"
+                              name="action"
+                              value="delete_battle"
+                            />
+                            <input type="hidden" name="id" value={battle.id} />
+                            <button
+                              class="danger"
+                              data-confirm="Eliminar esta batalla?"
+                            >
+                              Eliminar batalla
+                            </button>
+                          </form>
+                        </div>
+                      </details>
                     </div>
                   </article>
                 ))}
@@ -3053,44 +3132,77 @@ const trNivel = (level?: string) =>
       ><button class="command-btn" type="submit">GUARDAR PREGUNTA</button>
     </form>
   </dialog>
-  <dialog class="portal-dialog" id="assignment-dialog">
+  <dialog class="portal-dialog assignment-dialog" id="assignment-dialog">
     <form method="post" action="/api/recursos">
       <input type="hidden" name="action" value="assignment" /><header>
-        <div><span>NUEVA MISION</span><h2>Crear tarea</h2></div><button
+        <div><span>NUEVA TAREA</span><h2>Crear tarea</h2></div><button
           type="button"
           data-close-dialog>X</button
         >
-      </header><label>Titulo<input name="title" required /></label><label
-        >Seccion<select name="section_id" required
-          >{
-            sections.map((section) => (
+      </header><label class="dialog-full"
+        >Titulo de la tarea<input
+          name="title"
+          required
+          maxlength="140"
+          placeholder="Ej: Practica de fracciones" /></label
+      ><label class="dialog-full"
+        >Consigna para el alumno<textarea
+          name="instructions"
+          rows="3"
+          maxlength="4000"
+          placeholder="Que debe hacer, pasos y criterios de evaluacion."
+        ></textarea></label
+      ><label
+        >Aula / grado (obligatorio)<select name="section_id" required
+          ><option value="">Selecciona un aula</option>{sections.map(
+            (section) => (
               <option value={section.id}>{section.display_name}</option>
-            ))
-          }</select
+            ),
+          )}</select
+        ><small>Se asigna a los alumnos de esta aula.</small></label
+      ><label
+        >Curso / materia<select name="subject_id" required
+          >{subjects.map((subject) => (
+            <option value={subject.id}>{subject.name}</option>
+          ))}</select
         ></label
       ><label
-        >Materia<select name="subject_id" required
-          >{
-            subjects.map((subject) => (
-              <option value={subject.id}>{subject.name}</option>
-            ))
-          }</select
+        >Forma de entrega<select name="delivery_type" id="assignment-delivery"
+          ><option value="quiz">Alternativas en linea</option
+          ><option value="written">Respuesta escrita (cuadro de texto)</option
+          ><option value="document">Documento PDF / Word / imagen</option
+          ></select
+        ><small id="assignment-delivery-hint"
+          >El alumno resuelve alternativas dentro de la app.</small
         ></label
       ><label
-        >Tipo<select name="delivery_type"
-          ><option value="quiz">Alternativas</option><option value="written"
-            >Respuesta escrita</option
-          ><option value="document">Documento</option></select
-        ></label
-      ><label>Entrega<input name="due_at" type="datetime-local" /></label><label
-        >XP<input
+        >Fecha y hora de entrega<input
+          name="due_at"
+          type="datetime-local" /></label
+      ><label
+        >Puntos de la tarea<input
+          name="points"
+          type="number"
+          min="0"
+          max="1000"
+          value="100" /><small>Calificacion maxima.</small></label
+      ><label
+        >XP de recompensa<input
           name="xp_reward"
           type="number"
           min="0"
           max="10000"
-          value="80"
-        /></label
-      ><button class="command-btn" type="submit">PROGRAMAR TAREA</button>
+          value="80" /><small>Se suma al progreso del alumno.</small></label
+      ><label
+        >Estado<select name="status"
+          ><option value="scheduled">Programada</option
+          ><option value="published">Publicada</option></select
+        ></label
+      ><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">CREAR TAREA</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="battle-dialog">
@@ -3279,7 +3391,7 @@ const trNivel = (level?: string) =>
       ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
     </form>
   </dialog>
-  <dialog class="portal-dialog" id="edit-assignment-dialog">
+  <dialog class="portal-dialog assignment-dialog" id="edit-assignment-dialog">
     <form method="post" action="/api/recursos">
       <input type="hidden" name="action" value="update_assignment" /><input
         type="hidden"
@@ -3289,31 +3401,64 @@ const trNivel = (level?: string) =>
           type="button"
           data-close-dialog>X</button
         >
-      </header><label>Titulo<input name="title" required /></label><label
-        >Seccion<select name="section_id"
-          >{
-            sections.map((section) => (
+      </header><label class="dialog-full"
+        >Titulo de la tarea<input name="title" required maxlength="140" /></label
+      ><label class="dialog-full"
+        >Consigna para el alumno<textarea
+          name="instructions"
+          rows="3"
+          maxlength="4000"
+        ></textarea></label
+      ><label
+        >Aula / grado<select name="section_id" required
+          ><option value="">Selecciona un aula</option>{sections.map(
+            (section) => (
               <option value={section.id}>{section.display_name}</option>
-            ))
-          }</select
+            ),
+          )}</select
         ></label
       ><label
-        >Materia<select name="subject_id"
-          >{
-            subjects.map((subject) => (
-              <option value={subject.id}>{subject.name}</option>
-            ))
-          }</select
+        >Curso / materia<select name="subject_id" required
+          >{subjects.map((subject) => (
+            <option value={subject.id}>{subject.name}</option>
+          ))}</select
         ></label
-      ><label>Entrega<input name="due_at" type="datetime-local" /></label><label
-        >XP<input name="xp_reward" type="number" min="0" max="10000" /></label
+      ><label
+        >Forma de entrega<select name="delivery_type" id="edit-assignment-delivery"
+          ><option value="quiz">Alternativas en linea</option
+          ><option value="written">Respuesta escrita (cuadro de texto)</option
+          ><option value="document">Documento PDF / Word / imagen</option
+          ></select
+        ></label
+      ><label
+        >Fecha y hora de entrega<input
+          name="due_at"
+          type="datetime-local" /></label
+      ><label
+        >Puntos de la tarea<input
+          name="points"
+          type="number"
+          min="0"
+          max="1000"
+          value="100" /></label
+      ><label
+        >XP de recompensa<input
+          name="xp_reward"
+          type="number"
+          min="0"
+          max="10000"
+          value="80" /></label
       ><label
         >Estado<select name="status"
           ><option value="scheduled">Programada</option><option
             value="published">Publicada</option
           ><option value="closed">Cerrada</option></select
         ></label
-      ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      ><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="edit-battle-dialog">
@@ -4094,6 +4239,40 @@ const trNivel = (level?: string) =>
     .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
     .forEach((sel) => sel.addEventListener("change", () => syncBotFields()));
   syncBotFields();
+  // ---- Tareas: pista segun la forma de entrega (Canvas style) ----
+  const deliveryHints: Record<string, string> = {
+    quiz: "El alumno resuelve alternativas dentro de la app.",
+    written: "El alumno escribe su respuesta en un cuadro de texto.",
+    document: "El alumno sube un PDF, Word o imagen como entrega.",
+  };
+  const syncDeliveryHint = (selectId: string, hintId: string) => {
+    const sel = document.getElementById(selectId) as HTMLSelectElement | null;
+    const hint = document.getElementById(hintId);
+    if (!sel || !hint) return;
+    const render = () => {
+      hint.textContent = deliveryHints[sel.value] ?? "";
+    };
+    sel.addEventListener("change", render);
+    render();
+  };
+  syncDeliveryHint("assignment-delivery", "assignment-delivery-hint");
+  // ---- Menus de acciones (3 puntos) ----
+  document
+    .querySelectorAll<HTMLDetailsElement>("details.action-menu")
+    .forEach((menu) => {
+      menu.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement).closest("button,a")) {
+          menu.removeAttribute("open");
+        }
+      });
+    });
+  document.addEventListener("click", (event) => {
+    document
+      .querySelectorAll<HTMLDetailsElement>("details.action-menu[open]")
+      .forEach((menu) => {
+        if (!menu.contains(event.target as Node)) menu.removeAttribute("open");
+      });
+  });
   document.querySelectorAll<HTMLElement>("[data-edit-staff]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -4156,6 +4335,8 @@ const trNivel = (level?: string) =>
           d.due && d.due.length >= 16 ? d.due.slice(0, 16) : "",
         );
         setVal("edit-assignment-dialog", "xp_reward", d.xp);
+        setVal("edit-assignment-dialog", "points", d.points);
+        setVal("edit-assignment-dialog", "instructions", d.instructions);
         setVal("edit-assignment-dialog", "status", d.status);
         openDialog("edit-assignment-dialog");
       }),

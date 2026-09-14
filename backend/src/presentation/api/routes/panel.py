@@ -75,6 +75,8 @@ class AssignmentIn(BaseModel):
     delivery_type: str = "quiz"
     due_at: str | None = None
     xp_reward: int = 80
+    instructions: str | None = Field(default=None, max_length=4000)
+    points: float = Field(default=100, ge=0, le=10000)
     status: str = "scheduled"
 
 
@@ -154,6 +156,8 @@ class AssignmentUpdate(BaseModel):
     delivery_type: str | None = None
     due_at: str | None = None
     xp_reward: int | None = None
+    instructions: str | None = Field(default=None, max_length=4000)
+    points: float | None = Field(default=None, ge=0, le=10000)
     status: str | None = None
 
 
@@ -326,6 +330,56 @@ async def _require_member(
 
 def _first(rows: list[dict] | None) -> dict | None:
     return rows[0] if rows else None
+
+
+def _dependency_blockers(
+    supabase: Any, school_id: str, checks: list[tuple[str, str, str, str]]
+) -> list[str]:
+    """Dependencias activas que impiden un borrado (trazabilidad institucional).
+
+    `checks` es una lista de (tabla, columna, valor, etiqueta). Si la tabla o la
+    columna no existe, la comprobacion se omite sin romper el flujo.
+    """
+    blockers: list[str] = []
+    for table, column, value, label in checks:
+        if not value:
+            continue
+        rows: list[dict] = []
+        try:
+            rows = (
+                supabase.table(table)
+                .select("id")
+                .eq("school_id", school_id)
+                .eq(column, value)
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:  # noqa: BLE001 - tabla sin school_id o sin id
+            try:
+                rows = (
+                    supabase.table(table)
+                    .select("*")
+                    .eq(column, value)
+                    .limit(1)
+                    .execute()
+                    .data
+                    or []
+                )
+            except Exception:  # noqa: BLE001 - columna ausente
+                rows = []
+        if rows:
+            blockers.append(label)
+    return blockers
+
+
+def _raise_if_dependencies(blockers: list[str], action: str) -> None:
+    if blockers:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No se puede {action}: hay {', '.join(blockers)} vinculados.",
+        )
 
 
 def _student_risk(
@@ -613,6 +667,17 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             .eq("school_id", school_id)
             .execute()
         )
+        section_ids = [str(row["id"]) for row in out["sections"]]
+        out["section_subjects"] = (
+            rows(
+                t("section_subjects")
+                .select("section_id, subject_id, is_enabled")
+                .in_("section_id", section_ids)
+                .execute()
+            )
+            if section_ids
+            else []
+        )
         out["clans"] = rows(
             t("clans")
             .select("id, name, color, rank_name, section_id, is_demo, created_at")
@@ -649,7 +714,8 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         out["assignments"] = rows(
             t("assignments")
             .select(
-                "id, school_id, title, section_id, subject_id, delivery_type, due_at, xp_reward, status"
+                "id, school_id, title, section_id, subject_id, delivery_type, "
+                "due_at, xp_reward, instructions, points, status"
             )
             .eq("school_id", school_id)
             .execute()
@@ -744,6 +810,11 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             out["clans"] = [
                 row
                 for row in out["clans"]
+                if str(row.get("section_id")) in allowed_section_ids
+            ]
+            out["section_subjects"] = [
+                row
+                for row in out.get("section_subjects", [])
                 if str(row.get("section_id")) in allowed_section_ids
             ]
             out["assignments"] = [
@@ -968,6 +1039,19 @@ async def delete_section(section_id: str, uid: Annotated[str, Depends(_current_u
         row.get("school_id", ""),
         ["owner", "director", "subdirector", "coordinator"],
     )
+    school_id = row.get("school_id", "")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("classes", "section_id", section_id, "cursos/clases"),
+            ("section_subjects", "section_id", section_id, "cursos asignados"),
+            ("student_profiles", "section_id", section_id, "alumnos"),
+            ("assignments", "section_id", section_id, "tareas"),
+            ("attendance_records", "section_id", section_id, "asistencia"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar la seccion")
     supabase.table("sections").delete().eq("id", section_id).execute()
     return Msg(detail="Seccion eliminada")
 
@@ -1083,6 +1167,20 @@ async def delete_subject(subject_id: str, uid: Annotated[str, Depends(_current_u
         row.get("school_id", ""),
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
     )
+    school_id = row.get("school_id", "")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("subject_teachers", "subject_id", subject_id, "profesores asignados"),
+            ("classes", "subject_id", subject_id, "clases activas"),
+            ("section_subjects", "subject_id", subject_id, "aulas con este curso"),
+            ("assignments", "subject_id", subject_id, "tareas"),
+            ("question_bank", "subject_id", subject_id, "preguntas del banco"),
+            ("learning_materials", "subject_id", subject_id, "materiales"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar el curso")
     supabase.table("subjects").delete().eq("id", subject_id).execute()
     # limpiar asignaciones de profesores del curso
     supabase.table("subject_teachers").delete().eq("subject_id", subject_id).execute()
@@ -2397,7 +2495,7 @@ async def delete_staff(staff_id: str, uid: Annotated[str, Depends(_current_uid)]
     supabase = supabase_admin()
     row = (
         supabase.table("staff_profiles")
-        .select("school_id")
+        .select("school_id, membership_id, full_name")
         .eq("id", staff_id)
         .execute()
         .data
@@ -2406,6 +2504,18 @@ async def delete_staff(staff_id: str, uid: Annotated[str, Depends(_current_uid)]
     await _require_member(
         supabase, uid, row.get("school_id", ""), ["owner", "director", "subdirector"]
     )
+    school_id = row.get("school_id", "")
+    membership_id = row.get("membership_id")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("subject_teachers", "staff_id", staff_id, "cursos asignados"),
+            ("classes", "teacher_membership_id", membership_id, "clases activas"),
+            ("sections", "tutor_staff_id", staff_id, "tutorias de aula"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar al docente")
     supabase.table("staff_profiles").delete().eq("id", staff_id).execute()
     return Msg(detail="Perfil eliminado")
 
@@ -2485,6 +2595,18 @@ async def delete_student(student_id: str, uid: Annotated[str, Depends(_current_u
         row.get("school_id", ""),
         ["owner", "director", "subdirector", "coordinator"],
     )
+    school_id = row.get("school_id", "")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("assignment_submissions", "student_profile_id", student_id, "tareas entregadas"),
+            ("battle_results", "student_profile_id", student_id, "batallas jugadas"),
+            ("points_ledger", "student_profile_id", student_id, "puntos acumulados"),
+            ("attendance_records", "student_profile_id", student_id, "asistencia"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar al alumno")
     supabase.table("student_profiles").delete().eq("id", student_id).execute()
     return Msg(detail="Alumno eliminado")
 
@@ -2619,6 +2741,8 @@ async def create_assignment(
                 "delivery_type": body.delivery_type,
                 "due_at": body.due_at,
                 "xp_reward": body.xp_reward,
+                "instructions": body.instructions,
+                "points": body.points,
                 "status": body.status,
                 "is_demo": False,
             }
@@ -2673,6 +2797,15 @@ async def delete_assignment(
         row.get("school_id", ""),
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
     )
+    school_id = row.get("school_id", "")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("assignment_submissions", "assignment_id", assignment_id, "entregas de alumnos"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar la tarea")
     supabase.table("assignments").delete().eq("id", assignment_id).execute()
     return Msg(detail="Tarea eliminada")
 
@@ -2869,6 +3002,15 @@ async def delete_material(material_id: str, uid: Annotated[str, Depends(_current
         row.get("school_id", ""),
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
     )
+    school_id = row.get("school_id", "")
+    blockers = _dependency_blockers(
+        supabase,
+        school_id,
+        [
+            ("question_bank", "material_id", material_id, "preguntas generadas"),
+        ],
+    )
+    _raise_if_dependencies(blockers, "eliminar el material")
     supabase.table("learning_materials").delete().eq("id", material_id).execute()
     return Msg(detail="Material eliminado")
 

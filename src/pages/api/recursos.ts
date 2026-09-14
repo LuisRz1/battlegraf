@@ -24,6 +24,15 @@ const go = (
   anchor: string,
 ) => redirect(`/panel?${value}&view=${anchor}`, 303);
 
+/** Redirige con el motivo real del backend (reglas de integridad, etc.). */
+const fail = (detail?: string) =>
+  `error=guard&reason=${encodeURIComponent(
+    (!detail || detail === "ok"
+      ? "No se pudo completar la operacion."
+      : detail
+    ).slice(0, 200),
+  )}`;
+
 const API_BASE =
   process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
 
@@ -85,7 +94,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
     });
-    return go(redirect, r.ok ? "created=section" : "error=save", "secciones");
+    return go(redirect, r.ok ? "created=section"         : fail(r.detail), "secciones");
   }
   if (action === "update_section") {
     const id = clean(form.get("id"), 40);
@@ -95,12 +104,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       section_label: clean(form.get("section_label"), 8),
       tutor_name: clean(form.get("tutor_name"), 100) || null,
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "secciones");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "secciones");
   }
   if (action === "delete_section") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/sections/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "secciones");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "secciones");
   }
   if (action === "subject") {
     const schoolId = await parseMember();
@@ -110,7 +119,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       icon_code: clean(form.get("icon_code"), 3),
       color: clean(form.get("color"), 12) || "#e6b84d",
     });
-    return go(redirect, r.ok ? "created=subject" : "error=save", "materias");
+    return go(redirect, r.ok ? "created=subject"         : fail(r.detail), "materias");
   }
   if (action === "update_subject") {
     const id = clean(form.get("id"), 40);
@@ -119,7 +128,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       icon_code: clean(form.get("icon_code"), 3),
       color: clean(form.get("color"), 12) || "#e6b84d",
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "materias");
   }
   if (action === "assign_teacher") {
     const subject_id = clean(form.get("subject_id"), 40);
@@ -144,12 +153,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const r = await api("PATCH", `/subjects/${id}`, {
       is_enabled: enabled,
     } as any);
-    return go(redirect, r.ok ? "saved=change" : "error=save", "materias");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "materias");
   }
   if (action === "delete_subject") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/subjects/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "materias");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "materias");
   }
   if (action === "student") {
     const schoolId = await parseMember();
@@ -163,7 +172,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       email: clean(form.get("email"), 160) || null,
       section_id: sectionId,
     });
-    return go(redirect, r.ok ? "created=student" : "error=save", "personas");
+    return go(redirect, r.ok ? "created=student"         : fail(r.detail), "personas");
   }
   if (action === "update_student") {
     const id = clean(form.get("id"), 40);
@@ -172,12 +181,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       email: clean(form.get("email"), 160) || null,
       section_id: clean(form.get("section_id"), 40) || null,
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "personas");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "personas");
   }
   if (action === "delete_student") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/students/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "personas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "personas");
   }
   if (action === "staff") {
     const schoolId = await parseMember();
@@ -199,7 +208,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       scope_label: clean(form.get("scope_label"), 120) || null,
       status: !!form.get("send_invite") ? "invited" : "active",
     });
-    return go(redirect, r.ok ? "created=staff" : "error=save", "personas");
+    return go(redirect, r.ok ? "created=staff"         : fail(r.detail), "personas");
   }
   if (action === "update_staff") {
     const id = clean(form.get("id"), 40);
@@ -220,12 +229,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       scope_label: clean(form.get("scope_label"), 120) || null,
       status: clean(form.get("status"), 20) || "active",
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "personas");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "personas");
   }
   if (action === "delete_staff") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/staff/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "personas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "personas");
   }
   if (action === "material") {
     const schoolId = await parseMember();
@@ -254,12 +263,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
         );
         return go(
           redirect,
-          res.ok ? "created=material" : "error=save",
+          res.ok ? "created=material"         : fail(r.detail),
           "materiales",
         );
       } catch (e) {
         console.error("material upload error", e);
-        return go(redirect, "error=save", "materiales");
+        return go(redirect, fail(), "materiales");
       }
     }
     const r = await api("POST", `/${schoolId}/materials`, {
@@ -268,17 +277,17 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       file_name: null,
       grade: grade || null,
     });
-    return go(redirect, r.ok ? "created=material" : "error=save", "materiales");
+    return go(redirect, r.ok ? "created=material"         : fail(r.detail), "materiales");
   }
   if (action === "delete_material") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/materials/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "materiales");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "materiales");
   }
   if (action === "generate_material") {
     const id = clean(form.get("id"), 40);
     const r = await api("POST", `/materials/${id}/generate?count=10`, {});
-    return go(redirect, r.ok ? "saved=generated" : "error=save", "materiales");
+    return go(redirect, r.ok ? "saved=generated"         : fail(r.detail), "materiales");
   }
   if (action === "question") {
     const schoolId = await parseMember();
@@ -304,7 +313,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       correct_index: correctIndex,
       status: "approved",
     });
-    return go(redirect, r.ok ? "created=question" : "error=save", "preguntas");
+    return go(redirect, r.ok ? "created=question"         : fail(r.detail), "preguntas");
   }
   if (action === "update_question") {
     const id = clean(form.get("id"), 40);
@@ -329,17 +338,17 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       correct_index: correctIndex,
       status: clean(form.get("status"), 20) || "review",
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "preguntas");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "preguntas");
   }
   if (action === "delete_question") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/questions/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "preguntas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "preguntas");
   }
   if (action === "approve_question") {
     const id = clean(form.get("question_id"), 40);
     const r = await api("POST", `/questions/${id}/approve`);
-    return go(redirect, r.ok ? "created=approval" : "error=save", "preguntas");
+    return go(redirect, r.ok ? "created=approval"         : fail(r.detail), "preguntas");
   }
   if (action === "assignment") {
     const schoolId = await parseMember();
@@ -351,9 +360,11 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       delivery_type: clean(form.get("delivery_type"), 20) || "quiz",
       due_at: clean(form.get("due_at"), 40) || null,
       xp_reward: Number(clean(form.get("xp_reward"), 6)) || 80,
+      instructions: clean(form.get("instructions"), 4000) || null,
+      points: Number(clean(form.get("points"), 8)) || 100,
       status: clean(form.get("status"), 20) || "scheduled",
     });
-    return go(redirect, r.ok ? "created=assignment" : "error=save", "tareas");
+    return go(redirect, r.ok ? "created=assignment"         : fail(r.detail), "tareas");
   }
   if (action === "update_assignment") {
     const id = clean(form.get("id"), 40);
@@ -364,14 +375,16 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       delivery_type: clean(form.get("delivery_type"), 20) || "quiz",
       due_at: clean(form.get("due_at"), 40) || null,
       xp_reward: Number(clean(form.get("xp_reward"), 6)) || 80,
+      instructions: clean(form.get("instructions"), 4000) || null,
+      points: Number(clean(form.get("points"), 8)) || 100,
       status: clean(form.get("status"), 20) || "scheduled",
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "tareas");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "tareas");
   }
   if (action === "delete_assignment") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/assignments/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "tareas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "tareas");
   }
   if (action === "battle") {
     const schoolId = await parseMember();
@@ -389,7 +402,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       bot_difficulty: clean(form.get("bot_difficulty"), 20) || "balanced",
       status: clean(form.get("status"), 20) || "scheduled",
     });
-    return go(redirect, r.ok ? "created=battle" : "error=save", "batallas");
+    return go(redirect, r.ok ? "created=battle"         : fail(r.detail), "batallas");
   }
   if (action === "update_battle") {
     const id = clean(form.get("id"), 40);
@@ -406,12 +419,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       bot_difficulty: clean(form.get("bot_difficulty"), 20) || null,
       status: clean(form.get("status"), 20) || "scheduled",
     });
-    return go(redirect, r.ok ? "saved=change" : "error=save", "batallas");
+    return go(redirect, r.ok ? "saved=change"         : fail(r.detail), "batallas");
   }
   if (action === "delete_battle") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/battles/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "batallas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "batallas");
   }
   if (action === "rank") {
     const schoolId = await parseMember();
@@ -421,12 +434,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       min_xp: Number(clean(form.get("min_xp"), 6)) || 0,
       position: Number(clean(form.get("position"), 3)) || 0,
     });
-    return go(redirect, r.ok ? "created=rank" : "error=save", "progreso");
+    return go(redirect, r.ok ? "created=rank"         : fail(r.detail), "progreso");
   }
   if (action === "delete_rank") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/ranks/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "progreso");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "progreso");
   }
   if (action === "class") {
     const schoolId = await parseMember();
@@ -438,7 +451,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       subject_id: clean(form.get("subject_id"), 40) || null,
       section_id: clean(form.get("section_id"), 40) || null,
     });
-    return go(redirect, r.ok ? "created=class" : "error=save", "clases");
+    return go(redirect, r.ok ? "created=class"         : fail(r.detail), "clases");
   }
 
   const list = (value: FormDataEntryValue | null) =>
@@ -458,7 +471,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       category: clean(form.get("category"), 40) || "general",
       points: Number(clean(form.get("points"), 5)) || 0,
     });
-    return go(redirect, r.ok ? "created=badge" : "error=save", "recompensas");
+    return go(redirect, r.ok ? "created=badge"         : fail(r.detail), "recompensas");
   }
   if (action === "powerup") {
     const schoolId = await parseMember();
@@ -472,7 +485,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       cost_points: Number(clean(form.get("cost_points"), 6)) || 0,
       duration_seconds: Number(clean(form.get("duration_seconds"), 5)) || 0,
     });
-    return go(redirect, r.ok ? "created=powerup" : "error=save", "recompensas");
+    return go(redirect, r.ok ? "created=powerup"         : fail(r.detail), "recompensas");
   }
   if (action === "mission") {
     const schoolId = await parseMember();
@@ -489,7 +502,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       reward_powerup_id: clean(form.get("reward_powerup_id"), 40) || null,
       status: "active",
     });
-    return go(redirect, r.ok ? "created=mission" : "error=save", "misiones");
+    return go(redirect, r.ok ? "created=mission"         : fail(r.detail), "misiones");
   }
   if (action === "study_goal") {
     const schoolId = await parseMember();
@@ -502,22 +515,22 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       objectives: list(form.get("objectives")),
       competences: list(form.get("competences")),
     });
-    return go(redirect, r.ok ? "created=goal" : "error=save", "metas");
+    return go(redirect, r.ok ? "created=goal"         : fail(r.detail), "metas");
   }
   if (action === "delete_badge") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/badges/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "recompensas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "recompensas");
   }
   if (action === "delete_powerup") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/powerups/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "recompensas");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "recompensas");
   }
   if (action === "delete_mission") {
     const id = clean(form.get("id"), 40);
     const r = await api("DELETE", `/missions/${id}`);
-    return go(redirect, r.ok ? "saved=deleted" : "error=save", "misiones");
+    return go(redirect, r.ok ? "saved=deleted"         : fail(r.detail), "misiones");
   }
 
   return go(redirect, "error=unknown_action", "configuracion");
