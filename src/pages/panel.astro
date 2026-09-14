@@ -4303,6 +4303,7 @@ const trNivel = (level?: string) =>
     .querySelectorAll<HTMLDetailsElement>("details.action-menu")
     .forEach((menu) => {
       menu.addEventListener("click", (event) => {
+        event.stopPropagation();
         if ((event.target as HTMLElement).closest("button,a")) {
           menu.removeAttribute("open");
         }
