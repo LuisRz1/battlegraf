@@ -3,6 +3,9 @@ import postgres from "postgres";
 const connectionString =
   process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
 const requiredMigrations = [
+  "20260913090000_bot_difficulty.sql",
+  "20260913091000_report_config.sql",
+  "20260913100000_assignment_instructions.sql",
   "20260924010000_academic_traceability_hardening.sql",
   "20260924020000_student_player_mode.sql",
   "20260924030000_classes_rls_activation.sql",
@@ -108,9 +111,35 @@ try {
 		  to_regprocedure('public.award_player_cosmetics()') is not null as award_player_cosmetics,
 		  to_regprocedure('public.equip_player_cosmetic(text)') is not null as equip_player_cosmetic
 	`;
+  const [mergedFeatureSchema] = await sql`
+		select
+		  exists (
+		    select 1 from information_schema.columns
+		    where table_schema = 'public' and table_name = 'battle_events'
+	      and column_name = 'bot_difficulty'
+		  ) as bot_difficulty,
+		  exists (
+		    select 1 from information_schema.columns
+		    where table_schema = 'public' and table_name = 'school_settings'
+	      and column_name = 'report_config'
+		  ) as report_config,
+		  exists (
+		    select 1 from information_schema.columns
+		    where table_schema = 'public' and table_name = 'assignments'
+	      and column_name = 'instructions'
+		  ) as assignment_instructions,
+		  exists (
+		    select 1 from information_schema.columns
+		    where table_schema = 'public' and table_name = 'assignments'
+	      and column_name = 'points'
+		  ) as assignment_points
+	`;
   const appliedMigrations = await sql`
 		select name from public.battlegraf_schema_migrations
 		where name in (
+		  '20260913090000_bot_difficulty.sql',
+		  '20260913091000_report_config.sql',
+		  '20260913100000_assignment_instructions.sql',
 		  '20260924010000_academic_traceability_hardening.sql',
 		  '20260924020000_student_player_mode.sql',
 		  '20260924030000_classes_rls_activation.sql',
@@ -184,6 +213,8 @@ try {
     ),
     rosterHelperIsPrivate: onboardingSecurity.roster_helper_is_private,
     allPlayerRpcFunctionsInstalled: Object.values(playerMode[0]).every(Boolean),
+    mergedFeatureColumnsInstalled:
+      Object.values(mergedFeatureSchema).every(Boolean),
     allRequiredMigrationsApplied: requiredMigrations.every((name) =>
       appliedMigrations.some((migration) => migration.name === name),
     ),
@@ -198,6 +229,7 @@ try {
         trials,
         seeded,
         playerMode: playerMode[0],
+        mergedFeatureSchema,
         studentProfileIntegrity,
         unlinkedRosterProfiles,
         appliedMigrations,

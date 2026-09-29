@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../providers/question_pool_provider.dart';
@@ -18,11 +19,35 @@ class BattleSetupView extends ConsumerStatefulWidget {
 }
 
 class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
+  static const String _soundKey = 'battlegraf_mobile_sound';
+
   String? _topic;
   final Set<String> _selectedPowers = {};
   bool _starting = false;
   int _layers = 5;
   int _nodesPerLayer = 3;
+  bool _godotMode = true;
+  String _botDifficulty = 'balanced';
+  bool _sound = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSound();
+  }
+
+  Future<void> _loadSound() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _sound = prefs.getBool(_soundKey) ?? false);
+  }
+
+  Future<void> _toggleSound() async {
+    final next = !_sound;
+    setState(() => _sound = next);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_soundKey, next);
+  }
 
   String _abilityFor(String effect) {
     switch (effect) {
@@ -46,6 +71,23 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
   Future<void> _start() async {
     if (_starting) return;
     setState(() => _starting = true);
+    // Version Godot: el mapa completo corre en el motor y usa las preguntas
+    // del colegio; no consume poderes de la batalla clasica.
+    if (_godotMode) {
+      final query = <String, String>{
+        if (_topic != null) 'topic': _topic!,
+        'layers': '$_layers',
+        'nodes': '$_nodesPerLayer',
+        'bot': _botDifficulty,
+        'teams': '2',
+        if (!_sound) 'mute': '1',
+      };
+      if (!mounted) return;
+      context.push(
+        Uri(path: '/battle/godot', queryParameters: query).toString(),
+      );
+      return;
+    }
     final notifier = ref.read(studentDashboardProvider.notifier);
     final owned = {
       for (final p in ref.read(studentDashboardProvider).powerups)
@@ -159,7 +201,8 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
                               SectionChip(
                                 label:
                                     '${powerup['name']} x${owned['${powerup['code']}'] ?? 0}',
-                                color: _selectedPowers.contains('${powerup['id']}')
+                                color:
+                                    _selectedPowers.contains('${powerup['id']}')
                                     ? AppColors.aliados
                                     : AppColors.oro300,
                                 onTap: (owned['${powerup['code']}'] ?? 0) > 0
@@ -218,16 +261,112 @@ class _BattleSetupViewState extends ConsumerState<BattleSetupView> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    PanelBox(
+                      span: 'MOTOR DE BATALLA',
+                      title: _godotMode
+                          ? 'GODOT · MAPA COMPLETO'
+                          : 'CLASICA · RAPIDA',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              SectionChip(
+                                label: 'GODOT',
+                                color: _godotMode
+                                    ? AppColors.aliados
+                                    : AppColors.oro300,
+                                onTap: () => setState(() => _godotMode = true),
+                              ),
+                              SectionChip(
+                                label: 'CLASICA',
+                                color: !_godotMode
+                                    ? AppColors.aliados
+                                    : AppColors.oro300,
+                                onTap: () => setState(() => _godotMode = false),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _godotMode
+                                ? 'Castillos, animaciones y efectos del juego original. Los poderes se usan en la arena clasica.'
+                                : 'Arena ligera dentro de la app con poderes equipables.',
+                            style: const TextStyle(
+                              fontFamily: AppTheme.bodyFont,
+                              color: AppColors.crema500,
+                              fontSize: 11.5,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_godotMode) ...[
+                      const SizedBox(height: 12),
+                      PanelBox(
+                        span: 'IA RIVAL',
+                        title: 'NIVEL DEL BOT',
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final entry in const [
+                              ['facil', 'FACIL'],
+                              ['balanced', 'EQUILIBRADO'],
+                              ['hard', 'DIFICIL'],
+                              ['adaptive', 'ADAPTATIVO'],
+                            ])
+                              SectionChip(
+                                label: entry[1],
+                                color: _botDifficulty == entry[0]
+                                    ? AppColors.aliados
+                                    : AppColors.oro300,
+                                onTap: () =>
+                                    setState(() => _botDifficulty = entry[0]),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      PanelBox(
+                        span: 'AUDIO',
+                        title: _sound ? 'SONIDO ACTIVO' : 'SILENCIO',
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            SectionChip(
+                              label: _sound
+                                  ? 'SILENCIAR MUSICA'
+                                  : 'ACTIVAR SONIDO',
+                              color: _sound
+                                  ? AppColors.aliados
+                                  : AppColors.oro300,
+                              onTap: _toggleSound,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
                     if (pool.hasQuestions)
                       PanelButton(
-                        label: _starting ? '...' : 'COMENZAR BATALLA',
+                        label: _starting
+                            ? '...'
+                            : _godotMode
+                            ? 'COMENZAR EN GODOT'
+                            : 'COMENZAR BATALLA',
                         onTap: pool.hasQuestions && !_starting ? _start : null,
                       ),
                     const SizedBox(height: 8),
                     PanelButton(
                       label: 'RECARGAR PREGUNTAS',
                       ghost: true,
-                      onTap: () => ref.read(questionPoolProvider.notifier).load(),
+                      onTap: () =>
+                          ref.read(questionPoolProvider.notifier).load(),
                     ),
                   ],
                 ),

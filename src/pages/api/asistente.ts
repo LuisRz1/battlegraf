@@ -22,8 +22,33 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	const prompt = String(form.get("prompt") ?? "")
 		.trim()
 		.slice(0, 2000);
+	const safeViews = [
+		"centro",
+		"perfil",
+		"colegio",
+		"clases",
+		"secciones",
+		"materias",
+		"personas",
+		"academico",
+		"materiales",
+		"preguntas",
+		"tareas",
+		"batallas",
+		"progreso",
+		"recompensas",
+		"misiones",
+		"metas",
+		"reportes",
+		"asistente",
+		"auditoria",
+	];
+	const requestedView = String(form.get("redirect") ?? "asistente");
+	const backView = safeViews.includes(requestedView)
+		? requestedView
+		: "asistente";
 	if (!schoolId || prompt.length < 1)
-		return redirect("/panel?view=asistente&error=validation", 303);
+		return redirect(`/panel?view=${backView}&error=validation`, 303);
 
 	try {
 		const res = await fetch(
@@ -38,11 +63,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 			},
 		);
 		return redirect(
-			res.ok ? "/panel?view=asistente&saved=assistant" : "/panel?view=asistente&error=save",
+			res.ok
+				? `/panel?view=${backView}&saved=assistant`
+				: `/panel?view=${backView}&error=save`,
 			303,
 		);
 	} catch (error) {
 		console.error("asistente error", error);
-		return redirect("/panel?view=asistente&error=save", 303);
+		return redirect(`/panel?view=${backView}&error=save`, 303);
 	}
 };

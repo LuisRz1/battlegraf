@@ -31,51 +31,49 @@ const membership = activeMembership;
 const schoolId = membership.school_id;
 const myRole = membership.role;
 const multiSchool = membershipsList.length > 1;
-// Datos del panel desde el backend FastAPI (Railway) — una sola llamada
+// Datos del panel desde el backend FastAPI (Railway) — todas las llamadas en paralelo
+// con cache corto en memoria para que moverse entre vistas sea inmediato.
 const API_BASE =
   process.env.PANEL_API_URL ?? "https://battlegraf-production.up.railway.app";
 const { data: sessionData } = await supabase.auth.getSession();
 const apiToken = sessionData?.session?.access_token ?? "";
-let dashboard: any = {};
-let academicOverview: any = {
-  metrics: {},
-  students: [],
-  subject_performance: [],
-  periods: [],
+type PanelCacheEntry = {
+  at: number;
+  dashboard: any;
+  academicOverview: any;
+  rewardsCatalog: any;
+  missionsList: any[];
+  studyGoalsList: any[];
+  assistantMessages: any[];
 };
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "User-Agent": "battlegraf-panel",
-        },
-      })
-    : null;
-  if (res?.ok) dashboard = await res.json();
-} catch (e) {
-  console.error("panel dashboard error", e);
-}
-try {
-  const res = apiToken
-    ? await fetch(`${API_BASE}/api/v1/panel/${schoolId}/academics/overview`, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "User-Agent": "battlegraf-panel",
-        },
-      })
-    : null;
-  if (res?.ok) academicOverview = await res.json();
-} catch (e) {
-  console.error("panel academics error", e);
-}
-// Recompensas, misiones y metas (backend FastAPI)
-let rewardsCatalog: any = { badges: [], powerups: [], ranks: [], reward_rules: {} };
-let missionsList: any[] = [];
-let studyGoalsList: any[] = [];
-let assistantMessages: any[] = [];
-if (apiToken) {
-  const extra = async (path: string) => {
+const panelCache: Map<string, PanelCacheEntry> = ((
+  globalThis as any
+).__battlegrafPanelCache ??= new Map());
+const panelCacheKey = `${schoolId}:${myRole}:${userData.user.id}`;
+const bypassPanelCache =
+  Astro.url.searchParams.has("created") ||
+  Astro.url.searchParams.has("saved") ||
+  Astro.url.searchParams.has("error");
+const cachedPanel = bypassPanelCache
+  ? undefined
+  : panelCache.get(panelCacheKey);
+const panelCacheFresh = Boolean(
+  cachedPanel && Date.now() - cachedPanel.at < 45_000,
+);
+let dashboard: any = panelCacheFresh ? cachedPanel!.dashboard : {};
+let academicOverview: any = panelCacheFresh
+  ? cachedPanel!.academicOverview
+  : { metrics: {}, students: [], subject_performance: [], periods: [] };
+let rewardsCatalog: any = panelCacheFresh
+  ? cachedPanel!.rewardsCatalog
+  : { badges: [], powerups: [], ranks: [], reward_rules: {} };
+let missionsList: any[] = panelCacheFresh ? cachedPanel!.missionsList : [];
+let studyGoalsList: any[] = panelCacheFresh ? cachedPanel!.studyGoalsList : [];
+let assistantMessages: any[] = panelCacheFresh
+  ? cachedPanel!.assistantMessages
+  : [];
+if (!panelCacheFresh && apiToken) {
+  const apiGet = async (path: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/panel/${schoolId}${path}`, {
         headers: {
@@ -88,14 +86,32 @@ if (apiToken) {
       return null;
     }
   };
-  const catalog = await extra("/rewards/catalog");
+  const [dash, academics, catalog, missions, goals, memory] =
+    await Promise.all([
+      apiGet("/dashboard"),
+      apiGet("/academics/overview"),
+      apiGet("/rewards/catalog"),
+      apiGet("/missions"),
+      apiGet("/study-goals"),
+      apiGet("/me/memory"),
+    ]);
+  if (dash) dashboard = dash;
+  if (academics) academicOverview = academics;
   if (catalog) rewardsCatalog = catalog;
-  const missions = await extra("/missions");
   if (missions?.missions) missionsList = missions.missions;
-  const goals = await extra("/study-goals");
   if (goals?.study_goals) studyGoalsList = goals.study_goals;
-  const memory = await extra("/me/memory");
   if (memory?.messages) assistantMessages = memory.messages;
+  if (dashboard.school_id) {
+    panelCache.set(panelCacheKey, {
+      at: Date.now(),
+      dashboard,
+      academicOverview,
+      rewardsCatalog,
+      missionsList,
+      studyGoalsList,
+      assistantMessages,
+    });
+  }
 }
 // El fallback directo solo es suficiente para administradores; RLS no puede
 // reconstruir el alcance académico docente/alumno que aplica FastAPI.
@@ -258,6 +274,7 @@ const materials = (materialsResult.data ?? []) as any[];
 const questions = (questionsResult.data ?? []) as any[];
 const staff = (staffResult.data ?? []) as any[];
 const subjectTeachers = (dashboard.subject_teachers ?? []) as any[];
+const sectionSubjects = (dashboard.section_subjects ?? []) as any[];
 const assignments = (assignmentsResult.data ?? []) as any[];
 const battles = (battlesResult.data ?? []) as any[];
 const ranks = (ranksResult.data ?? []) as any[];
@@ -457,6 +474,7 @@ const viewTitle =
 const created = Astro.url.searchParams.get("created");
 const deleted = Astro.url.searchParams.get("saved") === "deleted";
 const hasError = Astro.url.searchParams.has("error");
+const guardReason = (Astro.url.searchParams.get("reason") ?? "").slice(0, 220);
 const messages: Record<string, string> = {
   section: "Seccion creada con materias y clanes.",
   subject: "Materia creada y asignada.",
@@ -521,8 +539,10 @@ const trEstado = (status?: string) =>
 const trEntrega = (type?: string) =>
   ({
     assessment: "Evaluacion",
-    written: "Escrita",
+    quiz: "Alternativas",
+    written: "Respuesta escrita",
     upload: "Documento",
+    document: "Documento",
     mixed: "Mixta",
   })[type ?? ""] ??
   type ??
@@ -534,6 +554,9 @@ const trBatalla = (type?: string) =>
     reconquista: "Reconquista",
     tournament: "Torneo",
     gauntlet: "Contra-reloj",
+    student_vs_bot: "Alumno vs bot",
+    student_vs_student: "Alumno vs alumno",
+    section_vs_section: "Seccion vs seccion",
   })[type ?? ""] ??
   type ??
   "";
@@ -550,7 +573,7 @@ const trNivel = (level?: string) =>
   title={`${viewTitle} | BattleGraph`}
   description="Centro de mando institucional de BattleGraph."
 >
-  <section class="command-shell">
+  <section class="command-shell" data-view={view}>
     <aside class="command-sidebar">
       <a class="command-logo" href="/"
         ><img
@@ -573,6 +596,7 @@ const trNivel = (level?: string) =>
             <a
               class:list={[view === slug && "active"]}
               href={`/panel?view=${slug}`}
+              data-astro-prefetch="hover"
             >
               <b>{String(index + 1).padStart(2, "0")}</b>
               {label}
@@ -599,7 +623,15 @@ const trNivel = (level?: string) =>
           ><span>BUSCAR</span><input
             id="command-search"
             placeholder="Alumno, seccion, material..."
-          /></label
+          />        </label
+        ><button
+          class="sound-toggle"
+          id="sound-toggle"
+          type="button"
+          data-sound="off"
+          aria-pressed="false"
+          title="Activa o silencia el sonido del juego"
+          ><span>SONIDO</span><strong id="sound-toggle-label">SILENCIO</strong></button
         ><label class="role-view"
           ><span>ROL ACTIVO</span><select id="role-view" disabled
             ><option>{trRol(myRole)}</option></select
@@ -651,14 +683,17 @@ const trNivel = (level?: string) =>
                 <>
                   <strong>
                     {hasError
-                      ? "OPERACION NO COMPLETADA"
+                      ? guardReason
+                        ? "OPERACION NO PERMITIDA"
+                        : "OPERACION NO COMPLETADA"
                       : deleted
                         ? "ELEMENTO ELIMINADO"
                         : "CAMBIO APLICADO"}
                   </strong>
                   <p>
                     {hasError
-                      ? "No pudimos guardar el cambio. Revisa los datos."
+                      ? guardReason ||
+                        "No pudimos guardar el cambio. Revisa los datos."
                       : created
                         ? (messages[created] ?? "Cambio guardado.")
                         : deleted
@@ -1336,7 +1371,7 @@ const trNivel = (level?: string) =>
                       class="territory-card searchable"
                       data-detail-card
                       data-detail-title={section.display_name}
-                      data-detail-body={`Codigo ${section.code}. Estudiantes: ${students.filter((s) => s.section_id === section.id).length} · Tutor: ${section.tutor_name ?? "Sin asignar"} · Clanes: ${clans.filter((c) => c.section_id === section.id).length}.`}
+                      data-detail-body={`Codigo ${section.code}. Estudiantes: ${students.filter((s) => s.section_id === section.id).length} · Tutor: ${section.tutor_name ?? "Sin asignar"} · Cursos: ${sectionSubjects.filter((x) => x.section_id === section.id).length} · Clanes: ${clans.filter((c) => c.section_id === section.id).length}.`}
                     >
                       <span>SECCION {String(i + 1).padStart(2, "0")}</span>
                       <i>{trEstado(section.status)}</i>
@@ -1361,6 +1396,16 @@ const trNivel = (level?: string) =>
                           <dd>{section.tutor_name ?? "Sin asignar"}</dd>
                         </div>
                         <div>
+                          <dt>CURSOS</dt>
+                          <dd>
+                            {
+                              sectionSubjects.filter(
+                                (x) => x.section_id === section.id,
+                              ).length
+                            }
+                          </dd>
+                        </div>
+                        <div>
                           <dt>CLANES</dt>
                           <dd>
                             {
@@ -1371,35 +1416,45 @@ const trNivel = (level?: string) =>
                         </div>
                       </dl>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-section
-                          data-id={section.id}
-                          data-grade={section.grade}
-                          data-level={section.level}
-                          data-label={section.section_label}
-                          data-tutor={section.tutor_name ?? ""}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_section"
-                          />
-                          <input type="hidden" name="id" value={section.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta seccion? Se borraran sus datos vinculados."
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del aula" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-section
+                              data-id={section.id}
+                              data-grade={section.grade}
+                              data-level={section.level}
+                              data-label={section.section_label}
+                              data-tutor={section.tutor_name ?? ""}
+                              data-subjects={JSON.stringify(
+                                sectionSubjects
+                                  .filter((x) => x.section_id === section.id)
+                                  .map((x) => x.subject_id),
+                              )}
+                            >
+                              Editar aula
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_section"
+                              />
+                              <input type="hidden" name="id" value={section.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar este aula? Solo se permite si no tiene estudiantes, cursos, tareas ni asistencia registrada."
+                              >
+                                Eliminar aula
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -1490,22 +1545,77 @@ const trNivel = (level?: string) =>
                             }
                           </dd>
                         </div>
+                        <div>
+                          <dt>AULAS</dt>
+                          <dd>
+                            {
+                              sectionSubjects.filter(
+                                (x) => x.subject_id === subject.id,
+                              ).length
+                            }
+                          </dd>
+                        </div>
                       </dl>
                       <div class="row-actions">
-                        {canManageSubjects && (
-                          <>
-                            <button
-                              type="button"
-                              class="btn-edit"
-                              data-assign-teacher
-                              data-subject={subject.id}
-                              data-subject-name={subject.name}
-                            >
-                              ASIGNAR PROFESOR
-                            </button>
-                            {subjectTeachers
-                              .filter((t) => t.subject_id === subject.id)
-                              .map((t) => (
+                        {(canManageSubjects || canDeleteSubjects) && (
+                          <details class="action-menu">
+                          <summary aria-label="Acciones del curso" title="Acciones">
+                            &#8942;
+                          </summary>
+                          <div class="action-menu-panel">
+                            {canManageSubjects && (
+                              <>
+                                <button
+                                  type="button"
+                                  class="btn-edit"
+                                  data-assign-teacher
+                                  data-subject={subject.id}
+                                  data-subject-name={subject.name}
+                                >
+                                  ASIGNAR PROFESOR
+                                </button>
+                                {subjectTeachers
+                                  .filter((t) => t.subject_id === subject.id)
+                                  .map((t) => (
+                                    <form
+                                      method="post"
+                                      action="/api/recursos"
+                                      class="inline"
+                                    >
+                                      <input
+                                        type="hidden"
+                                        name="action"
+                                        value="remove_teacher"
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="subject_id"
+                                        value={subject.id}
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="staff_id"
+                                        value={t.staff_id}
+                                      />
+                                      <button
+                                        class="btn-del"
+                                        data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
+                                      >
+                                        QUITAR
+                                      </button>
+                                    </form>
+                                  ))}
+                                <button
+                                  type="button"
+                                  class="btn-edit"
+                                  data-edit-subject
+                                  data-id={subject.id}
+                                  data-name={subject.name}
+                                  data-icon={subject.icon_code}
+                                  data-color={subject.color}
+                                >
+                                  EDITAR
+                                </button>
                                 <form
                                   method="post"
                                   action="/api/recursos"
@@ -1514,81 +1624,56 @@ const trNivel = (level?: string) =>
                                   <input
                                     type="hidden"
                                     name="action"
-                                    value="remove_teacher"
+                                    value="toggle_subject"
                                   />
                                   <input
                                     type="hidden"
-                                    name="subject_id"
+                                    name="id"
                                     value={subject.id}
                                   />
                                   <input
                                     type="hidden"
-                                    name="staff_id"
-                                    value={t.staff_id}
+                                    name="is_enabled"
+                                    value={
+                                      subject.is_enabled === false
+                                        ? "true"
+                                        : "false"
+                                    }
                                   />
-                                  <button
-                                    class="btn-del"
-                                    data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
-                                  >
-                                    QUITAR
+                                  <button class="btn-edit">
+                                    {subject.is_enabled === false
+                                      ? "ACTIVAR CURSO"
+                                      : "DESACTIVAR CURSO"}
                                   </button>
                                 </form>
-                              ))}
-                            <form
-                              method="post"
-                              action="/api/recursos"
-                              class="inline"
-                            >
-                              <input
-                                type="hidden"
-                                name="action"
-                                value="toggle_subject"
-                              />
-                              <input type="hidden" name="id" value={subject.id} />
-                              <input
-                                type="hidden"
-                                name="is_enabled"
-                                value={
-                                  subject.is_enabled === false ? "true" : "false"
-                                }
-                              />
-                              <button class="btn-edit">
-                                {subject.is_enabled === false
-                                  ? "ACTIVAR CURSO"
-                                  : "DESACTIVAR CURSO"}
-                              </button>
-                            </form>
-                            <button
-                              class="btn-edit"
-                              data-edit-subject
-                              data-id={subject.id}
-                              data-name={subject.name}
-                              data-icon={subject.icon_code}
-                              data-color={subject.color}
-                            >
-                              EDITAR
-                            </button>
-                          </>
-                        )}
-                        {canDeleteSubjects && (
-                          <form
-                            method="post"
-                            action="/api/recursos"
-                            class="inline"
-                          >
-                            <input
-                              type="hidden"
-                              name="action"
-                              value="delete_subject"
-                            />
-                            <input type="hidden" name="id" value={subject.id} />
-                            <button
-                              class="btn-del"
-                              data-confirm="Eliminar esta materia? Se quitaran sus preguntas y materiales vinculados."
-                            >
-                              ELIMINAR
-                            </button>
-                          </form>
+                              </>
+                            )}
+                            {canDeleteSubjects && (
+                              <form
+                                method="post"
+                                action="/api/recursos"
+                                class="inline"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="action"
+                                  value="delete_subject"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="id"
+                                  value={subject.id}
+                                />
+                                <button
+                                  class="btn-del"
+                                  data-confirm="Eliminar este curso? Solo se permite si no tiene profesores, aulas, tareas, preguntas ni materiales vinculados."
+                                >
+                                  ELIMINAR
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </details>
                         )}
                       </div>
                     </article>
@@ -1701,36 +1786,41 @@ const trNivel = (level?: string) =>
                       <span>{person.scope_label}</span>
                       <i>{trEstado(person.status)}</i>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-staff
-                          data-id={person.id}
-                          data-full={person.full_name}
-                          data-email={person.email ?? ""}
-                          data-role={person.role}
-                          data-scope={person.scope_label ?? ""}
-                          data-status={person.status ?? "active"}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_staff"
-                          />
-                          <input type="hidden" name="id" value={person.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Seguro de eliminar a esta persona?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la persona" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-staff
+                              data-id={person.id}
+                              data-full={person.full_name}
+                              data-email={person.email ?? ""}
+                              data-role={person.role}
+                              data-scope={person.scope_label ?? ""}
+                              data-status={person.status ?? "active"}
+                            >
+                              Editar permisos
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_staff"
+                              />
+                              <input type="hidden" name="id" value={person.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar a esta persona? Solo se permite si no tiene cursos, clases ni tutorias asignadas."
+                              >
+                                Eliminar persona
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1747,43 +1837,47 @@ const trNivel = (level?: string) =>
                       </span>
                       <i>{trEstado(student.status)}</i>
                       <div class="row-actions">
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-student-tracking
-                          data-id={student.id}
-                          data-name={student.full_name}
-                        >
-                          VER
-                        </button>
-                        <button
-                          class="btn-edit"
-                          data-edit-student
-                          data-id={student.id}
-                          data-full={student.full_name}
-                          data-email={student.email ?? ""}
-                          data-section={student.section_id ?? ""}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_student"
-                          />
-                          <input type="hidden" name="id" value={student.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Seguro de eliminar a este alumno?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del alumno" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-student-tracking
+                              data-id={student.id}
+                              data-name={student.full_name}
+                            >
+                              Ver expediente
+                            </button>
+                            <button
+                              type="button"
+                              data-edit-student
+                              data-id={student.id}
+                              data-full={student.full_name}
+                              data-email={student.email ?? ""}
+                              data-section={student.section_id ?? ""}
+                            >
+                              Editar alumno
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_student"
+                              />
+                              <input type="hidden" name="id" value={student.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar a este alumno? Solo se permite si no tiene tareas entregadas, batallas, puntos ni asistencia."
+                              >
+                                Eliminar alumno
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1867,43 +1961,49 @@ const trNivel = (level?: string) =>
                         PREGUNTAS
                       </span>
                       <div class="row-actions">
-                        <button
-                          data-detail-title={material.title}
-                          data-detail-body={`Estado ${trEstado(material.processing_status)}.`}
-                        >
-                          ABRIR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="generate_material"
-                          />
-                          <input type="hidden" name="id" value={material.id} />
-                          <button class="btn-edit">GENERAR IA</button>
-                        </form>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_material"
-                          />
-                          <input type="hidden" name="id" value={material.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar este material y sus preguntas?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones del material" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-detail-title={material.title}
+                              data-detail-body={`Estado ${trEstado(material.processing_status)}.`}
+                            >
+                              Abrir detalle
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="generate_material"
+                              />
+                              <input type="hidden" name="id" value={material.id} />
+                              <button>Generar con IA</button>
+                            </form>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_material"
+                              />
+                              <input type="hidden" name="id" value={material.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar este material? Se quitaran sus preguntas generadas."
+                              >
+                                Eliminar material
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1969,62 +2069,67 @@ const trNivel = (level?: string) =>
                       <b>Q-{String(i + 1).padStart(3, "0")}</b>
                       <i>{relationName(question.subjects) ?? "General"}</i>
                       <strong>{question.question}</strong>
-                      {question.status !== "approved" && (
-                        <small>{trEstado(question.status)}</small>
-                      )}
                       <div class="row-actions">
-                        {question.status !== "approved" ? (
-                          <form
-                            method="post"
-                            action="/api/recursos"
-                            class="inline"
-                          >
-                            <input
-                              type="hidden"
-                              name="action"
-                              value="approve_question"
-                            />
-                            <input
-                              type="hidden"
-                              name="question_id"
-                              value={question.id}
-                            />
-                            <button>REVISAR Y APROBAR</button>
-                          </form>
-                        ) : (
+                        {question.status !== "approved" && (
+                          <b class="pending-tag">{trEstado(question.status)}</b>
+                        )}
+                        {question.status === "approved" && (
                           <b class="approved-tag">APROBADA</b>
                         )}
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-edit-question
-                          data-id={question.id}
-                          data-subject={question.subject_id ?? ""}
-                          data-question={question.question}
-                          data-options={JSON.stringify(question.options ?? [])}
-                          data-correct={question.correct_index ?? 0}
-                          data-status={question.status}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_question"
-                          />
-                          <input type="hidden" name="id" value={question.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta pregunta?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la pregunta" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            {question.status !== "approved" && (
+                              <form
+                                method="post"
+                                action="/api/recursos"
+                                class="inline"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="action"
+                                  value="approve_question"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="question_id"
+                                  value={question.id}
+                                />
+                                <button>Revisar y aprobar</button>
+                              </form>
+                            )}
+                            <button
+                              type="button"
+                              data-edit-question
+                              data-id={question.id}
+                              data-subject={question.subject_id ?? ""}
+                              data-question={question.question}
+                              data-options={JSON.stringify(question.options ?? [])}
+                              data-correct={question.correct_index ?? 0}
+                              data-status={question.status}
+                            >
+                              Editar pregunta
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_question"
+                              />
+                              <input type="hidden" name="id" value={question.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar esta pregunta del banco?"
+                              >
+                                Eliminar pregunta
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -2067,44 +2172,51 @@ const trNivel = (level?: string) =>
                       </div>
                       <b>{relationName(task.subjects) ?? "General"}</b>
                       <h2>{task.title}</h2>
-                      <p>
-                        {relationName(task.sections) ?? "Todas"} -{" "}
-                        {trEntrega(task.delivery_type)}
-                      </p>
-                      <strong>{task.xp_reward} XP</strong>
+                      <div class="assignment-meta">
+                        <span>{relationName(task.sections) ?? "Todas las aulas"}</span>
+                        <span>{trEntrega(task.delivery_type)}</span>
+                        <span class="gold">{task.xp_reward} XP</span>
+                      </div>
                       <div class="row-actions">
-                        <button
-                          class="btn-edit"
-                          data-edit-assignment
-                          data-id={task.id}
-                          data-title={task.title}
-                          data-section={task.section_id ?? ""}
-                          data-subject={task.subject_id ?? ""}
-                          data-type={task.delivery_type}
-                          data-due={task.due_at ?? ""}
-                          data-xp={task.xp_reward ?? 80}
-                          data-status={task.status}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_assignment"
-                          />
-                          <input type="hidden" name="id" value={task.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta tarea?"
-                          >
-                            ELIMINAR
-                          </button>
-                        </form>
+                        <details class="action-menu">
+                          <summary aria-label="Acciones de la tarea" title="Acciones">⋮</summary>
+                          <div class="action-menu-panel">
+                            <button
+                              type="button"
+                              data-edit-assignment
+                              data-id={task.id}
+                              data-title={task.title}
+                              data-section={task.section_id ?? ""}
+                              data-subject={task.subject_id ?? ""}
+                              data-type={task.delivery_type}
+                              data-due={task.due_at ?? ""}
+                              data-xp={task.xp_reward ?? 80}
+                              data-points={task.points ?? 100}
+                              data-instructions={task.instructions ?? ""}
+                              data-status={task.status}
+                            >
+                              Editar tarea
+                            </button>
+                            <form
+                              method="post"
+                              action="/api/recursos"
+                              class="inline"
+                            >
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="delete_assignment"
+                              />
+                              <input type="hidden" name="id" value={task.id} />
+                              <button
+                                class="danger"
+                                data-confirm="Eliminar esta tarea? Solo se permite si ningun alumno la ha entregado."
+                              >
+                                Eliminar tarea
+                              </button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   ))}
@@ -2183,7 +2295,7 @@ const trNivel = (level?: string) =>
                     </small>
                     <div class="row-actions">
                       <button
-                        class="btn-edit"
+                        class="command-btn"
                         data-play-battle
                         data-title={battle.title}
                         data-subject={
@@ -2191,6 +2303,7 @@ const trNivel = (level?: string) =>
                             ?.name ?? ""
                         }
                         data-time={settings.battle_rules?.turn_seconds ?? 30}
+                        data-bot={battle.bot_difficulty ?? "balanced"}
                         data-layers={battle.graph_layers ?? 4}
                         data-nodes={battle.nodes_per_layer ?? 4}
                         data-teams={
@@ -2203,37 +2316,47 @@ const trNivel = (level?: string) =>
                       >
                         JUGAR
                       </button>
-                      <button
-                        class="btn-edit"
-                        data-edit-battle
-                        data-id={battle.id}
-                        data-title={battle.title}
-                        data-type={battle.battle_type}
-                        data-subject={battle.subject_id ?? ""}
-                        data-grade={battle.grade ?? ""}
-                        data-oppa={battle.opponent_a}
-                        data-oppb={battle.opponent_b}
-                        data-when={battle.scheduled_at ?? ""}
-                        data-layers={battle.graph_layers ?? 4}
-                        data-nodes={battle.nodes_per_layer ?? 4}
-                        data-status={battle.status}
-                      >
-                        EDITAR
-                      </button>
-                      <form method="post" action="/api/recursos" class="inline">
-                        <input
-                          type="hidden"
-                          name="action"
-                          value="delete_battle"
-                        />
-                        <input type="hidden" name="id" value={battle.id} />
-                        <button
-                          class="btn-del"
-                          data-confirm="Eliminar esta batalla?"
-                        >
-                          ELIMINAR
-                        </button>
-                      </form>
+                      <details class="action-menu">
+                        <summary aria-label="Acciones de la batalla" title="Acciones">⋮</summary>
+                        <div class="action-menu-panel">
+                          <button
+                            type="button"
+                            data-edit-battle
+                            data-id={battle.id}
+                            data-title={battle.title}
+                            data-type={battle.battle_type}
+                            data-bot={battle.bot_difficulty ?? "balanced"}
+                            data-subject={battle.subject_id ?? ""}
+                            data-grade={battle.grade ?? ""}
+                            data-oppa={battle.opponent_a}
+                            data-oppb={battle.opponent_b}
+                            data-when={battle.scheduled_at ?? ""}
+                            data-layers={battle.graph_layers ?? 4}
+                            data-nodes={battle.nodes_per_layer ?? 4}
+                            data-status={battle.status}
+                          >
+                            Editar batalla
+                          </button>
+                          <form
+                            method="post"
+                            action="/api/recursos"
+                            class="inline"
+                          >
+                            <input
+                              type="hidden"
+                              name="action"
+                              value="delete_battle"
+                            />
+                            <input type="hidden" name="id" value={battle.id} />
+                            <button
+                              class="danger"
+                              data-confirm="Eliminar esta batalla?"
+                            >
+                              Eliminar batalla
+                            </button>
+                          </form>
+                        </div>
+                      </details>
                     </div>
                   </article>
                 ))}
@@ -2441,30 +2564,72 @@ const trNivel = (level?: string) =>
                 <div>
                   <span>ANALITICA</span>
                   <h1>REPORTES</h1>
-                  <p>Descarga de notas, asistencia y desempeno por clase y por docente.</p>
+                  <p>
+                    Desempeno de todas las aulas, docentes y alumnos con el
+                    Indice BattleGraph (IDB) y su distancia a la meta.
+                  </p>
+                </div>
+                <div class="command-actions">
+                  <button
+                    class="command-btn ghost"
+                    data-open-dialog="report-config-dialog"
+                  >
+                    AJUSTAR META
+                  </button>
+                  <a
+                    class="command-btn"
+                    id="report-export"
+                    href="/api/reportes?type=overview&format=csv"
+                    >EXPORTAR CSV</a
+                  >
                 </div>
               </div>
-              <div class="dashboard-grid two">
-                <section class="game-panel">
-                  <span>POR AULA</span>
-                  <h2>REPORTE POR CLASE</h2>
-                  <p>Promedio, asistencia, tareas e insignias por alumno.</p>
-                  <div class="card-grid">
-                    {sections.map((s: any) => (
-                      <article class="subject-card searchable">
-                        <h2>{s.display_name}</h2>
-                        <a class="command-btn" href={`/api/reportes?type=class&section=${s.id}`}>EXPORTAR CSV</a>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-                <section class="game-panel">
-                  <span>POR DOCENTE</span>
-                  <h2>DESEMPENO DOCENTE</h2>
-                  <p>Cursos, clases, evaluaciones y secciones por profesor.</p>
-                  <a class="command-btn" href="/api/reportes?type=staff">EXPORTAR DOCENTES</a>
-                </section>
+              <div class="report-filter">
+                <label>Vista<select id="report-scope"
+                    ><option value="school">Todo el colegio</option
+                    ><option value="section">Un aula</option
+                    >{["owner", "director", "subdirector", "coordinator"].includes(
+                      myRole,
+                    ) && <option value="staff">Un docente</option
+                    >}<option value="student">Un alumno</option></select
+                  ></label
+                ><label id="report-section-wrap" hidden
+                  >Aula<select id="report-section"
+                    >{sections.map((s: any) => (
+                      <option value={s.id}>{s.display_name}</option>
+                    ))}</select
+                  ></label
+                ><label id="report-staff-wrap" hidden
+                  >Docente<select id="report-staff"
+                    >{staff
+                      .filter((p: any) =>
+                        [
+                          "teacher",
+                          "tutor",
+                          "coordinator",
+                          "subdirector",
+                        ].includes(p.role),
+                      )
+                      .map((p: any) => (
+                        <option value={p.id}>{p.full_name}</option>
+                      ))}</select
+                  ></label
+                ><label id="report-student-wrap" hidden
+                  >Alumno<select id="report-student"
+                    >{students.map((s: any) => (
+                      <option value={s.id}>{s.full_name}</option>
+                    ))}</select
+                  ></label
+                ><button class="command-btn" id="report-refresh" type="button">
+                  ACTUALIZAR
+                </button><span class="report-chip" id="report-goal-chip"
+                  >META 80 / IDB</span
+                >
               </div>
+              <div class="report-loading" id="report-loading">
+                PREPARANDO ANALITICA...
+              </div>
+              <div id="report-content" hidden></div>
             </>
           )
         }
@@ -2482,22 +2647,56 @@ const trNivel = (level?: string) =>
                   </p>
                 </div>
               </div>
-              <section class="game-panel">
-                <span>CONVERSACION</span>
+              <section class="game-panel assistant-view">
+                <span>CONVERSACION · SOLO TU COLEGIO</span>
                 <h2>CHAT</h2>
                 {(assistantMessages ?? []).length === 0 && (
-                  <p>Inicia la conversacion con tu asistente.</p>
+                  <p>
+                    Inicia la conversacion. Puedo explicarte como funciona cada
+                    modulo, ayudarte con la configuracion y leer tus reportes.
+                    Solo veo la informacion de tu colegio.
+                  </p>
                 )}
-                {(assistantMessages ?? []).map((m: any) => (
-                  <div>
-                    <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
-                    <p>{m.content}</p>
-                  </div>
-                ))}
+                <div class="assistant-thread">
+                  {(assistantMessages ?? []).map((m: any) => (
+                    <div
+                      class:list={[
+                        "assistant-msg",
+                        m.role === "user" ? "user" : "bot",
+                      ]}
+                    >
+                      <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+                      <p>{m.content}</p>
+                    </div>
+                  ))}
+                </div>
+                <div class="assistant-chips">
+                  {[
+                    "¿Como creo una seccion?",
+                    "¿Como programo una batalla contra bot?",
+                    "¿Como interpreto el reporte de mi aula?",
+                    "Ayudame a configurar mi colegio",
+                  ].map((suggestion) => (
+                    <button
+                      type="button"
+                      class="report-chip"
+                      data-assistant-prompt={suggestion}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
                 <form method="post" action="/api/asistente">
                   <input type="hidden" name="school_id" value={schoolId} />
-                  <label>Pregunta<textarea name="prompt" rows="3" required maxlength="2000"></textarea></label>
-                  <button class="command-btn" type="submit">ENVIAR</button>
+                  <input type="hidden" name="redirect" value={view} />
+                  <label
+                    >Pregunta<textarea
+                      name="prompt"
+                      rows="3"
+                      required
+                      maxlength="2000"
+                      class="assistant-prompt"></textarea></label
+                  ><button class="command-btn" type="submit">ENVIAR</button>
                 </form>
               </section>
             </>
@@ -2752,7 +2951,22 @@ const trNivel = (level?: string) =>
         >Seccion<input name="section_label" required placeholder="A" /></label
       ><label
         >Tutor<input name="tutor_name" placeholder="Nombre del tutor" /></label
-      ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      ><div class="dialog-full subject-picker" id="edit-section-subjects">
+        <span>Cursos del aula (elige cuales lleva esta seccion)</span>
+        <div class="subject-picker-grid">
+          {subjects.map((subject) => (
+            <label class="check-label">
+              <input type="checkbox" name="subject_ids" value={subject.id} />
+              {subject.name}
+            </label>
+          ))}
+        </div>
+        <small>Desmarca los cursos que esta aula no lleva.</small>
+      </div><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="edit-subject-dialog">
@@ -2839,7 +3053,27 @@ const trNivel = (level?: string) =>
         >Seccion<input name="section_label" required placeholder="A" /></label
       ><label
         >Tutor<input name="tutor_name" placeholder="Nombre del tutor" /></label
-      ><button class="command-btn" type="submit">CREAR Y CONFIGURAR</button>
+      ><div class="dialog-full subject-picker">
+        <span>Cursos del aula (elige cuales lleva esta seccion)</span>
+        <div class="subject-picker-grid">
+          {subjects.map((subject) => (
+            <label class="check-label">
+              <input
+                type="checkbox"
+                name="subject_ids"
+                value={subject.id}
+                checked
+              />
+              {subject.name}
+            </label>
+          ))}
+        </div>
+        <small>Desmarca los cursos que esta aula no lleva.</small>
+      </div><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">CREAR Y CONFIGURAR</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="subject-dialog">
@@ -2984,44 +3218,77 @@ const trNivel = (level?: string) =>
       ><button class="command-btn" type="submit">GUARDAR PREGUNTA</button>
     </form>
   </dialog>
-  <dialog class="portal-dialog" id="assignment-dialog">
+  <dialog class="portal-dialog assignment-dialog" id="assignment-dialog">
     <form method="post" action="/api/recursos">
       <input type="hidden" name="action" value="assignment" /><header>
-        <div><span>NUEVA MISION</span><h2>Crear tarea</h2></div><button
+        <div><span>NUEVA TAREA</span><h2>Crear tarea</h2></div><button
           type="button"
           data-close-dialog>X</button
         >
-      </header><label>Titulo<input name="title" required /></label><label
-        >Seccion<select name="section_id" required
-          >{
-            sections.map((section) => (
+      </header><label class="dialog-full"
+        >Titulo de la tarea<input
+          name="title"
+          required
+          maxlength="140"
+          placeholder="Ej: Practica de fracciones" /></label
+      ><label class="dialog-full"
+        >Consigna para el alumno<textarea
+          name="instructions"
+          rows="3"
+          maxlength="4000"
+          placeholder="Que debe hacer, pasos y criterios de evaluacion."
+        ></textarea></label
+      ><label
+        >Aula / grado (obligatorio)<select name="section_id" required
+          ><option value="">Selecciona un aula</option>{sections.map(
+            (section) => (
               <option value={section.id}>{section.display_name}</option>
-            ))
-          }</select
+            ),
+          )}</select
+        ><small>Se asigna a los alumnos de esta aula.</small></label
+      ><label
+        >Curso / materia<select name="subject_id" required
+          >{subjects.map((subject) => (
+            <option value={subject.id}>{subject.name}</option>
+          ))}</select
         ></label
       ><label
-        >Materia<select name="subject_id" required
-          >{
-            subjects.map((subject) => (
-              <option value={subject.id}>{subject.name}</option>
-            ))
-          }</select
+        >Forma de entrega<select name="delivery_type" id="assignment-delivery"
+          ><option value="quiz">Alternativas en linea</option
+          ><option value="written">Respuesta escrita (cuadro de texto)</option
+          ><option value="document">Documento PDF / Word / imagen</option
+          ></select
+        ><small id="assignment-delivery-hint"
+          >El alumno resuelve alternativas dentro de la app.</small
         ></label
       ><label
-        >Tipo<select name="delivery_type"
-          ><option value="quiz">Alternativas</option><option value="written"
-            >Respuesta escrita</option
-          ><option value="document">Documento</option></select
-        ></label
-      ><label>Entrega<input name="due_at" type="datetime-local" /></label><label
-        >XP<input
+        >Fecha y hora de entrega<input
+          name="due_at"
+          type="datetime-local" /></label
+      ><label
+        >Puntos de la tarea<input
+          name="points"
+          type="number"
+          min="0"
+          max="1000"
+          value="100" /><small>Calificacion maxima.</small></label
+      ><label
+        >XP de recompensa<input
           name="xp_reward"
           type="number"
           min="0"
           max="10000"
-          value="80"
-        /></label
-      ><button class="command-btn" type="submit">PROGRAMAR TAREA</button>
+          value="80" /><small>Se suma al progreso del alumno.</small></label
+      ><label
+        >Estado<select name="status"
+          ><option value="scheduled">Programada</option
+          ><option value="published">Publicada</option></select
+        ></label
+      ><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">CREAR TAREA</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="battle-dialog">
@@ -3038,6 +3305,14 @@ const trNivel = (level?: string) =>
           ><option value="section_vs_section">Seccion vs seccion</option><option
             value="tournament">Torneo</option
           ></select
+        ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced" selected>Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
         ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
@@ -3202,7 +3477,7 @@ const trNivel = (level?: string) =>
       ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
     </form>
   </dialog>
-  <dialog class="portal-dialog" id="edit-assignment-dialog">
+  <dialog class="portal-dialog assignment-dialog" id="edit-assignment-dialog">
     <form method="post" action="/api/recursos">
       <input type="hidden" name="action" value="update_assignment" /><input
         type="hidden"
@@ -3212,31 +3487,64 @@ const trNivel = (level?: string) =>
           type="button"
           data-close-dialog>X</button
         >
-      </header><label>Titulo<input name="title" required /></label><label
-        >Seccion<select name="section_id"
-          >{
-            sections.map((section) => (
+      </header><label class="dialog-full"
+        >Titulo de la tarea<input name="title" required maxlength="140" /></label
+      ><label class="dialog-full"
+        >Consigna para el alumno<textarea
+          name="instructions"
+          rows="3"
+          maxlength="4000"
+        ></textarea></label
+      ><label
+        >Aula / grado<select name="section_id" required
+          ><option value="">Selecciona un aula</option>{sections.map(
+            (section) => (
               <option value={section.id}>{section.display_name}</option>
-            ))
-          }</select
+            ),
+          )}</select
         ></label
       ><label
-        >Materia<select name="subject_id"
-          >{
-            subjects.map((subject) => (
-              <option value={subject.id}>{subject.name}</option>
-            ))
-          }</select
+        >Curso / materia<select name="subject_id" required
+          >{subjects.map((subject) => (
+            <option value={subject.id}>{subject.name}</option>
+          ))}</select
         ></label
-      ><label>Entrega<input name="due_at" type="datetime-local" /></label><label
-        >XP<input name="xp_reward" type="number" min="0" max="10000" /></label
+      ><label
+        >Forma de entrega<select name="delivery_type" id="edit-assignment-delivery"
+          ><option value="quiz">Alternativas en linea</option
+          ><option value="written">Respuesta escrita (cuadro de texto)</option
+          ><option value="document">Documento PDF / Word / imagen</option
+          ></select
+        ></label
+      ><label
+        >Fecha y hora de entrega<input
+          name="due_at"
+          type="datetime-local" /></label
+      ><label
+        >Puntos de la tarea<input
+          name="points"
+          type="number"
+          min="0"
+          max="1000"
+          value="100" /></label
+      ><label
+        >XP de recompensa<input
+          name="xp_reward"
+          type="number"
+          min="0"
+          max="10000"
+          value="80" /></label
       ><label
         >Estado<select name="status"
           ><option value="scheduled">Programada</option><option
             value="published">Publicada</option
           ><option value="closed">Cerrada</option></select
         ></label
-      ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      ><div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog>
+          CANCELAR</button
+        ><button class="command-btn" type="submit">GUARDAR CAMBIOS</button>
+      </div>
     </form>
   </dialog>
   <dialog class="portal-dialog" id="edit-battle-dialog">
@@ -3255,6 +3563,14 @@ const trNivel = (level?: string) =>
           ><option value="section_vs_section">Seccion vs seccion</option><option
             value="tournament">Torneo</option
           ></select
+        ></label
+      ><label class="bot-difficulty-field" hidden
+        >Nivel del bot<select name="bot_difficulty"
+          ><option value="facil">Facil - comete errores y responde lento</option
+          ><option value="balanced">Equilibrado - desafia sin castigar</option
+          ><option value="hard">Dificil - responde rapido y casi no falla</option
+          ><option value="adaptive">Adaptativo - ajusta al nivel del aula</option
+          ></select><small>Se aplica cuando la batalla es alumno vs bot.</small
         ></label
       ><label
         >Tema del curso (las preguntas seran de esta materia)<select
@@ -3374,11 +3690,22 @@ const trNivel = (level?: string) =>
         >
       </header><p id="confirm-delete-text">
         ¿Seguro que deseas eliminar este elemento?
-      </p><div class="dialog-actions">
+      </p><label class="confirm-typing"
+        >Escribe <b>ELIMINAR</b> para confirmar<input
+          id="confirm-delete-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="ELIMINAR"
+        /></label
+      ><div class="dialog-actions">
         <button class="command-btn ghost" type="button" data-close-dialog
           >CANCELAR</button
-        ><button class="command-btn" type="button" id="confirm-delete-btn"
-          >ELIMINAR</button
+        ><button
+          class="command-btn danger"
+          type="button"
+          id="confirm-delete-btn"
+          disabled>ELIMINAR DEFINITIVAMENTE</button
         >
       </div>
     </form>
@@ -3397,10 +3724,83 @@ const trNivel = (level?: string) =>
     </form><div class="game-modal-frame">
       <iframe
         id="panel-game-iframe"
-        src="/game/BattleGraph.html"
+        src="about:blank"
+        data-src="/game/BattleGraph.html"
         allow="autoplay; fullscreen; focus-without-user-activation"
         title="Juego BattleGraph"></iframe>
     </div>
+  </dialog>
+  <button
+    class="assistant-fab"
+    id="assistant-fab"
+    type="button"
+    data-open-dialog="assistant-dialog"
+    aria-label="Abrir asistente IA"
+    title="Asistente IA de tu colegio"
+    ><span>IA</span><strong>ASISTENTE</strong></button
+  >
+  <dialog class="portal-dialog assistant-dialog" id="assistant-dialog">
+    <form method="post" action="/api/asistente">
+      <input type="hidden" name="school_id" value={schoolId} /><input
+        type="hidden"
+        name="redirect"
+        value={view}
+      /><header>
+        <div>
+          <span>ASISTENTE DEL COLEGIO</span>
+          <h2 id="assistant-dialog-title">Pregunta lo que necesites</h2>
+        </div><button type="button" data-close-dialog>X</button>
+      </header>
+      <div class="assistant-thread">
+        {(assistantMessages ?? []).length === 0 && (
+          <p class="assistant-empty">
+            Puedo explicarte como funciona cada modulo, ayudarte a configurar
+            secciones, materias, tareas y batallas, y leer tus reportes. Solo
+            accedo a la informacion de tu colegio.
+          </p>
+        )}
+        {(assistantMessages ?? []).map((m: any) => (
+          <div
+            class:list={[
+              "assistant-msg",
+              m.role === "user" ? "user" : "bot",
+            ]}
+          >
+            <strong>{m.role === "user" ? "Tu" : "Asistente"}:</strong>
+            <p>{m.content}</p>
+          </div>
+        ))}
+      </div>
+      <div class="assistant-chips">
+        {[
+          "¿Como creo una seccion?",
+          "¿Como programo una batalla contra bot?",
+          "¿Como interpreto el reporte de mi aula?",
+          "Ayudame a configurar mi colegio",
+        ].map((suggestion) => (
+          <button
+            type="button"
+            class="report-chip"
+            data-assistant-prompt={suggestion}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+      <label
+        >Tu pregunta<textarea
+          name="prompt"
+          rows="3"
+          required
+          maxlength="2000"
+          class="assistant-prompt"></textarea></label
+      >
+      <div class="dialog-actions">
+        <button class="command-btn ghost" type="button" data-close-dialog
+          >CERRAR</button
+        ><button class="command-btn" type="submit">ENVIAR</button>
+      </div>
+    </form>
   </dialog>
 </PortalLayout>
 <dialog class="portal-dialog academic-dialog" id="attendance-dialog">
@@ -3720,10 +4120,98 @@ const trNivel = (level?: string) =>
     <button class="command-btn" type="submit">CREAR META</button>
   </form>
 </dialog>
+<dialog class="portal-dialog report-config-dialog" id="report-config-dialog">
+  <form method="post" action="/api/reportes">
+    <header>
+      <div>
+        <span>METODOLOGIA DEL DESEMPENO</span><h2>Meta y pesos del IDB</h2>
+      </div><button type="button" data-close-dialog>X</button>
+    </header>
+    <label>Meta institucional (sobre 100)<input id="report-goal-input" name="goal" type="number" min="1" max="100" value="80" required /></label>
+    <div class="dialog-columns">
+      <label>Peso notas %<input id="report-w-grades" name="weight_grades" type="number" min="0" max="100" value="40" /></label>
+      <label>Peso asistencia %<input id="report-w-attendance" name="weight_attendance" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso tareas %<input id="report-w-tasks" name="weight_tasks" type="number" min="0" max="100" value="20" /></label>
+      <label>Peso practica %<input id="report-w-practice" name="weight_practice" type="number" min="0" max="100" value="20" /></label>
+    </div>
+    <p class="report-config-note">
+      El IDB pondera solo los componentes con datos y renormaliza los pesos.
+      Brecha de hasta 5 puntos = meta cumplida; hasta 15 = cerca; mas de 15 = lejos.
+      La metodologia completa esta documentada en docs/METODOLOGIA_DESEMPENO.md.
+    </p>
+    <div class="dialog-actions">
+      <button class="command-btn ghost" type="button" data-close-dialog>CANCELAR</button>
+      <button class="command-btn" type="submit">GUARDAR METODOLOGIA</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
   const SCHOOL_ID =
     document.getElementById("school-holder")?.dataset.schoolId ?? "";
+  // ---- Sonido: arranca en silencio y recuerda la preferencia del usuario ----
+  const SOUND_KEY = "battlegraf_panel_sound";
+  let soundOn = (() => {
+    try {
+      return localStorage.getItem(SOUND_KEY) === "on";
+    } catch {
+      return false;
+    }
+  })();
+  const soundButton = document.getElementById("sound-toggle");
+  const soundLabel = document.getElementById("sound-toggle-label");
+  const renderSound = () => {
+    if (!soundButton) return;
+    soundButton.dataset.sound = soundOn ? "on" : "off";
+    soundButton.setAttribute("aria-pressed", soundOn ? "true" : "false");
+    if (soundLabel) soundLabel.textContent = soundOn ? "ACTIVO" : "SILENCIO";
+  };
+  renderSound();
+  soundButton?.addEventListener("click", () => {
+    soundOn = !soundOn;
+    try {
+      localStorage.setItem(SOUND_KEY, soundOn ? "on" : "off");
+    } catch {}
+    renderSound();
+    const frame = document.getElementById(
+      "panel-game-iframe",
+    ) as HTMLIFrameElement | null;
+    frame?.contentWindow?.postMessage(
+      { type: "battlegraf-sound", muted: !soundOn },
+      "*",
+    );
+  });
+  // ---- Asistente IA: sugerencias y foco ----
+  document
+    .querySelectorAll<HTMLElement>("[data-assistant-prompt]")
+    .forEach((chip) =>
+      chip.addEventListener("click", () => {
+        const text = chip.dataset.assistantPrompt ?? "";
+        const target =
+          chip
+            .closest("form")
+            ?.querySelector<HTMLTextAreaElement>(".assistant-prompt") ??
+          document.querySelector<HTMLTextAreaElement>(
+            "#assistant-dialog .assistant-prompt",
+          ) ??
+          document.querySelector<HTMLTextAreaElement>(
+            ".assistant-view .assistant-prompt",
+          );
+        if (target) {
+          target.value = text;
+          target.focus();
+        }
+      }),
+    );
+  document.getElementById("assistant-fab")?.addEventListener("click", () => {
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLTextAreaElement>(
+          "#assistant-dialog .assistant-prompt",
+        )
+        ?.focus();
+    }, 80);
+  });
   const openDialog = (id: string) =>
     (document.getElementById(id) as HTMLDialogElement | null)?.showModal();
   document
@@ -3756,7 +4244,7 @@ const trNivel = (level?: string) =>
       // no abrir si pulsan botones internos o la zona de acciones (editar/eliminar)
       if (
         (e.target as HTMLElement).closest(
-          "button,a,input,select,label,form,.row-actions,.class-actions",
+          "button,a,input,select,label,form,summary,details,.row-actions,.class-actions",
         )
       )
         return;
@@ -3822,6 +4310,56 @@ const trNivel = (level?: string) =>
       | null;
     if (el && val !== undefined && val !== null) el.value = String(val);
   };
+  // Nivel del bot: solo se muestra cuando la batalla es alumno vs bot
+  const syncBotFields = (scope?: HTMLElement | null) => {
+    (scope ?? document)
+      .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+      .forEach((sel) => {
+        const field = sel
+          .closest("form")
+          ?.querySelector<HTMLElement>(".bot-difficulty-field");
+        if (field) field.hidden = sel.value !== "student_vs_bot";
+      });
+  };
+  document
+    .querySelectorAll<HTMLSelectElement>('select[name="battle_type"]')
+    .forEach((sel) => sel.addEventListener("change", () => syncBotFields()));
+  syncBotFields();
+  // ---- Tareas: pista segun la forma de entrega (Canvas style) ----
+  const deliveryHints: Record<string, string> = {
+    quiz: "El alumno resuelve alternativas dentro de la app.",
+    written: "El alumno escribe su respuesta en un cuadro de texto.",
+    document: "El alumno sube un PDF, Word o imagen como entrega.",
+  };
+  const syncDeliveryHint = (selectId: string, hintId: string) => {
+    const sel = document.getElementById(selectId) as HTMLSelectElement | null;
+    const hint = document.getElementById(hintId);
+    if (!sel || !hint) return;
+    const render = () => {
+      hint.textContent = deliveryHints[sel.value] ?? "";
+    };
+    sel.addEventListener("change", render);
+    render();
+  };
+  syncDeliveryHint("assignment-delivery", "assignment-delivery-hint");
+  // ---- Menus de acciones (3 puntos) ----
+  document
+    .querySelectorAll<HTMLDetailsElement>("details.action-menu")
+    .forEach((menu) => {
+      menu.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if ((event.target as HTMLElement).closest("button,a")) {
+          menu.removeAttribute("open");
+        }
+      });
+    });
+  document.addEventListener("click", (event) => {
+    document
+      .querySelectorAll<HTMLDetailsElement>("details.action-menu[open]")
+      .forEach((menu) => {
+        if (!menu.contains(event.target as Node)) menu.removeAttribute("open");
+      });
+  });
   document.querySelectorAll<HTMLElement>("[data-edit-staff]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -3884,6 +4422,8 @@ const trNivel = (level?: string) =>
           d.due && d.due.length >= 16 ? d.due.slice(0, 16) : "",
         );
         setVal("edit-assignment-dialog", "xp_reward", d.xp);
+        setVal("edit-assignment-dialog", "points", d.points);
+        setVal("edit-assignment-dialog", "instructions", d.instructions);
         setVal("edit-assignment-dialog", "status", d.status);
         openDialog("edit-assignment-dialog");
       }),
@@ -3982,7 +4522,9 @@ const trNivel = (level?: string) =>
       );
       setVal("edit-battle-dialog", "graph_layers", d.layers ?? 4);
       setVal("edit-battle-dialog", "nodes_per_layer", d.nodes ?? 4);
+      setVal("edit-battle-dialog", "bot_difficulty", d.bot ?? "balanced");
       setVal("edit-battle-dialog", "status", d.status);
+      syncBotFields(document.getElementById("edit-battle-dialog"));
       openDialog("edit-battle-dialog");
     }),
   );
@@ -3995,6 +4537,17 @@ const trNivel = (level?: string) =>
       setVal("edit-section-dialog", "level", d.level);
       setVal("edit-section-dialog", "section_label", d.label);
       setVal("edit-section-dialog", "tutor_name", d.tutor);
+      let subjectIds: string[] = [];
+      try {
+        subjectIds = JSON.parse(d.subjects ?? "[]");
+      } catch {}
+      document
+        .querySelectorAll<HTMLInputElement>(
+          "#edit-section-subjects input[type=checkbox]",
+        )
+        .forEach((cb) => {
+          cb.checked = subjectIds.includes(cb.value);
+        });
       openDialog("edit-section-dialog");
     }),
   );
@@ -4010,7 +4563,20 @@ const trNivel = (level?: string) =>
     }),
   );
   // Modal de confirmación para eliminaciones (reemplaza confirm nativo)
+  // Requiere escribir ELIMINAR: evita borrados accidentales.
   let pendingDeleteForm: HTMLFormElement | null = null;
+  const confirmInput = document.getElementById(
+    "confirm-delete-input",
+  ) as HTMLInputElement | null;
+  const confirmDeleteBtn = document.getElementById(
+    "confirm-delete-btn",
+  ) as HTMLButtonElement | null;
+  const syncConfirmDelete = () => {
+    if (confirmDeleteBtn)
+      confirmDeleteBtn.disabled =
+        (confirmInput?.value ?? "").trim().toUpperCase() !== "ELIMINAR";
+  };
+  confirmInput?.addEventListener("input", syncConfirmDelete);
   document.querySelectorAll<HTMLFormElement>("form.inline").forEach((f) => {
     const btn = f.querySelector<HTMLButtonElement>("button[data-confirm]");
     if (!btn) return;
@@ -4021,29 +4587,414 @@ const trNivel = (level?: string) =>
       if (txt)
         txt.textContent =
           btn.dataset.confirm ?? "¿Seguro que deseas eliminar este elemento?";
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
       openDialog("confirm-delete-dialog");
     });
   });
-  document
-    .getElementById("confirm-delete-btn")
-    ?.addEventListener("click", () => {
-      const dlg = document.getElementById(
-        "confirm-delete-dialog",
-      ) as HTMLDialogElement | null;
-      dlg?.close();
-      pendingDeleteForm?.submit();
-    });
+  confirmDeleteBtn?.addEventListener("click", () => {
+    if (confirmDeleteBtn.disabled || !pendingDeleteForm) return;
+    const dlg = document.getElementById(
+      "confirm-delete-dialog",
+    ) as HTMLDialogElement | null;
+    const form = pendingDeleteForm;
+    dlg?.close();
+    form.submit();
+  });
   document
     .getElementById("confirm-delete-dialog")
     ?.addEventListener("close", () => {
       pendingDeleteForm = null;
+      if (confirmInput) confirmInput.value = "";
+      syncConfirmDelete();
     });
+  // ---- Reportes: graficos de desempeno (IDB), metas y tablas ----
+  const reportRoot = document.getElementById("report-content");
+  if (reportRoot) {
+    const scopeSel = document.getElementById(
+      "report-scope",
+    ) as HTMLSelectElement | null;
+    const sectionSel = document.getElementById(
+      "report-section",
+    ) as HTMLSelectElement | null;
+    const staffSel = document.getElementById(
+      "report-staff",
+    ) as HTMLSelectElement | null;
+    const studentSel = document.getElementById(
+      "report-student",
+    ) as HTMLSelectElement | null;
+    const sectionWrap = document.getElementById("report-section-wrap");
+    const staffWrap = document.getElementById("report-staff-wrap");
+    const studentWrap = document.getElementById("report-student-wrap");
+    const reportLoading = document.getElementById("report-loading");
+    const goalChip = document.getElementById("report-goal-chip");
+    const exportLink = document.getElementById(
+      "report-export",
+    ) as HTMLAnchorElement | null;
+    let overview: any = null;
+    let staffData: any = null;
+    let overviewPromise: Promise<any> | null = null;
+    let staffPromise: Promise<any> | null = null;
+
+    const loadJson = async (url: string) => {
+      try {
+        const res = await fetch(url, {
+          headers: { Accept: "application/json" },
+        });
+        return res.ok ? await res.json() : null;
+      } catch {
+        return null;
+      }
+    };
+    const loadOverview = async () => {
+      if (overview) return overview;
+      if (!overviewPromise)
+        overviewPromise = loadJson("/api/reportes?type=overview&format=json");
+      overview = await overviewPromise;
+      return overview;
+    };
+    const loadStaff = async () => {
+      if (staffData) return staffData;
+      if (!staffPromise)
+        staffPromise = loadJson("/api/reportes?type=staff&format=json");
+      staffData = await staffPromise;
+      return staffData;
+    };
+    const fmt = (value: any, suffix = "") =>
+      value === null || value === undefined ? "—" : `${value}${suffix}`;
+    const statusClass = (gap: any) => gap?.status ?? "sin-datos";
+    const esc = (value: any) =>
+      String(value ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c] as string,
+      );
+    const kpiRow = (items: [string, any, string?][]) =>
+      `<div class="report-kpis">${items
+        .map(
+          ([label, value, hint]) =>
+            `<article class="${hint ?? ""}"><span>${esc(label)}</span><strong>${value}</strong></article>`,
+        )
+        .join("")}</div>`;
+    const barList = (
+      items: { label: string; value: number | null; id?: string; gap?: any }[],
+      goal: number,
+      dataAttr = "",
+    ) =>
+      `<div class="report-bars">${items
+        .map(
+          (item) =>
+            `<button type="button" class="report-bar" ${dataAttr}="${esc(item.id ?? "")}">` +
+            `<span class="report-bar-label">${esc(item.label)}</span>` +
+            `<span class="report-bar-track"><i class="${statusClass(item.gap)}" style="width:${Math.max(0, Math.min(100, item.value ?? 0))}%"></i>` +
+            (goal >= 1 && goal <= 100
+              ? `<b class="report-bar-goal" style="left:${goal}%"></b>`
+              : "") +
+            `</span><strong>${item.value === null || item.value === undefined ? "—" : item.value.toFixed(1)}</strong></button>`,
+        )
+        .join("")}</div>`;
+    const table = (
+      headers: string[],
+      rows: (string | number | null)[][],
+    ) =>
+      `<div class="report-table-wrap"><table class="report-table"><thead><tr>${headers
+        .map((h) => `<th>${esc(h)}</th>`)
+        .join("")}</tr></thead><tbody>${rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map(
+                (cell) =>
+                  `<td>${cell === null || cell === undefined ? "—" : cell}</td>`,
+              )
+              .join("")}</tr>`,
+        )
+        .join("")}</tbody></table></div>`;
+    const sectionName = (id: string) =>
+      (overview?.sections ?? []).find((s: any) => String(s.id) === String(id))
+        ?.display_name ?? "Sin aula";
+
+    const setExport = (scope: string, student?: any) => {
+      if (!exportLink) return;
+      if (scope === "section" && sectionSel?.value)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(sectionSel.value)}&format=csv`;
+      else if (scope === "staff")
+        exportLink.href = "/api/reportes?type=staff&format=csv";
+      else if (scope === "student" && student?.section_id)
+        exportLink.href = `/api/reportes?type=class&section=${encodeURIComponent(student.section_id)}&format=csv`;
+      else exportLink.href = "/api/reportes?type=overview&format=csv";
+    };
+
+    const applyConfig = (data: any) => {
+      if (!data?.config) return;
+      const goal = data.config.goal ?? 80;
+      if (goalChip) goalChip.textContent = `META ${goal} / IDB`;
+      const set = (id: string, value: any) => {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (el && value !== undefined) el.value = String(value);
+      };
+      set("report-goal-input", goal);
+      const weights = data.config.weights ?? {};
+      set("report-w-grades", weights.grades);
+      set("report-w-attendance", weights.attendance);
+      set("report-w-tasks", weights.tasks);
+      set("report-w-practice", weights.practice);
+    };
+
+    const render = async () => {
+      const scope = scopeSel?.value ?? "school";
+      if (sectionWrap) sectionWrap.hidden = scope !== "section";
+      if (staffWrap) staffWrap.hidden = scope !== "staff";
+      if (studentWrap) studentWrap.hidden = scope !== "student";
+      if (reportLoading) reportLoading.hidden = false;
+      reportRoot.hidden = true;
+      let html = "";
+      try {
+        if (scope === "staff") {
+          const data = await loadStaff();
+          await loadOverview();
+          const staffList = data?.staff ?? [];
+          const goal = overview?.config?.goal ?? 80;
+          const selectedId = staffSel?.value ?? staffList[0]?.id ?? "";
+          const selected = staffList.find(
+            (s: any) => String(s.id) === String(selectedId),
+          );
+          html += kpiRow([
+            ["DOCENTES", staffList.length],
+            ["IDB DEL DOCENTE", fmt(selected?.performance)],
+            ["BRECHA A META", fmt(selected?.gap?.distance)],
+            ["ASISTENCIA", fmt(selected?.attendance, "%")],
+          ]);
+          html += `<section class="game-panel"><span>COMPARATIVO</span><h2>Desempeno por docente</h2>${barList(
+            staffList.map((s: any) => ({
+              label: s.full_name ?? "Docente",
+              value: s.performance,
+              id: s.id,
+              gap: s.gap,
+            })),
+            goal,
+            "data-staff",
+          )}</section>`;
+          if (selected) {
+            const theirSections = selected.sections ?? [];
+            const theirStudents = (overview?.students ?? []).filter(
+              (st: any) =>
+                theirSections.some(
+                  (sec: any) => String(sec.id) === String(st.section_id),
+                ),
+            );
+            html += `<section class="game-panel"><span>${esc(selected.full_name)}</span><h2>Detalle del docente</h2><p>${selected.subjects?.join(" · ") || "Sin cursos asignados"} · ${theirSections.map((s: any) => esc(s.display_name)).join(", ") || "Sin aulas"}</p>${table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas"],
+              theirStudents.map((st: any) => [
+                esc(st.full_name),
+                esc(sectionName(st.section_id)),
+                fmt(st.performance),
+                fmt(st.grade_average, "%"),
+                fmt(st.attendance_rate, "%"),
+                `${st.tasks_done ?? 0}/${st.tasks_expected ?? 0}`,
+              ]),
+            )}</section>`;
+          }
+          setExport("staff");
+        } else {
+          const data = await loadOverview();
+          if (!data) throw new Error("sin datos");
+          applyConfig(data);
+          const goal = data.config?.goal ?? 80;
+          if (scope === "section") {
+            const section =
+              data.sections.find(
+                (s: any) => String(s.id) === String(sectionSel?.value),
+              ) ?? data.sections[0];
+            if (sectionSel && section)
+              sectionSel.value = String(section.id);
+            const members = data.students.filter(
+              (s: any) => String(s.section_id) === String(section?.id),
+            );
+            html += kpiRow([
+              ["IDB DEL AULA", fmt(section?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(section?.gap?.distance)],
+              ["ALUMNOS", members.length],
+              ["ASISTENCIA", fmt(section?.attendance, "%")],
+              ["TAREAS", fmt(section?.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>${esc(section?.display_name ?? "")}</span><h2>Desempeno por alumno</h2>${barList(
+              members
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => ({
+                  label: s.full_name ?? "Alumno",
+                  value: s.performance,
+                  id: s.id,
+                  gap: s.gap,
+                })),
+              goal,
+              "data-student",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (section?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              members.map((s: any) => [
+                esc(s.full_name),
+                fmt(s.performance),
+                fmt(s.grade_average, "%"),
+                fmt(s.attendance_rate, "%"),
+                `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                s.points ?? 0,
+                fmt(s.gap?.distance),
+              ]),
+            );
+            setExport("section");
+          } else if (scope === "student") {
+            const student =
+              data.students.find(
+                (s: any) => String(s.id) === String(studentSel?.value),
+              ) ?? data.students[0];
+            if (studentSel && student) studentSel.value = String(student.id);
+            html += kpiRow([
+              ["IDB DEL ALUMNO", fmt(student?.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(student?.gap?.distance)],
+              ["NOTAS", fmt(student?.grade_average, "%")],
+              ["ASISTENCIA", fmt(student?.attendance_rate, "%")],
+              ["TAREAS", `${student?.tasks_done ?? 0}/${student?.tasks_expected ?? 0}`],
+              ["PUNTOS", student?.points ?? 0],
+              ["BATALLAS", `${student?.battles ?? 0} (${student?.wins ?? 0} ganadas)`],
+            ]);
+            html += `<section class="game-panel"><span>${esc(student?.full_name ?? "")} · ${esc(sectionName(student?.section_id))}</span><h2>Desempeno por materia</h2>${barList(
+              (student?.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}${table(
+              ["Indicador", "Valor"],
+              [
+                ["Promedio de notas", fmt(student?.grade_average, "%")],
+                ["Asistencia", fmt(student?.attendance_rate, "%")],
+                ["Tareas entregadas", `${student?.tasks_done ?? 0} de ${student?.tasks_expected ?? 0}`],
+                ["Cumplimiento de tareas", fmt(student?.tasks_rate, "%")],
+                ["Practica (puntos)", fmt(student?.practice, "%")],
+                ["Insignias", student?.badges ?? 0],
+                ["Victorias en batallas", student?.wins ?? 0],
+              ],
+            )}</section>`;
+            setExport("student", student);
+          } else {
+            const school = data.school ?? {};
+            html += kpiRow([
+              ["IDB DEL COLEGIO", fmt(school.performance)],
+              ["META", goal],
+              ["BRECHA", fmt(school.gap?.distance)],
+              ["AULAS", school.sections ?? 0],
+              ["ALUMNOS", school.students ?? 0],
+              ["NOTAS", fmt(school.grades, "%")],
+              ["ASISTENCIA", fmt(school.attendance, "%")],
+              ["TAREAS", fmt(school.tasks, "%")],
+            ]);
+            html += `<section class="game-panel"><span>TODAS LAS AULAS</span><h2>Desempeno por aula</h2>${barList(
+              (data.sections ?? []).map((s: any) => ({
+                label: s.display_name,
+                value: s.performance,
+                id: s.id,
+                gap: s.gap,
+              })),
+              goal,
+              "data-section",
+            )}</section>`;
+            html += `<section class="game-panel"><span>POR MATERIA</span><h2>Desempeno por materia</h2>${barList(
+              (data.subjects ?? []).map((s: any) => ({
+                label: s.name,
+                value: s.performance,
+              })),
+              goal,
+            )}</section>`;
+            html += table(
+              ["Alumno", "Aula", "IDB", "Notas", "Asistencia", "Tareas", "Puntos", "Brecha"],
+              (data.students ?? [])
+                .slice()
+                .sort((a: any, b: any) => (b.performance ?? 0) - (a.performance ?? 0))
+                .map((s: any) => [
+                  esc(s.full_name),
+                  esc(sectionName(s.section_id)),
+                  fmt(s.performance),
+                  fmt(s.grade_average, "%"),
+                  fmt(s.attendance_rate, "%"),
+                  `${s.tasks_done ?? 0}/${s.tasks_expected ?? 0}`,
+                  s.points ?? 0,
+                  fmt(s.gap?.distance),
+                ]),
+            );
+            setExport("school");
+          }
+        }
+        reportRoot.innerHTML = html;
+      } catch {
+        reportRoot.innerHTML = `<div class="report-loading">No se pudo cargar la analitica. Intenta actualizar.</div>`;
+      } finally {
+        if (reportLoading) reportLoading.hidden = true;
+        reportRoot.hidden = false;
+      }
+    };
+
+    scopeSel?.addEventListener("change", () => void render());
+    sectionSel?.addEventListener("change", () => void render());
+    staffSel?.addEventListener("change", () => void render());
+    studentSel?.addEventListener("change", () => void render());
+    document.getElementById("report-refresh")?.addEventListener("click", () => {
+      overview = null;
+      staffData = null;
+      overviewPromise = null;
+      staffPromise = null;
+      void render();
+    });
+    reportRoot.addEventListener("click", (event) => {
+      const bar = (event.target as HTMLElement).closest<HTMLElement>(".report-bar");
+      if (!bar || !overview) return;
+      const sectionId = bar.dataset.section;
+      const studentId = bar.dataset.student;
+      const staffId = bar.dataset.staff;
+      if (sectionId && sectionSel && scopeSel) {
+        sectionSel.value = sectionId;
+        scopeSel.value = "section";
+        void render();
+      } else if (studentId && studentSel && scopeSel) {
+        const student = overview.students.find(
+          (s: any) => String(s.id) === String(studentId),
+        );
+        if (student) {
+          studentSel.value = studentId;
+          scopeSel.value = "student";
+          void render();
+        }
+      } else if (staffId && staffSel && scopeSel) {
+        staffSel.value = staffId;
+        scopeSel.value = "staff";
+        void render();
+      }
+    });
+    void render();
+  }
   // ---- Modal del juego (batalla vs bot con preguntas del sistema) ----
   document.querySelectorAll<HTMLElement>("[data-play-battle]").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const subject = b.dataset.subject ?? "";
       const turnSeconds = b.dataset.time ?? "";
+      const botDifficulty = b.dataset.bot ?? "";
       const layers = b.dataset.layers ?? "";
       const nodes = b.dataset.nodes ?? "";
       const teams = b.dataset.teams ?? "2";
@@ -4055,13 +5006,22 @@ const trNivel = (level?: string) =>
       ) as HTMLDialogElement | null;
       const title = document.getElementById("game-dialog-title");
       if (!frame || !dlg) return;
-      let src =
-        "/game/BattleGraph.html?school_id=" + encodeURIComponent(SCHOOL_ID);
+      const gameBase = frame.dataset.src ?? "/game/BattleGraph.html";
+      let src = gameBase + "?school_id=" + encodeURIComponent(SCHOOL_ID);
       if (subject) src += "&subject=" + encodeURIComponent(subject);
       if (turnSeconds) src += "&time=" + encodeURIComponent(turnSeconds);
+      if (botDifficulty)
+        src += "&bot_difficulty=" + encodeURIComponent(botDifficulty);
       if (layers) src += "&layers=" + encodeURIComponent(layers);
       if (nodes) src += "&nodes=" + encodeURIComponent(nodes);
       if (teams) src += "&teams=" + encodeURIComponent(teams);
+      if (!soundOn) src += "&mute=1";
+      frame.onload = () => {
+        frame.contentWindow?.postMessage(
+          { type: "battlegraf-sound", muted: !soundOn },
+          "*",
+        );
+      };
       frame.src = src;
       if (title) title.textContent = b.dataset.title ?? "Alumno vs bot";
       dlg.showModal();

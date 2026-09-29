@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 /// Tokens cromáticos compartidos con el panel institucional.
@@ -16,10 +17,13 @@ class AppColors {
   static const Color crema300 = Color(0xFFE9D9AE);
   static const Color crema500 = Color(0xFFCDB888);
 
-  static const Color oro300 = Color(0xFFF0CF7A);
-  static const Color oro500 = Color(0xFFE6B84D);
-  static const Color oro700 = Color(0xFFB5852C);
-  static const Color bordeOro = Color(0xFF554726);
+  // Acento principal: rojo -> magenta -> morado (sin dorado)
+  static const Color oro300 = Color(0xFFFF6FB0); // magenta claro (highlight)
+  static const Color oro500 = Color(0xFFE11D48); // rojo (botones / primario)
+  static const Color oro700 = Color(
+    0xFF8E1030,
+  ); // rojo profundo (bordes/botones)
+  static const Color bordeOro = Color(0xFF4A1E52); // borde morado de tarjetas
 
   // Faction and route accents from the web theme.
   static const Color aliados = Color(0xFF4D99FF);
@@ -32,7 +36,7 @@ class AppColors {
   static const Color rojoAccion = Color(0xFFFF4D4D);
   static const Color textoSeco = Color(0xFF908A98);
 
-  // Keep legacy names while migrating screens to the shared token names.
+  // Compatibilidad con nombres antiguos (re-mapeados a la paleta roja/morada)
   static const Color voidBlack = piedra950;
   static const Color deepPurple = piedra800;
   static const Color royalPurple = piedra700;
@@ -41,11 +45,11 @@ class AppColors {
   static const Color deepBackground = fondoGame;
   static const Color shadowPurple = piedra600;
   static const Color mutedInk = crema500;
-  static const Color crimsonRed = imperio;
-  static const Color brightRed = imperio;
-  static const Color magenta = violeta400;
-  static const Color neonPurple = violeta600;
-  static const Color cyan = aliados;
+  static const Color crimsonRed = oro700;
+  static const Color brightRed = Color(0xFFFF3B5C);
+  static const Color magenta = Color(0xFFD946EF);
+  static const Color neonPurple = Color(0xFFA855F7);
+  static const Color cyan = Color(0xFF8B5CF6);
   static const Color gold = oro300;
   static const Color offWhite = crema100;
 }
@@ -59,6 +63,16 @@ class AppTheme {
     return ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       scaffoldBackgroundColor: AppColors.fondoGame,
       colorScheme: const ColorScheme.dark(
         primary: AppColors.oro500,
