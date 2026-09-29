@@ -1,5 +1,6 @@
 import 'package:battlegraf_mobile/core/router/app_router.dart';
 import 'package:battlegraf_mobile/core/theme/app_theme.dart';
+import 'package:battlegraf_mobile/presentation/providers/auth_provider.dart';
 import 'package:battlegraf_mobile/presentation/views/login/login_view.dart';
 import 'package:battlegraf_mobile/presentation/views/splash/splash_view.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,24 @@ void main() {
   });
 
   group('App redirect policy', () {
+    test('a personal student account does not need a school membership', () {
+      const state = AuthState(
+        token: 'session-token',
+        user: {
+          'id': 'user-1',
+          'role': 'student',
+          'preferred_mode': 'personal',
+          'player_profile_id': 'player-1',
+          'memberships': [],
+        },
+      );
+
+      expect(state.isAuthenticated, isTrue);
+      expect(state.isPersonalMode, isTrue);
+      expect(state.schoolId, isNull);
+      expect(state.hasSchoolMembership, isFalse);
+    });
+
     test('reads a Flutter web hash route without affecting native starts', () {
       expect(
         initialLocationFromBaseUri(
@@ -83,6 +102,45 @@ void main() {
           location: '/',
         ),
         '/lobby',
+      );
+    });
+
+    test('personal and school students land in the student app shell', () {
+      expect(
+        resolveAppRedirect(
+          isLoading: false,
+          isAuthenticated: true,
+          isStudent: true,
+          hasSchoolMembership: false,
+          isSchoolMode: false,
+          location: '/',
+        ),
+        '/student-app',
+      );
+      expect(
+        resolveAppRedirect(
+          isLoading: false,
+          isAuthenticated: true,
+          isStudent: true,
+          hasSchoolMembership: true,
+          isSchoolMode: true,
+          location: '/lobby',
+        ),
+        '/student-app',
+      );
+    });
+
+    test('personal mode cannot open school-only screens directly', () {
+      expect(
+        resolveAppRedirect(
+          isLoading: false,
+          isAuthenticated: true,
+          isStudent: true,
+          hasSchoolMembership: true,
+          isSchoolMode: false,
+          location: '/institution/clases',
+        ),
+        '/student-app',
       );
     });
 

@@ -15,6 +15,7 @@ import '../../presentation/views/auth/register_view.dart';
 import '../../presentation/views/academics/academic_overview_view.dart';
 import '../../presentation/views/student/student_dashboard_view.dart';
 import '../../presentation/views/student/student_detail_view.dart';
+import '../../presentation/views/student/student_app_shell.dart';
 import '../../presentation/views/assistant/assistant_view.dart';
 import '../../features/institution/presentation/views/institution_hub_view.dart';
 
@@ -33,6 +34,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       return resolveAppRedirect(
         isLoading: authState.isLoading,
         isAuthenticated: authState.isAuthenticated,
+        isStudent: authState.role == 'student',
+        hasSchoolMembership: authState.hasSchoolMembership,
+        isSchoolMode: authState.preferredMode == 'school',
         location: state.uri.path,
         intendedLocation:
             state.uri.queryParameters['from'] ?? browserInitialLocation,
@@ -60,6 +64,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/battle/demo-bot',
         builder: (context, state) => const BotBattleDemoView(),
+      ),
+      GoRoute(
+        path: '/student-app',
+        builder: (context, state) => const StudentAppShell(),
       ),
       GoRoute(
         path: '/student',
@@ -113,6 +121,9 @@ String? resolveAppRedirect({
   required bool isLoading,
   required bool isAuthenticated,
   required String location,
+  bool isStudent = false,
+  bool hasSchoolMembership = false,
+  bool isSchoolMode = false,
   String? intendedLocation,
 }) {
   final isLoginRoute = location == '/login';
@@ -135,9 +146,15 @@ String? resolveAppRedirect({
         ? null
         : Uri(path: '/splash', queryParameters: {'from': location}).toString();
   }
-  if (isRootRoute) return isAuthenticated ? '/lobby' : '/login';
+  final homeRoute = isStudent ? '/student-app' : '/lobby';
+  if (isRootRoute) return isAuthenticated ? homeRoute : '/login';
   if (isSplashRoute) {
-    if (isAuthenticated) return safeIntended ?? '/lobby';
+    if (isAuthenticated) {
+      final intended = safeIntended == '/lobby' && isStudent
+          ? '/student-app'
+          : safeIntended;
+      return intended ?? homeRoute;
+    }
     return safeIntended == null
         ? '/login'
         : Uri(
@@ -147,7 +164,38 @@ String? resolveAppRedirect({
   }
   if (!isAuthenticated && !isLoginRoute && !isRegisterRoute) return '/login';
   if (isAuthenticated && (isLoginRoute || isRegisterRoute)) {
-    return safeIntended ?? '/lobby';
+    final intended = safeIntended == '/lobby' && isStudent
+        ? '/student-app'
+        : safeIntended;
+    return intended ?? homeRoute;
+  }
+  if (isAuthenticated && isStudent && location == '/lobby') {
+    return '/student-app';
+  }
+  if (isAuthenticated &&
+      isStudent &&
+      !isSchoolMode &&
+      (location == '/student' ||
+          location == '/student-detail' ||
+          location == '/academics' ||
+          location == '/battle/setup' ||
+          location == '/battle/play' ||
+          location == '/assistant' ||
+          location.startsWith('/institution/'))) {
+    return '/student-app';
+  }
+  if (isAuthenticated &&
+      isStudent &&
+      isSchoolMode &&
+      !hasSchoolMembership &&
+      (location == '/student' ||
+          location == '/student-detail' ||
+          location == '/academics' ||
+          location == '/battle/setup' ||
+          location == '/battle/play' ||
+          location == '/assistant' ||
+          location.startsWith('/institution/'))) {
+    return '/student-app';
   }
   return null;
 }

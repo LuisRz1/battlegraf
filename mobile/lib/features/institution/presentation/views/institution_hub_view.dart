@@ -129,9 +129,19 @@ class InstitutionHubView extends ConsumerWidget {
                       span: 'MODULO INSTITUCIONAL',
                       title: effectiveArea.label,
                       action: PanelButton(
-                        label: 'MODULOS',
+                        label: auth.role == 'student' ? 'VOLVER' : 'MODULOS',
                         ghost: true,
-                        onTap: () => _showModules(context, auth.role),
+                        onTap: () {
+                          if (auth.role == 'student') {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.go('/student-app');
+                            }
+                          } else {
+                            _showModules(context, auth.role);
+                          }
+                        },
                       ),
                     ),
                   ),
@@ -520,9 +530,7 @@ class InstitutionHubView extends ConsumerWidget {
               }),
             ]
           : null,
-      onTap: (row) => context.push(
-        '/student-detail?student=${row['id']}',
-      ),
+      onTap: (row) => context.push('/student-detail?student=${row['id']}'),
     ),
     const SizedBox(height: 16),
     ..._rows(

@@ -19,6 +19,8 @@ class RegisterView extends ConsumerStatefulWidget {
 
 class _RegisterViewState extends ConsumerState<RegisterView> {
   String? _selectedRole;
+  String _selectedGrade = '5to de primaria';
+  String _selectedSubject = 'Matemática';
   bool _isLoading = false;
   String? _error;
 
@@ -62,6 +64,8 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
 
     try {
       if (MobileConfig.hasSupabase) {
+        final isPersonalStudent = _selectedRole == 'personal_student';
+        final isSchoolStudent = _selectedRole == 'school_student';
         final result = await ref
             .read(authProvider.notifier)
             .register(
@@ -69,7 +73,12 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
                   '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
               email: _emailController.text,
               password: _passwordController.text,
-              role: _selectedRole!,
+              role: isPersonalStudent || isSchoolStudent
+                  ? 'student'
+                  : _selectedRole!,
+              studentMode: isPersonalStudent ? 'personal' : 'school',
+              grade: isPersonalStudent ? _selectedGrade : '',
+              subject: isPersonalStudent ? _selectedSubject : '',
               schoolCode: _schoolCodeController.text,
               schoolName: _schoolNameController.text,
               region: _regionController.text,
@@ -97,8 +106,13 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
           ),
         );
         if (!mounted) return;
+        final isStudent =
+            _selectedRole == 'personal_student' ||
+            _selectedRole == 'school_student';
         context.go(
-          ref.read(authProvider).isAuthenticated ? '/lobby' : '/login',
+          ref.read(authProvider).isAuthenticated
+              ? (isStudent ? '/student-app' : '/lobby')
+              : '/login',
         );
         return;
       }
@@ -111,13 +125,23 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
         'password': _passwordController.text,
       };
 
+      if (_selectedRole == 'personal_student') {
+        setState(() {
+          _error =
+              'La cuenta personal requiere la conexión segura de BattleGraph.';
+        });
+        return;
+      }
+
+      final isSchoolStudent = _selectedRole == 'school_student';
+      final role = isSchoolStudent ? 'student' : _selectedRole;
       String endpoint;
       if (_selectedRole == 'director') {
         endpoint = '/auth/register/director';
         data['school_name'] = _schoolNameController.text.trim();
         data['region'] = _regionController.text.trim();
       } else {
-        endpoint = '/auth/register/$_selectedRole';
+        endpoint = '/auth/register/$role';
         data['school_code'] = _schoolCodeController.text.trim();
       }
 
@@ -170,6 +194,50 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
     }
   }
 
+  Future<void> _registerWithGoogle() async {
+    if (_selectedRole == null || !MobileConfig.hasSupabase) return;
+    final isPersonalStudent = _selectedRole == 'personal_student';
+    final isSchoolStudent = _selectedRole == 'school_student';
+    if ((isSchoolStudent || _selectedRole == 'professor') &&
+        _schoolCodeController.text.trim().length < 3) {
+      setState(() => _error = 'Escribe un código de colegio válido.');
+      return;
+    }
+    if (_selectedRole == 'director' &&
+        _schoolNameController.text.trim().length < 2) {
+      setState(() => _error = 'Escribe el nombre de tu colegio.');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final started = await ref
+          .read(authProvider.notifier)
+          .loginWithGoogle(
+            role: isPersonalStudent || isSchoolStudent
+                ? 'student'
+                : _selectedRole == 'professor'
+                ? 'teacher'
+                : _selectedRole,
+            studentMode: isPersonalStudent ? 'personal' : 'school',
+            schoolCode: _schoolCodeController.text,
+            schoolName: _schoolNameController.text,
+            region: _regionController.text,
+            grade: _selectedGrade,
+            subject: _selectedSubject,
+          );
+      if (!mounted || started) return;
+      setState(
+        () => _error =
+            ref.read(authProvider).error ?? 'No se pudo iniciar Google.',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildRoleSelection() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -192,13 +260,23 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
           onTap: () => setState(() => _selectedRole = 'professor'),
         ).animate(delay: 100.ms).fadeIn(duration: 400.ms).slideX(begin: -0.2),
         const SizedBox(height: 16),
+        if (MobileConfig.hasSupabase) ...[
+          _RoleCard(
+            title: 'ALUMNO · PERSONAL',
+            subtitle: 'Cuenta gratuita con una ruta propia',
+            icon: Icons.gamepad,
+            color: AppColors.oro500,
+            onTap: () => setState(() => _selectedRole = 'personal_student'),
+          ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2),
+          const SizedBox(height: 16),
+        ],
         _RoleCard(
-          title: 'ALUMNO',
-          subtitle: 'Únete a un colegio',
-          icon: Icons.gamepad,
-          color: AppColors.neonPurple,
-          onTap: () => setState(() => _selectedRole = 'student'),
-        ).animate(delay: 200.ms).fadeIn(duration: 400.ms).slideX(begin: -0.2),
+          title: 'ALUMNO · COLEGIO',
+          subtitle: 'Vincula el código de tu institución',
+          icon: Icons.account_balance,
+          color: AppColors.brightRed,
+          onTap: () => setState(() => _selectedRole = 'school_student'),
+        ).animate(delay: 300.ms).fadeIn(duration: 400.ms).slideX(begin: -0.2),
         const SizedBox(height: 32),
         TextButton(
           onPressed: () => context.go('/login'),
@@ -247,13 +325,15 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
             decoration: const InputDecoration(labelText: 'Correo electrónico'),
             validator: (v) => v!.isEmpty ? 'Requerido' : null,
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Celular'),
-            validator: (v) => v!.isEmpty ? 'Requerido' : null,
-          ),
+          if (!MobileConfig.hasSupabase) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Celular'),
+              validator: (v) => v!.isEmpty ? 'Requerido' : null,
+            ),
+          ],
           const SizedBox(height: 12),
           TextFormField(
             controller: _passwordController,
@@ -286,6 +366,64 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
               controller: _regionController,
               decoration: const InputDecoration(labelText: 'Región'),
               validator: (v) => v!.isEmpty ? 'Requerido' : null,
+            ),
+          ] else if (_selectedRole == 'personal_student') ...[
+            const SizedBox(height: 24),
+            const HudLabel('TU RUTA DE APRENDIZAJE', color: AppColors.gold),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedGrade,
+              decoration: const InputDecoration(labelText: 'Grado'),
+              items:
+                  const [
+                        '1ro de primaria',
+                        '2do de primaria',
+                        '3ro de primaria',
+                        '4to de primaria',
+                        '5to de primaria',
+                        '6to de primaria',
+                        '1ro de secundaria',
+                        '2do de secundaria',
+                        '3ro de secundaria',
+                        '4to de secundaria',
+                        '5to de secundaria',
+                      ]
+                      .map(
+                        (grade) =>
+                            DropdownMenuItem(value: grade, child: Text(grade)),
+                      )
+                      .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedGrade = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedSubject,
+              decoration: const InputDecoration(labelText: 'Materia inicial'),
+              items:
+                  const [
+                        'Matemática',
+                        'Comunicación',
+                        'Ciencia y tecnología',
+                        'Historia',
+                        'General',
+                      ]
+                      .map(
+                        (subject) => DropdownMenuItem(
+                          value: subject,
+                          child: Text(subject),
+                        ),
+                      )
+                      .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedSubject = value);
+              },
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tu avance personal se guarda en tu cuenta y también queda disponible sin conexión.',
+              style: TextStyle(color: AppColors.crema500, fontSize: 12),
             ),
           ] else ...[
             const SizedBox(height: 24),
@@ -328,6 +466,17 @@ class _RegisterViewState extends ConsumerState<RegisterView> {
                   : const Text('REGISTRAR'),
             ),
           ),
+          if (MobileConfig.hasSupabase) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : _registerWithGoogle,
+                icon: const Icon(Icons.login),
+                label: const Text('REGISTRAR CON GOOGLE'),
+              ),
+            ),
+          ],
         ],
       ),
     ).animate().fadeIn();

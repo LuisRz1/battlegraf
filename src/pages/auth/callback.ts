@@ -1,10 +1,6 @@
 import type { APIRoute } from "astro";
 import { isPlanSlug } from "../../lib/plans";
-import {
-	createSupabaseServerClient,
-	createSupabaseServiceClient,
-	hasSupabaseConfig,
-} from "../../lib/supabase";
+import { createSupabaseServerClient, hasSupabaseConfig } from "../../lib/supabase";
 
 export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	if (!hasSupabaseConfig()) {
@@ -29,14 +25,16 @@ export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	if (error) return redirect(`${errorTarget}${errorTarget.includes("?") ? "&" : "?"}error=exchange`, 303);
 
 	const { data: userData } = await supabase.auth.getUser();
-	const { data: existingMembership } = userData.user
+	const { data: existingMemberships } = userData.user
 		? await supabase
 			.from("memberships")
-			.select("school_id, role")
+			.select("school_id, role, status")
 			.eq("user_id", userData.user.id)
-			.limit(1)
-			.maybeSingle()
+			.order("created_at")
 		: { data: null };
+	const existingMembership =
+		existingMemberships?.find((membership) => membership.status === "active") ?? null;
+	const hasInactiveMembership = Boolean(existingMemberships?.length && !existingMembership);
 
 	if (mode === "login" && !existingMembership) {
 		await supabase.auth.signOut();
@@ -44,74 +42,50 @@ export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 		cookies.delete("bg_auth_mode", { path: "/" });
 		cookies.delete("bg_auth_role", { path: "/" });
 		cookies.delete("bg_school_code", { path: "/" });
-		return redirect("/iniciar-sesion?error=not_found", 303);
+		return redirect(
+			hasInactiveMembership
+				? "/iniciar-sesion?error=membership_inactive"
+				: "/iniciar-sesion?error=not_found",
+			303,
+		);
 	}
 
 	let joinError: string | null = null;
 	if (!existingMembership) {
-		const fullName = userData.user?.user_metadata?.full_name ?? userData.user?.user_metadata?.name ?? "";
-		const email = userData.user?.email ?? null;
-		const avatar = userData.user?.user_metadata?.avatar_url ?? userData.user?.user_metadata?.picture ?? null;
-
-		if (role === "director") {
-			const { error: bootstrapError } = await supabase.rpc("bootstrap_institution_account", { p_plan_slug: plan });
-			if (bootstrapError) return redirect("/panel?setup=retry", 303);
+		if (hasInactiveMembership) {
+			joinError = "membership_inactive";
+		} else if (role !== "director" && schoolCodeCookie.length < 3) {
+			joinError = "missing_code";
 		} else {
-			// Profesor o alumno: vincular al colegio por su código (trazabilidad multi-año).
-			// El usuario aún no tiene membership, así que RLS le impide leer `schools`;
-			// se busca con el cliente service-role (solo id y código).
-			if (!schoolCodeCookie || schoolCodeCookie.length < 3) {
-				joinError = "missing_code";
+			const fullName = userData.user?.user_metadata?.full_name ?? userData.user?.user_metadata?.name ?? "";
+			const email = userData.user?.email ?? null;
+			const avatar = userData.user?.user_metadata?.avatar_url ?? userData.user?.user_metadata?.picture ?? null;
+			const { error: onboardingError } = await supabase.rpc(
+				"complete_mobile_onboarding",
+				{
+					p_role: role,
+					p_school_code: schoolCodeCookie || null,
+					p_school_name: null,
+					p_region: null,
+					p_plan_slug: plan,
+				},
+			);
+			if (onboardingError) {
+				joinError = role === "director"
+					? "bootstrap_failed"
+					: onboardingError.message.toLowerCase().includes("school not found")
+						? "school_not_found"
+						: "membership_failed";
 			} else {
-				const admin = createSupabaseServiceClient();
-				const { data: found } = await admin
-					.from("schools")
-					.select("id, code")
-					.ilike("code", schoolCodeCookie)
-					.limit(2);
-				const school = found && found.length === 1 ? found[0] : null;
-				if (!school) {
-					joinError = "school_not_found";
-				} else {
-					const { error: membershipError } = await supabase.from("memberships").insert({
-						school_id: school.id,
-						user_id: userData.user!.id,
-						role,
-						status: "active",
-					});
-					if (membershipError) {
-						joinError = "membership_failed";
-					} else {
-						// Perfil en el colegio para trazabilidad a lo largo de los años
-						if (role === "teacher") {
-							await supabase.from("staff_profiles").insert({
-								school_id: school.id,
-								full_name: fullName || "Docente",
-								email,
-								role: "teacher",
-								scope_label: "Todas las materias",
-								status: "active",
-								is_demo: false,
-							});
-						} else {
-							await supabase.from("student_profiles").insert({
-								school_id: school.id,
-								full_name: fullName || "Estudiante",
-								email,
-								accessibility_preferences: {},
-							});
-						}
-						await supabase.from("profiles").upsert(
-							{
-								id: userData.user!.id,
-								email,
-								full_name: fullName,
-								avatar_url: avatar,
-							},
-							{ onConflict: "id" }
-						);
-					}
-				}
+				await supabase.from("profiles").upsert(
+					{
+						id: userData.user!.id,
+						email,
+						full_name: fullName,
+						avatar_url: avatar,
+					},
+					{ onConflict: "id" }
+				);
 			}
 		}
 	}
@@ -121,6 +95,12 @@ export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	cookies.delete("bg_auth_role", { path: "/" });
 	cookies.delete("bg_school_code", { path: "/" });
 
-	if (joinError) return redirect(`/registro?plan=${plan}&error=${joinError}`, 303);
+	if (joinError) {
+		const target = mode === "login" ? "/iniciar-sesion" : `/registro?plan=${plan}`;
+		return redirect(
+			`${target}${target.includes("?") ? "&" : "?"}error=${joinError}`,
+			303,
+		);
+	}
 	return redirect(existingMembership ? "/panel?login=1" : "/panel?welcome=1", 303);
 };

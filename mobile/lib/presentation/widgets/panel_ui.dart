@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Sistema de UI que replica el panel web (global.css):
-/// - Fondo piedra #09090C con paneles #14100A
-/// - Tarjetas con borde oro #4A3A1C y esquinas 6px
+/// - Fondo piedra #0D0C14 con paneles #131120
+/// - Tarjetas con borde oro apagado y esquinas rectas
 /// - Encabezados: span dorado pequeño + titulo crema (command-title)
 /// - Botones dorados .command-btn con texto oscuro
 /// - Filas .table-row con separador y hover
@@ -30,7 +30,12 @@ class PanelHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(padded ? 16 : 0, padded ? 14 : 0, padded ? 16 : 0, 2),
+      padding: EdgeInsets.fromLTRB(
+        padded ? 16 : 0,
+        padded ? 14 : 0,
+        padded ? 16 : 0,
+        2,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -163,7 +168,11 @@ class PanelBox extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 10),
-                const Divider(color: AppColors.bordeOro, height: 1, thickness: 1),
+                const Divider(
+                  color: AppColors.bordeOro,
+                  height: 1,
+                  thickness: 1,
+                ),
                 const SizedBox(height: 10),
               ],
               child,
@@ -228,7 +237,12 @@ class PanelButton extends StatelessWidget {
             letterSpacing: 1.4,
           ),
         ),
-        child: icon != null ? Row(mainAxisSize: MainAxisSize.min, children: [icon!, const SizedBox(width: 6), Text(label)]) : Text(label),
+        child: icon != null
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [icon!, const SizedBox(width: 6), Text(label)],
+              )
+            : Text(label),
       ),
     );
   }
@@ -240,16 +254,26 @@ class PanelMiniButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool danger;
 
-  const PanelMiniButton({super.key, required this.label, this.onTap, this.danger = false});
+  const PanelMiniButton({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.danger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        backgroundColor: danger ? const Color(0x22B3202C) : const Color(0x22E6B84D),
+        backgroundColor: danger
+            ? const Color(0x22B3202C)
+            : const Color(0x22E6B84D),
         foregroundColor: danger ? AppColors.imperio : AppColors.oro300,
-        side: BorderSide(color: danger ? const Color(0xFF5C1B22) : AppColors.bordeOro, width: 1),
+        side: BorderSide(
+          color: danger ? const Color(0xFF5C1B22) : AppColors.bordeOro,
+          width: 1,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         minimumSize: const Size(0, 26),
@@ -296,7 +320,9 @@ class PanelRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.bordeOro, width: 1)),
+          border: Border(
+            bottom: BorderSide(color: AppColors.bordeOro, width: 1),
+          ),
         ),
         child: Row(
           children: [
@@ -377,7 +403,12 @@ class StatPair extends StatelessWidget {
   final String label;
   final Color? valueColor;
 
-  const StatPair({super.key, required this.value, required this.label, this.valueColor});
+  const StatPair({
+    super.key,
+    required this.value,
+    required this.label,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -422,7 +453,11 @@ class StatStrip extends StatelessWidget {
           if (i > 0)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 14),
-              child: VerticalDivider(color: AppColors.bordeOro, width: 1, thickness: 1),
+              child: VerticalDivider(
+                color: AppColors.bordeOro,
+                width: 1,
+                thickness: 1,
+              ),
             ),
           stats[i],
         ],
@@ -437,7 +472,12 @@ class SectionChip extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
-  const SectionChip({super.key, required this.label, this.color = AppColors.oro500, this.onTap});
+  const SectionChip({
+    super.key,
+    required this.label,
+    this.color = AppColors.oro500,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -471,7 +511,12 @@ class PanelEmpty extends StatelessWidget {
   final String message;
   final IconData icon;
 
-  const PanelEmpty({super.key, required this.title, required this.message, required this.icon});
+  const PanelEmpty({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {

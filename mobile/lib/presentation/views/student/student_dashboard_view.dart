@@ -45,7 +45,7 @@ class _StudentDashboardViewState extends ConsumerState<StudentDashboardView> {
                 action: PanelButton(
                   label: 'VOLVER',
                   ghost: true,
-                  onTap: () => context.go('/lobby'),
+                  onTap: () => context.go('/student-app'),
                 ),
               ),
               Expanded(child: _buildBody(state)),
@@ -137,8 +137,7 @@ class _StudentDashboardViewState extends ConsumerState<StudentDashboardView> {
 
   Widget _courses(StudentDashboardState state) {
     final averages = {
-      for (final g in state.gradesBySubject)
-        '${g['subject']}': g['average'],
+      for (final g in state.gradesBySubject) '${g['subject']}': g['average'],
     };
     return PanelBox(
       span: 'CURSOS Y NOTAS',
@@ -302,7 +301,8 @@ class _StudentDashboardViewState extends ConsumerState<StudentDashboardView> {
               actions: [
                 PanelMiniButton(
                   label: 'CANJEAR',
-                  onTap: (state.points >=
+                  onTap:
+                      (state.points >=
                           ((powerup['cost_points'] as num?)?.toInt() ?? 0))
                       ? () async {
                           final ok = await ref

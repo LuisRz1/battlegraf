@@ -45,8 +45,8 @@ export function hasSupabaseSecret() {
 
 /**
  * Cliente administrativo (service role) para operaciones server-side que
- * necesitan saltarse RLS (p. ej. buscar un colegio por código para el join de
- * profesor/alumno, que aún no tiene membership). NUNCA exponer al navegador.
+ * necesitan saltarse RLS. Solo se usa desde rutas del servidor; nunca exponer
+ * al navegador.
  */
 export function createSupabaseServiceClient() {
 	const url = getSupabaseUrl();

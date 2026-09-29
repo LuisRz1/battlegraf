@@ -20,7 +20,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	const { error } = await supabase.rpc("enroll_student_by_code", { p_join_code: codigo });
 	if (error) {
 		const msg = error.message.toLowerCase();
-		if (msg.includes("student profile")) return redirect("/mis-clases?error=no_student", 303);
+		if (
+			msg.includes("student profile") ||
+			msg.includes("active student membership")
+		) {
+			return redirect("/mis-clases?error=no_student", 303);
+		}
+		if (msg.includes("not available for this section")) return redirect("/mis-clases?error=wrong_section", 303);
 		if (msg.includes("class not found")) return redirect("/mis-clases?error=class_not_found", 303);
 		return redirect("/mis-clases?error=save", 303);
 	}

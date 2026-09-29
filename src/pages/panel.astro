@@ -14,10 +14,11 @@ if (!userData.user) return Astro.redirect("/iniciar-sesion");
 const { data: memberships } = await supabase
   .from("memberships")
   .select(
-    "id, school_id, role, schools(id, name, code, region, city, ugel, address, onboarding_complete)",
-  )
-  .eq("user_id", userData.user.id)
-  .order("created_at");
+		"id, school_id, role, schools(id, name, code, region, city, ugel, address, onboarding_complete)",
+	)
+	.eq("user_id", userData.user.id)
+	.eq("status", "active")
+	.order("created_at");
 const membershipsList = (memberships ?? []) as any[];
 if (membershipsList.length === 0)
   return Astro.redirect("/registro?error=no_institution");
@@ -96,8 +97,15 @@ if (apiToken) {
   const memory = await extra("/me/memory");
   if (memory?.messages) assistantMessages = memory.messages;
 }
-// Respaldo: si el backend FastAPI no respondió, leer directo de Supabase (RLS)
-if (!dashboard.school_id) {
+// El fallback directo solo es suficiente para administradores; RLS no puede
+// reconstruir el alcance académico docente/alumno que aplica FastAPI.
+const canUseDirectFallback = [
+  "owner",
+  "director",
+  "subdirector",
+  "coordinator",
+].includes(myRole);
+if (!dashboard.school_id && canUseDirectFallback) {
   const fb = await Promise.all([
     supabase
       .from("subscriptions")
@@ -168,7 +176,7 @@ if (!dashboard.school_id) {
     supabase
       .from("classes")
       .select(
-        "id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, teacher_membership_id, academic_years(label, is_active), subjects(name), sections(display_name, level, grade, section_label)",
+        "id, name, subject, code, is_active, created_at, academic_year_id, section_id, subject_id, academic_years(label, is_active), subjects(name), sections(display_name, level, grade, section_label)",
       )
       .eq("school_id", schoolId),
     supabase
@@ -199,6 +207,8 @@ if (!dashboard.school_id) {
     enrollments: fb[14].data ?? [],
     subject_teachers: fb[15].data ?? [],
   };
+} else if (!dashboard.school_id) {
+  dashboard = { school_id: schoolId, api_unavailable: true };
 }
 const subscription = dashboard.subscription ?? {};
 const studentsResult = {
@@ -331,26 +341,21 @@ const completion = Math.min(
 );
 // Perfil del usuario: auth + memberships (colegios/roles) + perfiles staff/student
 const userProfile = userData.user;
+const membershipIds = membershipsList.map((m: any) => m.id).filter(Boolean);
 const { data: myStaffRows } = await supabase
   .from("staff_profiles")
-  .select("id, full_name, email, role, scope_label, status, school_id")
-  .in(
-    "school_id",
-    membershipsList.map((m: any) => m.school_id).filter(Boolean),
-  );
+  .select("id, membership_id, full_name, email, role, scope_label, status, school_id")
+  .in("membership_id", membershipIds);
 const { data: myStudentRows } = await supabase
   .from("student_profiles")
-  .select("id, full_name, email, section_id, status, school_id")
-  .in(
-    "school_id",
-    membershipsList.map((m: any) => m.school_id).filter(Boolean),
-  );
+  .select("id, membership_id, full_name, email, section_id, status, school_id")
+  .in("membership_id", membershipIds);
 const myStaff = (myStaffRows ?? []) as any[];
 const myStudents = (myStudentRows ?? []) as any[];
 const myProfileRows = membershipsList.map((m: any) => {
   const s = Array.isArray(m.schools) ? m.schools[0] : m.schools;
-  const staffRow = myStaff.find((p: any) => p.school_id === m.school_id);
-  const studentRow = myStudents.find((p: any) => p.school_id === m.school_id);
+  const staffRow = myStaff.find((p: any) => p.membership_id === m.id);
+  const studentRow = myStudents.find((p: any) => p.membership_id === m.id);
   return {
     school: s ?? null,
     role: m.role,
@@ -358,6 +363,19 @@ const myProfileRows = membershipsList.map((m: any) => {
     student: studentRow ?? null,
   };
 });
+const canManageSubjects = [
+  "owner",
+  "director",
+  "subdirector",
+  "coordinator",
+  "tutor",
+].includes(myRole);
+const canDeleteSubjects = [
+  "owner",
+  "director",
+  "subdirector",
+  "coordinator",
+].includes(myRole);
 const allViews = [
   ["centro", "Centro de mando"],
   ["perfil", "Mi perfil"],
@@ -654,6 +672,17 @@ const trNivel = (level?: string) =>
         )
       }
       <main class="command-content">
+        {
+          dashboard.api_unavailable && (
+            <div class="auth-config-warning" role="status">
+              <strong>Panel académico temporalmente no disponible</strong>
+              <span>
+                No pudimos cargar los datos con el alcance de tu rol. Intenta
+                recargar en unos minutos.
+              </span>
+            </div>
+          )
+        }
         {
           view === "centro" && (
             <>
@@ -1396,12 +1425,14 @@ const trNivel = (level?: string) =>
                         </p>
                       </>
                     </div>
-                    <button
-                      class="command-btn"
-                      data-open-dialog="subject-dialog"
-                    >
-                      ANADIR MATERIA
-                    </button>
+                    {canManageSubjects && (
+                      <button
+                        class="command-btn"
+                        data-open-dialog="subject-dialog"
+                      >
+                        ANADIR MATERIA
+                      </button>
+                    )}
                   </>
                 </div>
                 <div class="card-grid subject-grid">
@@ -1461,18 +1492,48 @@ const trNivel = (level?: string) =>
                         </div>
                       </dl>
                       <div class="row-actions">
-                        <button
-                          type="button"
-                          class="btn-edit"
-                          data-assign-teacher
-                          data-subject={subject.id}
-                          data-subject-name={subject.name}
-                        >
-                          ASIGNAR PROFESOR
-                        </button>
-                        {subjectTeachers
-                          .filter((t) => t.subject_id === subject.id)
-                          .map((t) => (
+                        {canManageSubjects && (
+                          <>
+                            <button
+                              type="button"
+                              class="btn-edit"
+                              data-assign-teacher
+                              data-subject={subject.id}
+                              data-subject-name={subject.name}
+                            >
+                              ASIGNAR PROFESOR
+                            </button>
+                            {subjectTeachers
+                              .filter((t) => t.subject_id === subject.id)
+                              .map((t) => (
+                                <form
+                                  method="post"
+                                  action="/api/recursos"
+                                  class="inline"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="action"
+                                    value="remove_teacher"
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="subject_id"
+                                    value={subject.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="staff_id"
+                                    value={t.staff_id}
+                                  />
+                                  <button
+                                    class="btn-del"
+                                    data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
+                                  >
+                                    QUITAR
+                                  </button>
+                                </form>
+                              ))}
                             <form
                               method="post"
                               action="/api/recursos"
@@ -1481,78 +1542,54 @@ const trNivel = (level?: string) =>
                               <input
                                 type="hidden"
                                 name="action"
-                                value="remove_teacher"
+                                value="toggle_subject"
                               />
+                              <input type="hidden" name="id" value={subject.id} />
                               <input
                                 type="hidden"
-                                name="subject_id"
-                                value={subject.id}
+                                name="is_enabled"
+                                value={
+                                  subject.is_enabled === false ? "true" : "false"
+                                }
                               />
-                              <input
-                                type="hidden"
-                                name="staff_id"
-                                value={t.staff_id}
-                              />
-                              <button
-                                class="btn-del"
-                                data-confirm={`Quitar a ${t.staff_profiles?.full_name ?? "este profesor"} del curso?`}
-                              >
-                                QUITAR
+                              <button class="btn-edit">
+                                {subject.is_enabled === false
+                                  ? "ACTIVAR CURSO"
+                                  : "DESACTIVAR CURSO"}
                               </button>
                             </form>
-                          ))}
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="toggle_subject"
-                          />
-                          <input type="hidden" name="id" value={subject.id} />
-                          <input
-                            type="hidden"
-                            name="is_enabled"
-                            value={
-                              subject.is_enabled === false ? "true" : "false"
-                            }
-                          />
-                          <button class="btn-edit">
-                            {subject.is_enabled === false
-                              ? "ACTIVAR CURSO"
-                              : "DESACTIVAR CURSO"}
-                          </button>
-                        </form>
-                        <button
-                          class="btn-edit"
-                          data-edit-subject
-                          data-id={subject.id}
-                          data-name={subject.name}
-                          data-icon={subject.icon_code}
-                          data-color={subject.color}
-                        >
-                          EDITAR
-                        </button>
-                        <form
-                          method="post"
-                          action="/api/recursos"
-                          class="inline"
-                        >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="delete_subject"
-                          />
-                          <input type="hidden" name="id" value={subject.id} />
-                          <button
-                            class="btn-del"
-                            data-confirm="Eliminar esta materia? Se quitaran sus preguntas y materiales vinculados."
+                            <button
+                              class="btn-edit"
+                              data-edit-subject
+                              data-id={subject.id}
+                              data-name={subject.name}
+                              data-icon={subject.icon_code}
+                              data-color={subject.color}
+                            >
+                              EDITAR
+                            </button>
+                          </>
+                        )}
+                        {canDeleteSubjects && (
+                          <form
+                            method="post"
+                            action="/api/recursos"
+                            class="inline"
                           >
-                            ELIMINAR
-                          </button>
-                        </form>
+                            <input
+                              type="hidden"
+                              name="action"
+                              value="delete_subject"
+                            />
+                            <input type="hidden" name="id" value={subject.id} />
+                            <button
+                              class="btn-del"
+                              data-confirm="Eliminar esta materia? Se quitaran sus preguntas y materiales vinculados."
+                            >
+                              ELIMINAR
+                            </button>
+                          </form>
+                        )}
                       </div>
                     </article>
                   ))}

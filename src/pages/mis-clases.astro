@@ -13,32 +13,46 @@ const errorMap: Record<string, string> = {
 	missing_code: "Escribe el código de la clase.",
 	no_student: "Tu cuenta no tiene un perfil de alumno. Pide al director que te cree uno.",
 	class_not_found: "No encontramos una clase activa con ese código este año.",
+	wrong_section: "Esta clase corresponde a otra sección. Confirma el código con tu profesor.",
 	save: "No pudimos inscribirte. Inténtalo nuevamente.",
 };
 
 // El perfil de alumno del usuario
 const { data: memberships } = await supabase
 	.from("memberships")
-	.select("school_id, schools(name)")
+	.select("id, school_id, schools(name)")
 	.eq("user_id", userData.user.id)
-	.eq("role", "student");
+	.eq("role", "student")
+	.eq("status", "active");
 const members = (memberships ?? []) as any[];
-const schoolIds = members.map((m: any) => m.school_id).filter(Boolean);
-const { data: studentProfiles } = schoolIds.length
-	? await supabase.from("student_profiles").select("id, full_name, section_id, school_id").in("school_id", schoolIds).order("created_at")
+const membershipIds = members.map((m: any) => m.id).filter(Boolean);
+const { data: studentProfiles } = membershipIds.length
+	? await supabase
+			.from("student_profiles")
+			.select("id, membership_id, full_name, section_id, school_id")
+			.in("membership_id", membershipIds)
+			.order("created_at")
 	: { data: [] as any[] };
-const myProfile = ((studentProfiles ?? []) as any[])[0] ?? null;
+const profileIds = ((studentProfiles ?? []) as any[]).map((profile: any) => profile.id).filter(Boolean);
 
 // Sus enrolamientos + clases (con materia, año)
-const { data: enrollRows } = myProfile
+const { data: enrollRows } = profileIds.length
 	? await supabase
 			.from("class_enrollments")
-			.select("id, status, classes(id, name, subject, code, is_active, academic_years(label, is_active))")
-			.eq("student_profile_id", myProfile.id)
+			.select("id, status, is_active, classes(id, name, subject, code, is_active, academic_years(label, is_active))")
+			.in("student_profile_id", profileIds)
 			.order("enrolled_at", { ascending: false })
 	: { data: [] as any[] };
-const myClasses = ((enrollRows ?? []) as any[]).map((e: any) => e.classes).filter(Boolean);
 const rel = (v: any) => (Array.isArray(v) ? (v[0] ?? null) : v);
+const myClasses = [
+	...new Map(
+		((enrollRows ?? []) as any[])
+			.filter((enrollment: any) => enrollment.status === "active" && enrollment.is_active !== false)
+			.map((enrollment: any) => rel(enrollment.classes))
+			.filter(Boolean)
+			.map((classroom: any) => [classroom.id, classroom] as const),
+	).values(),
+];
 ---
 
 <PortalLayout

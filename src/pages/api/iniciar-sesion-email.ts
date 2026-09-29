@@ -36,10 +36,27 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		onboarded = result.onboarded && !result.error;
 		if (result.error) {
 			clearPendingOnboardingCookies(cookies);
+			if (result.error === "membership_inactive") {
+				await supabase.auth.signOut();
+				return redirect("/iniciar-sesion?error=membership_inactive", 303);
+			}
 			return redirect(`/registro?plan=${pending.plan}&error=${result.error}`, 303);
 		}
 	}
 	clearPendingOnboardingCookies(cookies);
+
+	const { data: memberships, error: membershipsError } = await supabase
+		.from("memberships")
+		.select("status")
+		.eq("user_id", data.user.id);
+	if (
+		!membershipsError &&
+		memberships?.length &&
+		!memberships.some((membership) => membership.status === "active")
+	) {
+		await supabase.auth.signOut();
+		return redirect("/iniciar-sesion?error=membership_inactive", 303);
+	}
 
 	return redirect(onboarded ? "/panel?welcome=1" : "/panel?login=1", 303);
 };
