@@ -312,6 +312,7 @@ async def _require_member(
         .select("id, role, user_id, school_id")
         .eq("user_id", uid)
         .eq("school_id", school_id)
+        .eq("status", "active")
         .in_("role", roles)
         .limit(1)
         .execute()
@@ -349,7 +350,9 @@ def _staff_for_member(
     """Resuelve el perfil de personal aun si proviene de datos antiguos sin membership_id."""
     linked = (
         supabase.table("staff_profiles")
-        .select("id, school_id, membership_id, full_name, email, role, scope_label")
+        .select(
+            "id, school_id, membership_id, full_name, email, role, scope_label, status"
+        )
         .eq("school_id", school_id)
         .eq("membership_id", member["id"])
         .limit(1)
@@ -357,7 +360,7 @@ def _staff_for_member(
         .data
     )
     if linked:
-        return linked[0]
+        return linked[0] if linked[0].get("status") == "active" else None
     profile = (
         supabase.table("profiles").select("email").eq("id", uid).limit(1).execute().data
     )
@@ -366,20 +369,21 @@ def _staff_for_member(
         return None
     candidates = (
         supabase.table("staff_profiles")
-        .select("id, school_id, membership_id, full_name, email, role, scope_label")
+        .select(
+            "id, school_id, membership_id, full_name, email, role, scope_label, status"
+        )
         .eq("school_id", school_id)
         .execute()
         .data
         or []
     )
-    return next(
-        (
-            row
-            for row in candidates
-            if (row.get("email") or "").lower() == email.lower()
-        ),
-        None,
-    )
+    matches = [
+        row
+        for row in candidates
+        if (row.get("email") or "").lower() == email.lower()
+        and row.get("status") == "active"
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _own_student_profile(
@@ -388,14 +392,36 @@ def _own_student_profile(
     """Perfil de alumno vinculado a la membership del propio usuario."""
     rows = (
         supabase.table("student_profiles")
-        .select("id, full_name, email, section_id, status")
+        .select("id, membership_id, full_name, email, section_id, status")
         .eq("school_id", school_id)
         .eq("membership_id", membership_id)
-        .limit(1)
         .execute()
         .data
+        or []
     )
-    return _first(rows)
+    rows = _preferred_student_profiles(rows)
+    return rows[0] if len(rows) == 1 else None
+
+
+def _preferred_student_profiles(rows: list[dict]) -> list[dict]:
+    """Collapse legacy duplicate membership profiles when one has a section."""
+    by_membership: dict[str, list[dict]] = {}
+    unlinked = []
+    for row in rows:
+        membership_id = row.get("membership_id")
+        if not membership_id:
+            unlinked.append(row)
+            continue
+        by_membership.setdefault(str(membership_id), []).append(row)
+
+    preferred = list(unlinked)
+    for membership_rows in by_membership.values():
+        sectioned = [row for row in membership_rows if row.get("section_id")]
+        if len(sectioned) == 1:
+            preferred.append(sectioned[0])
+        else:
+            preferred.extend(membership_rows)
+    return preferred
 
 
 def _accessible_students(
@@ -409,15 +435,17 @@ def _accessible_students(
         .data
         or []
     )
+    students = _preferred_student_profiles(students)
     role = member.get("role")
     if role in {"owner", "director", "subdirector", "coordinator"}:
         return students
     if role == "student":
-        return [
+        own_profiles = [
             row
             for row in students
             if str(row.get("membership_id")) == str(member.get("id"))
         ]
+        return own_profiles if len(own_profiles) == 1 else []
 
     staff = _staff_for_member(supabase, school_id, member, uid)
     if not staff:
@@ -435,17 +463,6 @@ def _accessible_students(
             str(row["id"])
             for row in sections
             if str(row.get("tutor_staff_id")) == str(staff.get("id"))
-            or (row.get("tutor_name") or "").strip().lower()
-            == (staff.get("full_name") or "").strip().lower()
-            or (
-                staff.get("scope_label")
-                and (
-                    staff["scope_label"].lower()
-                    in (row.get("display_name") or "").lower()
-                    or (row.get("display_name") or "").lower()
-                    in staff["scope_label"].lower()
-                )
-            )
         }
         return [row for row in students if str(row.get("section_id")) in section_ids]
     if role == "teacher":
@@ -459,6 +476,20 @@ def _accessible_students(
             or []
         )
         subject_ids = {str(row["subject_id"]) for row in subject_links}
+        subjects = (
+            (
+                supabase.table("subjects")
+                .select("id")
+                .eq("school_id", school_id)
+                .in_("id", list(subject_ids))
+                .execute()
+                .data
+                or []
+            )
+            if subject_ids
+            else []
+        )
+        subject_ids = {str(row["id"]) for row in subjects}
         classes = (
             supabase.table("classes")
             .select("section_id, subject_id, is_active")
@@ -467,12 +498,48 @@ def _accessible_students(
             .data
             or []
         )
+        section_ids_in_classes = list(
+            {str(row["section_id"]) for row in classes if row.get("section_id")}
+        )
+        sections = (
+            (
+                supabase.table("sections")
+                .select("id")
+                .eq("school_id", school_id)
+                .in_("id", section_ids_in_classes)
+                .execute()
+                .data
+                or []
+            )
+            if section_ids_in_classes
+            else []
+        )
+        valid_section_ids = {str(row["id"]) for row in sections}
+        section_subjects = (
+            (
+                supabase.table("section_subjects")
+                .select("section_id, subject_id, is_enabled")
+                .in_("section_id", list(valid_section_ids))
+                .execute()
+                .data
+                or []
+            )
+            if valid_section_ids
+            else []
+        )
+        enabled_pairs = {
+            (str(row["section_id"]), str(row["subject_id"]))
+            for row in section_subjects
+            if row.get("is_enabled", True)
+        }
         section_ids = {
             str(row["section_id"])
             for row in classes
-            if row.get("is_active")
+            if row.get("is_active") is not False
             and row.get("section_id")
             and str(row.get("subject_id")) in subject_ids
+            and str(row.get("section_id")) in valid_section_ids
+            and (str(row["section_id"]), str(row.get("subject_id"))) in enabled_pairs
         }
         return [row for row in students if str(row.get("section_id")) in section_ids]
     return []
@@ -491,26 +558,185 @@ def _require_academic_scope(
     role = member.get("role")
     if role in {"owner", "director", "subdirector", "coordinator"}:
         return
+
+    if role == "teacher":
+        if not section_id or not subject_id:
+            raise HTTPException(
+                status_code=403, detail="Seccion y curso requeridos para tu alcance"
+            )
+        staff = _staff_for_member(supabase, school_id, member, uid)
+        if not staff:
+            raise HTTPException(status_code=403, detail="Perfil docente no encontrado")
+        subject_assignment = _first(
+            supabase.table("subject_teachers")
+            .select("id")
+            .eq("school_id", school_id)
+            .eq("staff_id", staff["id"])
+            .eq("subject_id", subject_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        section_course = _first(
+            supabase.table("section_subjects")
+            .select("section_id")
+            .eq("section_id", section_id)
+            .eq("subject_id", subject_id)
+            .eq("is_enabled", True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not subject_assignment or not section_course:
+            raise HTTPException(
+                status_code=403, detail="Curso o seccion fuera de tu alcance"
+            )
+        return
+
+    if role == "tutor" and not section_id:
+        raise HTTPException(status_code=403, detail="Seccion requerida para tu alcance")
+
     allowed_students = _accessible_students(supabase, school_id, member, uid)
     allowed_section_ids = {
         str(row["section_id"]) for row in allowed_students if row.get("section_id")
     }
     if section_id and str(section_id) not in allowed_section_ids:
         raise HTTPException(status_code=403, detail="Seccion fuera de tu alcance")
-    if role != "teacher" or not subject_id:
-        return
-    staff = _staff_for_member(supabase, school_id, member, uid)
-    links = (
-        supabase.table("subject_teachers")
-        .select("subject_id")
+
+
+def _require_school_academic_scope(
+    supabase: Any,
+    school_id: str,
+    *,
+    subject_id: str | None = None,
+    section_id: str | None = None,
+) -> None:
+    """Ensure referenced academic entities and their optional pair belong to a school."""
+    if subject_id and not _first(
+        supabase.table("subjects")
+        .select("id")
+        .eq("id", subject_id)
         .eq("school_id", school_id)
-        .eq("staff_id", (staff or {}).get("id", ""))
+        .limit(1)
+        .execute()
+        .data
+        or []
+    ):
+        raise HTTPException(
+            status_code=404, detail="Curso no encontrado en este colegio"
+        )
+    if section_id and not _first(
+        supabase.table("sections")
+        .select("id")
+        .eq("id", section_id)
+        .eq("school_id", school_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    ):
+        raise HTTPException(
+            status_code=404, detail="Seccion no encontrada en este colegio"
+        )
+    if (
+        subject_id
+        and section_id
+        and not _first(
+            supabase.table("section_subjects")
+            .select("section_id")
+            .eq("section_id", section_id)
+            .eq("subject_id", subject_id)
+            .eq("is_enabled", True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    ):
+        raise _fail("El curso no esta habilitado para esta seccion")
+
+
+def _require_assignment_student_scope(
+    supabase: Any,
+    school_id: str,
+    student: dict,
+    student_user_id: str,
+    assignment: dict,
+) -> None:
+    assignment_section_id = assignment.get("section_id")
+    student_section_id = student.get("section_id")
+    subject_id = assignment.get("subject_id")
+    if (
+        assignment_section_id
+        and student_section_id
+        and str(assignment_section_id) != str(student_section_id)
+    ):
+        raise HTTPException(
+            status_code=403, detail="Tarea fuera de la seccion del alumno"
+        )
+
+    section_id = assignment_section_id or student_section_id
+    if section_id and student_section_id:
+        _require_school_academic_scope(
+            supabase,
+            school_id,
+            subject_id=subject_id,
+            section_id=section_id,
+        )
+        return
+    if not section_id and not subject_id:
+        return
+
+    classes_query = (
+        supabase.table("classes")
+        .select("id, section_id, subject_id")
+        .eq("school_id", school_id)
+        .eq("is_active", True)
+    )
+    if section_id:
+        classes_query = classes_query.eq("section_id", section_id)
+    if subject_id:
+        classes_query = classes_query.eq("subject_id", subject_id)
+    classes = classes_query.execute().data or []
+    enrollment_rows = (
+        supabase.table("class_enrollments")
+        .select("class_id, status, is_active")
+        .eq("student_profile_id", student["id"])
         .execute()
         .data
         or []
     )
-    if str(subject_id) not in {str(row["subject_id"]) for row in links}:
-        raise HTTPException(status_code=403, detail="Curso fuera de tu alcance")
+    if student_user_id:
+        enrollment_rows.extend(
+            supabase.table("class_enrollments")
+            .select("class_id, status, is_active")
+            .eq("student_id", student_user_id)
+            .execute()
+            .data
+            or []
+        )
+    enrolled_class_ids = {
+        str(row["class_id"])
+        for row in enrollment_rows
+        if row.get("class_id")
+        and row.get("status", "active") == "active"
+        and row.get("is_active", True)
+    }
+    for classroom in classes:
+        if str(classroom.get("id")) not in enrolled_class_ids:
+            continue
+        _require_school_academic_scope(
+            supabase,
+            school_id,
+            subject_id=subject_id or classroom.get("subject_id"),
+            section_id=classroom.get("section_id"),
+        )
+        return
+    raise HTTPException(
+        status_code=403, detail="El alumno no esta inscrito en esta tarea"
+    )
 
 
 async def _require_student_access(
@@ -593,6 +819,7 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             .eq("school_id", school_id)
             .execute()
         )
+        out["students"] = _preferred_student_profiles(out["students"])
         out["sections"] = rows(
             t("sections").select("*").eq("school_id", school_id).execute()
         )
@@ -607,7 +834,10 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         )
         out["subject_teachers"] = rows(
             t("subject_teachers")
-            .select("id, subject_id, staff_id, staff_profiles(full_name, role)")
+            .select(
+                "id, school_id, subject_id, staff_id, "
+                "staff_profiles(id, school_id, status, full_name, role)"
+            )
             .eq("school_id", school_id)
             .execute()
         )
@@ -691,7 +921,7 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             t("classes")
             .select(
                 "id, school_id, name, subject, code, is_active, created_at, "
-                "academic_year_id, section_id, subject_id, teacher_membership_id"
+                "academic_year_id, section_id, subject_id"
             )
             .eq("school_id", school_id)
             .order("created_at", True)
@@ -702,7 +932,8 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             rows(
                 t("class_enrollments")
                 .select(
-                    "id, class_id, student_profile_id, academic_year_id, status, enrolled_at"
+                    "id, class_id, student_profile_id, student_id, academic_year_id, "
+                    "status, is_active, enrolled_at"
                 )
                 .in_("class_id", class_ids)
                 .execute()
@@ -714,24 +945,277 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
         # El cliente administrativo de Supabase omite RLS. Por eso el alcance
         # del rol se aplica de nuevo antes de construir y devolver la respuesta.
         role = member.get("role")
+        staff_by_id = {
+            str(row["id"]): row
+            for row in out["staff"]
+            if row.get("id") and row.get("status") == "active"
+        }
+        valid_subject_teachers = []
+        for link in out["subject_teachers"]:
+            relation = link.get("staff_profiles") or {}
+            if isinstance(relation, list):
+                relation = relation[0] if relation else {}
+            staff_id = str(link.get("staff_id") or "")
+            staff = staff_by_id.get(staff_id)
+            if (
+                not staff
+                or str(relation.get("id")) != staff_id
+                or str(relation.get("school_id")) != str(school_id)
+                or relation.get("status") != "active"
+            ):
+                continue
+            link["staff_profiles"] = {
+                "full_name": staff.get("full_name"),
+                "role": staff.get("role"),
+            }
+            valid_subject_teachers.append(link)
+        out["subject_teachers"] = valid_subject_teachers
         if role not in {"owner", "director", "subdirector", "coordinator"}:
             allowed_students = _accessible_students(supabase, school_id, member, uid)
-            allowed_student_ids = {str(row["id"]) for row in allowed_students}
+            allowed_students_by_id = {
+                str(row["id"]): row for row in allowed_students if row.get("id")
+            }
+            school_students_by_membership: dict[str, list[dict]] = {}
+            for student in out["students"]:
+                membership_id = student.get("membership_id")
+                if membership_id:
+                    school_students_by_membership.setdefault(
+                        str(membership_id), []
+                    ).append(student)
+            valid_school_section_ids = {
+                str(row["id"]) for row in out["sections"] if row.get("id")
+            }
             allowed_section_ids = {
                 str(row["section_id"])
                 for row in allowed_students
                 if row.get("section_id")
+            } & valid_school_section_ids
+            classes_by_id = {
+                str(row["id"]): row for row in out["classes"] if row.get("id")
+            }
+            viewer_staff = (
+                _staff_for_member(supabase, school_id, member, uid)
+                if role in {"teacher", "tutor"}
+                else None
+            )
+            teacher_staff_id = str((viewer_staff or {}).get("id") or "")
+            teacher_subject_ids = {
+                str(row["subject_id"])
+                for row in out["subject_teachers"]
+                if role == "teacher"
+                and str(row.get("staff_id")) == teacher_staff_id
+                and row.get("subject_id")
+            }
+            course_section_ids = (
+                valid_school_section_ids if role == "student" else allowed_section_ids
+            )
+            section_subject_links = (
+                rows(
+                    t("section_subjects")
+                    .select("section_id, subject_id, is_enabled")
+                    .in_("section_id", list(course_section_ids))
+                    .execute()
+                )
+                if course_section_ids
+                else []
+            )
+            school_subject_ids = {str(row["id"]) for row in out["subjects"]}
+            enabled_course_pairs = {
+                (str(row["section_id"]), str(row["subject_id"]))
+                for row in section_subject_links
+                if row.get("is_enabled", True)
+                and str(row.get("subject_id")) in school_subject_ids
+            }
+
+            legacy_user_ids = {
+                str(row["student_id"])
+                for row in out["enrollments"]
+                if not row.get("student_profile_id")
+                and row.get("student_id")
+                and row.get("status", "active") == "active"
+                and row.get("is_active", True)
+            }
+            memberships_by_user_id: dict[str, list[dict]] = {}
+            if legacy_user_ids:
+                active_student_memberships = rows(
+                    t("memberships")
+                    .select("id, user_id")
+                    .eq("school_id", school_id)
+                    .eq("role", "student")
+                    .eq("status", "active")
+                    .in_("user_id", list(legacy_user_ids))
+                    .execute()
+                )
+                for active_membership in active_student_memberships:
+                    user_id = active_membership.get("user_id")
+                    if user_id:
+                        memberships_by_user_id.setdefault(str(user_id), []).append(
+                            active_membership
+                        )
+
+            candidate_enrollments = []
+            for enrollment in out["enrollments"]:
+                if enrollment.get("status", "active") != "active" or not enrollment.get(
+                    "is_active", True
+                ):
+                    continue
+
+                profile_id = enrollment.get("student_profile_id")
+                student = (
+                    allowed_students_by_id.get(str(profile_id)) if profile_id else None
+                )
+                if profile_id:
+                    if not student:
+                        continue
+                else:
+                    student_user_id = str(enrollment.get("student_id") or "")
+                    memberships = memberships_by_user_id.get(student_user_id, [])
+                    if len(memberships) != 1:
+                        continue
+                    membership_id = str(memberships[0].get("id") or "")
+                    linked_students = school_students_by_membership.get(
+                        membership_id, []
+                    )
+                    if len(linked_students) == 1:
+                        student = allowed_students_by_id.get(
+                            str(linked_students[0].get("id"))
+                        )
+                        if not student:
+                            continue
+                    elif not (
+                        role == "student"
+                        and student_user_id == str(uid)
+                        and membership_id == str(member.get("id"))
+                        and not linked_students
+                    ):
+                        continue
+
+                classroom = classes_by_id.get(str(enrollment.get("class_id") or ""))
+                if not classroom or classroom.get("is_active") is not True:
+                    continue
+                class_section_id = classroom.get("section_id")
+                if (
+                    class_section_id
+                    and str(class_section_id) not in valid_school_section_ids
+                ):
+                    continue
+                if student:
+                    student_section_id = student.get("section_id")
+                    if (
+                        student_section_id
+                        and str(student_section_id) not in valid_school_section_ids
+                    ):
+                        continue
+                    if (
+                        student_section_id
+                        and class_section_id
+                        and str(student_section_id) != str(class_section_id)
+                    ):
+                        continue
+                elif role != "student":
+                    continue
+
+                candidate = {
+                    key: value
+                    for key, value in enrollment.items()
+                    if key != "student_id"
+                }
+                if student and not candidate.get("student_profile_id"):
+                    candidate["student_profile_id"] = student["id"]
+                candidate_enrollments.append(candidate)
+            candidate_class_ids = {
+                str(row["class_id"])
+                for row in candidate_enrollments
+                if row.get("class_id")
+            }
+            scoped_candidate_class_ids = set()
+            for class_id in candidate_class_ids:
+                classroom = classes_by_id.get(class_id)
+                if not classroom:
+                    continue
+                section_id = classroom.get("section_id")
+                subject_id = classroom.get("subject_id")
+                if section_id and (
+                    str(section_id) not in valid_school_section_ids
+                    or (
+                        subject_id
+                        and (str(section_id), str(subject_id))
+                        not in enabled_course_pairs
+                    )
+                ):
+                    continue
+                scoped_candidate_class_ids.add(class_id)
+            candidate_class_ids = scoped_candidate_class_ids
+            candidate_course_pairs = {
+                (
+                    str(classes_by_id[class_id]["section_id"]),
+                    str(classes_by_id[class_id]["subject_id"]),
+                )
+                for class_id in candidate_class_ids
+                if classes_by_id[class_id].get("section_id")
+                and classes_by_id[class_id].get("subject_id")
+            }
+            allowed_course_pairs = {
+                pair
+                for pair in enabled_course_pairs
+                if (
+                    pair[0] in allowed_section_ids
+                    or (role == "student" and pair in candidate_course_pairs)
+                )
+                and (role != "teacher" or pair[1] in teacher_subject_ids)
+            }
+            if role == "teacher":
+                visible_classes = [
+                    row
+                    for row in out["classes"]
+                    if row.get("is_active") is True
+                    and str(row.get("section_id")) in allowed_section_ids
+                    and str(row.get("subject_id")) in teacher_subject_ids
+                    and (
+                        str(row.get("section_id")),
+                        str(row.get("subject_id")),
+                    )
+                    in allowed_course_pairs
+                ]
+            else:
+                section_class_ids = {
+                    str(row["id"])
+                    for row in out["classes"]
+                    if row.get("id")
+                    and row.get("is_active") is True
+                    and row.get("section_id")
+                    and str(row.get("section_id")) in allowed_section_ids
+                    and (
+                        not row.get("subject_id")
+                        or (
+                            str(row.get("section_id")),
+                            str(row.get("subject_id")),
+                        )
+                        in enabled_course_pairs
+                    )
+                }
+                visible_class_ids = candidate_class_ids | section_class_ids
+                visible_classes = [
+                    row
+                    for row in out["classes"]
+                    if str(row.get("id")) in visible_class_ids
+                ]
+            visible_class_ids = {
+                str(row["id"]) for row in visible_classes if row.get("id")
             }
             allowed_enrollments = [
                 row
-                for row in out["enrollments"]
-                if str(row.get("student_profile_id")) in allowed_student_ids
+                for row in candidate_enrollments
+                if str(row.get("class_id")) in visible_class_ids
             ]
-            allowed_class_ids = {
-                str(row["class_id"])
-                for row in allowed_enrollments
-                if row.get("class_id")
-            }
+
+            allowed_course_ids = {subject_id for _, subject_id in allowed_course_pairs}
+            allowed_course_ids.update(
+                str(row["subject_id"])
+                for row in visible_classes
+                if row.get("subject_id")
+                and str(row["subject_id"]) in school_subject_ids
+            )
 
             out["students"] = allowed_students
             out["sections"] = [
@@ -747,15 +1231,55 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             out["assignments"] = [
                 row
                 for row in out["assignments"]
-                if str(row.get("section_id")) in allowed_section_ids
+                if (
+                    not row.get("section_id")
+                    or str(row.get("section_id")) in allowed_section_ids
+                )
+                and (
+                    not row.get("subject_id")
+                    or (
+                        str(row.get("subject_id")) in allowed_course_ids
+                        and (
+                            not row.get("section_id")
+                            or (
+                                str(row.get("section_id")),
+                                str(row.get("subject_id")),
+                            )
+                            in allowed_course_pairs
+                        )
+                    )
+                )
+            ]
+            out["subjects"] = [
+                row
+                for row in out["subjects"]
+                if str(row.get("id")) in allowed_course_ids
+            ]
+            out["subject_teachers"] = [
+                row
+                for row in out["subject_teachers"]
+                if str(row.get("subject_id")) in allowed_course_ids
+            ]
+            out["materials"] = [
+                row
+                for row in out["materials"]
+                if not row.get("subject_id")
+                or str(row.get("subject_id")) in allowed_course_ids
+            ]
+            out["questions"] = [
+                row
+                for row in out["questions"]
+                if not row.get("subject_id")
+                or str(row.get("subject_id")) in allowed_course_ids
+            ]
+            out["battles"] = [
+                row
+                for row in out["battles"]
+                if not row.get("subject_id")
+                or str(row.get("subject_id")) in allowed_course_ids
             ]
             out["enrollments"] = allowed_enrollments
-            out["classes"] = [
-                row
-                for row in out["classes"]
-                if str(row.get("id")) in allowed_class_ids
-                or str(row.get("section_id")) in allowed_section_ids
-            ]
+            out["classes"] = visible_classes
             out["audits"] = []
             out["settings"] = {
                 "accessibility": (out.get("settings") or {}).get("accessibility", {})
@@ -763,16 +1287,28 @@ async def panel_dashboard(school_id: str, uid: Annotated[str, Depends(_current_u
             # Los correos del personal y el banco de respuestas no forman parte
             # de la vista del alumno. Tutores y profesores reciben un directorio
             # sin correo, suficiente para identificar responsables académicos.
+            visible_staff_ids = {
+                str(row["staff_id"])
+                for row in out["subject_teachers"]
+                if row.get("staff_id")
+            }
+            if teacher_staff_id:
+                visible_staff_ids.add(teacher_staff_id)
             out["staff"] = (
                 []
                 if role == "student"
                 else [
                     {key: value for key, value in row.items() if key != "email"}
                     for row in out["staff"]
+                    if str(row.get("id")) in visible_staff_ids
                 ]
             )
             if role == "student":
                 out["questions"] = []
+
+        for enrollment in out["enrollments"]:
+            enrollment.pop("student_id", None)
+            enrollment.pop("is_active", None)
 
         out["viewer_role"] = member.get("role")
 
@@ -851,7 +1387,7 @@ async def create_section(
         supabase,
         uid,
         school_id,
-        ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+        ["owner", "director", "subdirector", "coordinator", "tutor"],
     )
     label = body.section_label.upper()
     display = f"{body.grade}. {body.level} {label}"
@@ -929,7 +1465,7 @@ async def update_section(
         supabase,
         uid,
         row.get("school_id", ""),
-        ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+        ["owner", "director", "subdirector", "coordinator", "tutor"],
     )
     patch: dict[str, Any] = {}
     if body.section_label is not None:
@@ -1001,7 +1537,7 @@ async def create_subject(
         supabase,
         uid,
         school_id,
-        ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+        ["owner", "director", "subdirector", "coordinator", "tutor"],
     )
     slug = "".join(ch for ch in body.name.lower() if ch.isalnum())[:50]
     resp = (
@@ -1049,7 +1585,7 @@ async def update_subject(
         supabase,
         uid,
         row.get("school_id", ""),
-        ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+        ["owner", "director", "subdirector", "coordinator", "tutor"],
     )
     patch_data: dict[str, Any] = {}
     if body.name is not None:
@@ -1060,7 +1596,9 @@ async def update_subject(
         patch_data["color"] = body.color
     if body.is_enabled is not None:
         patch_data["is_enabled"] = body.is_enabled
-    supabase.table("subjects").update(patch_data).eq("id", subject_id).execute()
+    supabase.table("subjects").update(patch_data).eq("id", subject_id).eq(
+        "school_id", row.get("school_id", "")
+    ).execute()
     return Msg(detail="Materia actualizada")
 
 
@@ -1079,11 +1617,15 @@ async def delete_subject(subject_id: str, uid: Annotated[str, Depends(_current_u
         supabase,
         uid,
         row.get("school_id", ""),
-        ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+        ["owner", "director", "subdirector", "coordinator"],
     )
-    supabase.table("subjects").delete().eq("id", subject_id).execute()
+    supabase.table("subjects").delete().eq("id", subject_id).eq(
+        "school_id", row.get("school_id", "")
+    ).execute()
     # limpiar asignaciones de profesores del curso
-    supabase.table("subject_teachers").delete().eq("subject_id", subject_id).execute()
+    supabase.table("subject_teachers").delete().eq(
+        "school_id", row.get("school_id", "")
+    ).eq("subject_id", subject_id).execute()
     return Msg(detail="Materia eliminada")
 
 
@@ -1110,10 +1652,11 @@ async def assign_teacher_to_subject(
         supabase.table("staff_profiles")
         .select("id, school_id")
         .eq("id", body.staff_id)
+        .eq("school_id", school_id)
         .execute()
         .data
     )
-    if not staff or staff[0].get("school_id") != school_id:
+    if not staff:
         raise HTTPException(
             status_code=404, detail="Profesor no encontrado en este colegio"
         )
@@ -1122,10 +1665,11 @@ async def assign_teacher_to_subject(
         supabase.table("subjects")
         .select("id, school_id")
         .eq("id", subject_id)
+        .eq("school_id", school_id)
         .execute()
         .data
     )
-    if not subj or subj[0].get("school_id") != school_id:
+    if not subj:
         raise HTTPException(
             status_code=404, detail="Curso no encontrado en este colegio"
         )
@@ -1133,6 +1677,7 @@ async def assign_teacher_to_subject(
     dupe = (
         supabase.table("subject_teachers")
         .select("id")
+        .eq("school_id", school_id)
         .eq("subject_id", subject_id)
         .eq("staff_id", body.staff_id)
         .execute()
@@ -1166,9 +1711,33 @@ async def remove_teacher_from_subject(
         school_id,
         ["owner", "director", "subdirector", "coordinator", "tutor"],
     )
-    supabase.table("subject_teachers").delete().eq("subject_id", subject_id).eq(
-        "staff_id", staff_id
-    ).execute()
+    subject = _first(
+        supabase.table("subjects")
+        .select("id")
+        .eq("id", subject_id)
+        .eq("school_id", school_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    staff = _first(
+        supabase.table("staff_profiles")
+        .select("id")
+        .eq("id", staff_id)
+        .eq("school_id", school_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not subject or not staff:
+        raise HTTPException(
+            status_code=404, detail="Profesor o curso no encontrado en este colegio"
+        )
+    supabase.table("subject_teachers").delete().eq("school_id", school_id).eq(
+        "subject_id", subject_id
+    ).eq("staff_id", staff_id).execute()
     return Msg(detail="Profesor removido del curso")
 
 
@@ -1191,6 +1760,7 @@ async def student_tracking(
             supabase.table("sections")
             .select("id, display_name, grade, level")
             .eq("id", st["section_id"])
+            .eq("school_id", school_id)
             .execute()
             .data
         )
@@ -1206,7 +1776,8 @@ async def student_tracking(
         .execute()
         .data
     )
-    subj_by_id = {str(subject["id"]): subject["name"] for subject in (subjects or [])}
+    subjects = subjects or []
+    subj_by_id = {str(subject["id"]): subject["name"] for subject in subjects}
     teachers_by_subject = {}
     st_rows = (
         supabase.table("subject_teachers")
@@ -1258,20 +1829,25 @@ async def student_tracking(
 
     # xp total del alumno (xp_transactions.user_id = membership.user_id del alumno)
     xp_total = 0
+    student_user_id = None
     membership_id = st.get("membership_id")
     if membership_id:
         mem = (
             supabase.table("memberships")
             .select("user_id")
             .eq("id", membership_id)
+            .eq("school_id", school_id)
+            .eq("role", "student")
+            .eq("status", "active")
             .execute()
             .data
         )
         if mem:
+            student_user_id = mem[0].get("user_id")
             xq = (
                 supabase.table("xp_transactions")
                 .select("amount")
-                .eq("user_id", mem[0]["user_id"])
+                .eq("user_id", student_user_id)
                 .execute()
                 .data
                 or []
@@ -1293,17 +1869,19 @@ async def student_tracking(
         if xp_total >= int(r.get("min_xp") or 0):
             rank = {"id": r["id"], "name": r["name"], "position": r.get("position")}
 
-    # tareas entregadas por el alumno (task_submissions.student_id = student_profiles.id)
-    submissions = (
-        supabase.table("task_submissions")
-        .select(
-            "task_id, score, is_graded, xp_awarded, submitted_at, tasks(title, subject, due_date, status)"
+    # Legacy task_submissions.student_id references users.id, unlike newer tables.
+    submissions = []
+    if student_user_id:
+        submissions = (
+            supabase.table("task_submissions")
+            .select(
+                "task_id, score, is_graded, xp_awarded, submitted_at, tasks(title, subject, due_date, status)"
+            )
+            .eq("student_id", student_user_id)
+            .execute()
+            .data
+            or []
         )
-        .eq("student_id", student_id)
-        .execute()
-        .data
-        or []
-    )
     tasks_done = []
     for sub in submissions:
         t = sub.get("tasks") or {}
@@ -1359,18 +1937,33 @@ async def student_tracking(
         .data
         or []
     )
-    enroll = (
+    enrollments = (
         supabase.table("class_enrollments")
-        .select("class_id, status")
+        .select("class_id, status, is_active")
         .eq("student_profile_id", student_id)
         .execute()
         .data
         or []
     )
-    enrolled_ids = {e["class_id"] for e in enroll}
+    if student_user_id:
+        enrollments.extend(
+            supabase.table("class_enrollments")
+            .select("class_id, status, is_active")
+            .eq("student_id", student_user_id)
+            .execute()
+            .data
+            or []
+        )
+    enrolled_ids = {
+        str(enrollment["class_id"])
+        for enrollment in enrollments
+        if enrollment.get("class_id")
+        and enrollment.get("status", "active") == "active"
+        and enrollment.get("is_active", True)
+    }
     enrolled_classes = []
     for c in cls_rows:
-        if c["id"] in enrolled_ids:
+        if str(c["id"]) in enrolled_ids and c.get("is_active", True):
             enrolled_classes.append(
                 {
                     "id": c["id"],
@@ -1384,8 +1977,7 @@ async def student_tracking(
                 student_subject_ids.add(str(c["subject_id"]))
 
     # la ficha muestra solo los cursos del alumno si se pudieron resolver
-    if student_subject_ids:
-        courses = [c for c in courses if str(c["id"]) in student_subject_ids]
+    courses = [c for c in courses if str(c["id"]) in student_subject_ids]
 
     # Seguimiento academico. El bloque es tolerante mientras se aplica la
     # migracion: el resto de la ficha continua disponible sin ocultar el error.
@@ -1407,6 +1999,7 @@ async def student_tracking(
         attendance = (
             supabase.table("attendance_records")
             .select("id, attendance_date, status, minutes_late, note")
+            .eq("school_id", school_id)
             .eq("student_profile_id", student_id)
             .order("attendance_date", ascending=False)
             .execute()
@@ -1416,6 +2009,7 @@ async def student_tracking(
         grade_rows = (
             supabase.table("student_grades")
             .select("id, grade_item_id, score, status, feedback, graded_at")
+            .eq("school_id", school_id)
             .eq("student_profile_id", student_id)
             .order("graded_at", ascending=False)
             .execute()
@@ -1430,6 +2024,7 @@ async def student_tracking(
             .select(
                 "id, title, category, max_score, weight, due_on, subject_id, academic_period_id"
             )
+            .eq("school_id", school_id)
             .in_("id", item_ids)
             .execute()
             .data
@@ -1460,6 +2055,7 @@ async def student_tracking(
         observations = (
             supabase.table("student_observations")
             .select("id, category, note, visibility, follow_up_on, status, created_at")
+            .eq("school_id", school_id)
             .eq("student_profile_id", student_id)
             .order("created_at", ascending=False)
             .limit(30)
@@ -1498,8 +2094,7 @@ async def student_tracking(
                 or str(a.get("section_id")) == str(st.get("section_id"))
             )
             and (
-                not student_subject_ids
-                or not a.get("subject_id")
+                not a.get("subject_id")
                 or str(a.get("subject_id")) in student_subject_ids
             )
         ]
@@ -1508,6 +2103,7 @@ async def student_tracking(
             .select(
                 "id, assignment_id, is_graded, score, xp_awarded, feedback, submitted_at"
             )
+            .eq("school_id", school_id)
             .eq("student_profile_id", student_id)
             .execute()
             .data
@@ -1545,6 +2141,7 @@ async def student_tracking(
             .select(
                 "id, subject, subject_id, mode, result, score, opponent_score, nodes_owned, played_at"
             )
+            .eq("school_id", school_id)
             .eq("student_profile_id", student_id)
             .order("played_at", ascending=False)
             .limit(20)
@@ -1604,6 +2201,9 @@ async def student_tracking(
                 mem_rows = (
                     supabase.table("memberships")
                     .select("id, user_id")
+                    .eq("school_id", school_id)
+                    .eq("role", "student")
+                    .eq("status", "active")
                     .in_("id", membership_ids)
                     .execute()
                     .data
@@ -2079,6 +2679,12 @@ async def create_grade_item(
         school_id,
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
     )
+    _require_school_academic_scope(
+        supabase,
+        school_id,
+        subject_id=body.subject_id,
+        section_id=body.section_id,
+    )
     _require_academic_scope(
         supabase,
         school_id,
@@ -2087,6 +2693,47 @@ async def create_grade_item(
         subject_id=body.subject_id,
         section_id=body.section_id,
     )
+    if body.academic_period_id:
+        period = _first(
+            supabase.table("academic_periods")
+            .select("id")
+            .eq("id", body.academic_period_id)
+            .eq("school_id", school_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not period:
+            raise HTTPException(
+                status_code=404, detail="Periodo no encontrado en este colegio"
+            )
+    if body.assignment_id:
+        assignment = _first(
+            supabase.table("assignments")
+            .select("id, school_id, section_id, subject_id")
+            .eq("id", body.assignment_id)
+            .eq("school_id", school_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if not assignment:
+            raise HTTPException(
+                status_code=404, detail="Tarea no encontrada en este colegio"
+            )
+        if (
+            assignment.get("section_id")
+            and str(assignment["section_id"]) != str(body.section_id)
+        ) or (
+            assignment.get("subject_id")
+            and str(assignment["subject_id"]) != str(body.subject_id)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="La evaluacion debe conservar el curso y seccion de la tarea",
+            )
     payload = body.model_dump(mode="json")
     payload.update(
         {
@@ -2121,8 +2768,21 @@ async def grade_student(
     if not item_rows:
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
     item = item_rows[0]
-    member, _ = await _require_student_access(
+    member, student = await _require_student_access(
         supabase, uid, str(item["school_id"]), student_id, write=True
+    )
+    if str(student.get("school_id")) != str(item["school_id"]) or (
+        item.get("section_id")
+        and str(student.get("section_id")) != str(item["section_id"])
+    ):
+        raise HTTPException(
+            status_code=403, detail="Alumno fuera del alcance de la actividad"
+        )
+    _require_school_academic_scope(
+        supabase,
+        str(item["school_id"]),
+        subject_id=item.get("subject_id"),
+        section_id=item.get("section_id"),
     )
     _require_academic_scope(
         supabase,
@@ -2249,7 +2909,7 @@ async def submit_assignment(
     student_id = str(student["id"])
     assignment = _first(
         supabase.table("assignments")
-        .select("id, school_id, status")
+        .select("id, school_id, status, section_id, subject_id")
         .eq("id", assignment_id)
         .limit(1)
         .execute()
@@ -2257,6 +2917,17 @@ async def submit_assignment(
     )
     if not assignment or str(assignment.get("school_id")) != str(school_id):
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    if assignment.get("status") not in {"scheduled", "published"}:
+        raise HTTPException(
+            status_code=409, detail="La tarea no esta disponible para entrega"
+        )
+    _require_assignment_student_scope(
+        supabase,
+        school_id,
+        student,
+        str(member.get("user_id") or ""),
+        assignment,
+    )
     payload = {
         "school_id": school_id,
         "assignment_id": assignment_id,
@@ -2600,11 +3271,25 @@ async def create_assignment(
     school_id: str, body: AssignmentIn, uid: Annotated[str, Depends(_current_uid)]
 ):
     supabase = supabase_admin()
-    await _require_member(
+    member = await _require_member(
         supabase,
         uid,
         school_id,
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
+    )
+    _require_school_academic_scope(
+        supabase,
+        school_id,
+        subject_id=body.subject_id,
+        section_id=body.section_id,
+    )
+    _require_academic_scope(
+        supabase,
+        school_id,
+        member,
+        uid,
+        subject_id=body.subject_id,
+        section_id=body.section_id,
     )
     resp = (
         supabase.table("assignments")
@@ -2989,6 +3674,20 @@ async def create_class(
         school_id,
         ["owner", "director", "subdirector", "coordinator", "tutor", "teacher"],
     )
+    _require_school_academic_scope(
+        supabase,
+        school_id,
+        subject_id=body.subject_id,
+        section_id=body.section_id,
+    )
+    _require_academic_scope(
+        supabase,
+        school_id,
+        member,
+        uid,
+        subject_id=body.subject_id,
+        section_id=body.section_id,
+    )
     year = (
         supabase.table("academic_years")
         .select("id")
@@ -2997,12 +3696,18 @@ async def create_class(
         .limit(1)
         .execute()
     )
+    active_year = _first(year.data or [])
+    if not active_year:
+        raise HTTPException(
+            status_code=409, detail="No hay un año lectivo activo para crear la clase"
+        )
     subj = None
     if body.subject_id:
         subj = (
             supabase.table("subjects")
             .select("name")
             .eq("id", body.subject_id)
+            .eq("school_id", school_id)
             .execute()
             .data
             or [{}]
@@ -3029,12 +3734,9 @@ async def create_class(
                 "subject": subj,
                 "code": code,
                 "is_active": True,
-                "academic_year_id": (year.data or [{}])[0].get("id"),
+                "academic_year_id": active_year["id"],
                 "section_id": body.section_id,
                 "subject_id": body.subject_id,
-                "teacher_membership_id": member["id"],
-                "created_at": "now()",
-                "updated_at": "now()",
             }
         )
         .execute()
@@ -3053,7 +3755,7 @@ async def join_class(body: ClassCodeIn, uid: Annotated[str, Depends(_current_uid
     classroom = _first(
         (
             supabase.table("classes")
-            .select("id, school_id, academic_year_id, is_active")
+            .select("id, school_id, academic_year_id, section_id, is_active")
             .eq("code", code)
             .eq("is_active", True)
             .limit(1)
@@ -3066,21 +3768,22 @@ async def join_class(body: ClassCodeIn, uid: Annotated[str, Depends(_current_uid
         raise _fail("Clase no encontrada o inactiva.")
 
     year_id = classroom.get("academic_year_id")
-    if year_id:
-        active_year = _first(
-            (
-                supabase.table("academic_years")
-                .select("id")
-                .eq("id", year_id)
-                .eq("is_active", True)
-                .limit(1)
-                .execute()
-                .data
-                or []
-            )
+    if not year_id:
+        raise _fail("La clase no pertenece al año lectivo activo.")
+    active_year = _first(
+        (
+            supabase.table("academic_years")
+            .select("id")
+            .eq("id", year_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+            .data
+            or []
         )
-        if not active_year:
-            raise _fail("La clase no pertenece al año lectivo activo.")
+    )
+    if not active_year:
+        raise _fail("La clase no pertenece al año lectivo activo.")
 
     membership = _first(
         (
@@ -3102,25 +3805,32 @@ async def join_class(body: ClassCodeIn, uid: Annotated[str, Depends(_current_uid
             detail="Solo un alumno activo de esta institución puede unirse.",
         )
 
-    profile = _first(
-        (
-            supabase.table("student_profiles")
-            .select("id")
-            .eq("membership_id", membership["id"])
-            .eq("school_id", classroom["school_id"])
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
+    profiles = (
+        supabase.table("student_profiles")
+        .select("id, membership_id, section_id")
+        .eq("membership_id", membership["id"])
+        .eq("school_id", classroom["school_id"])
+        .execute()
+        .data
+        or []
     )
-    if not profile:
+    linked_profile_ids = [str(row["id"]) for row in profiles if row.get("id")]
+    profiles = _preferred_student_profiles(profiles)
+    if len(profiles) != 1:
         raise _fail("El alumno no tiene un perfil institucional activo.")
+    profile = profiles[0]
+    if classroom.get("section_id") and str(classroom["section_id"]) != str(
+        profile.get("section_id")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La clase no pertenece a la seccion del alumno.",
+        )
 
     existing = _first(
         (
             supabase.table("class_enrollments")
-            .select("id")
+            .select("id, status, is_active, student_profile_id, student_id")
             .eq("class_id", classroom["id"])
             .eq("student_profile_id", profile["id"])
             .limit(1)
@@ -3129,12 +3839,78 @@ async def join_class(body: ClassCodeIn, uid: Annotated[str, Depends(_current_uid
             or []
         )
     )
+    if not existing:
+        linked_enrollments = (
+            supabase.table("class_enrollments")
+            .select("id, status, is_active, student_profile_id, student_id")
+            .eq("class_id", classroom["id"])
+            .in_("student_profile_id", linked_profile_ids)
+            .execute()
+            .data
+            or []
+        )
+        if any(
+            row.get("student_id") and str(row["student_id"]) != str(uid)
+            for row in linked_enrollments
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La matrícula de esta clase tiene una identidad inconsistente.",
+            )
+        existing = _first(linked_enrollments)
+    if not existing:
+        legacy_enrollments = (
+            supabase.table("class_enrollments")
+            .select("id, status, is_active, student_profile_id, student_id")
+            .eq("class_id", classroom["id"])
+            .eq("student_id", uid)
+            .execute()
+            .data
+            or []
+        )
+        existing = _first(
+            [row for row in legacy_enrollments if not row.get("student_profile_id")]
+        )
     if existing:
-        return Msg(id=str(existing["id"]), detail="Ya estás inscrito en la clase")
+        if existing.get("student_id") and str(existing["student_id"]) != str(uid):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La matrícula de esta clase tiene una identidad inconsistente.",
+            )
+        is_active = existing.get("status", "active") == "active" and existing.get(
+            "is_active", True
+        )
+        if is_active and str(existing.get("student_profile_id")) == str(profile["id"]):
+            return Msg(id=str(existing["id"]), detail="Ya estás inscrito en la clase")
+        enrollment_patch = {
+            "student_profile_id": profile["id"],
+            "student_id": None,
+        }
+        if not is_active:
+            rejoined_at = datetime.now(timezone.utc).isoformat()
+            enrollment_patch.update(
+                {
+                    "academic_year_id": year_id,
+                    "status": "active",
+                    "is_active": True,
+                    "enrolled_at": rejoined_at,
+                    "updated_at": rejoined_at,
+                }
+            )
+        supabase.table("class_enrollments").update(enrollment_patch).eq(
+            "id", existing["id"]
+        ).execute()
+        return Msg(
+            id=str(existing["id"]),
+            detail=(
+                "Ya estás inscrito en la clase" if is_active else "Inscrito a la clase"
+            ),
+        )
 
     import uuid as _uuid
 
     enrollment_id = str(_uuid.uuid4())
+    enrolled_at = datetime.now(timezone.utc).isoformat()
     supabase.table("class_enrollments").insert(
         {
             "id": enrollment_id,
@@ -3144,9 +3920,9 @@ async def join_class(body: ClassCodeIn, uid: Annotated[str, Depends(_current_uid
             "academic_year_id": year_id,
             "status": "active",
             "is_active": True,
-            "enrolled_at": "now()",
-            "created_at": "now()",
-            "updated_at": "now()",
+            "enrolled_at": enrolled_at,
+            "created_at": enrolled_at,
+            "updated_at": enrolled_at,
         }
     ).execute()
     return Msg(id=enrollment_id, detail="Inscrito a la clase")

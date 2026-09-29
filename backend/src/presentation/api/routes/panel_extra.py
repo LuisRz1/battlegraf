@@ -824,12 +824,108 @@ async def report_staff(
     )
     classes = (
         supabase.table("classes")
-        .select("id, name, section_id, subject_id, teacher_membership_id")
+        .select(
+            "id, name, subject, section_id, subject_id, is_active, teacher_membership_id"
+        )
         .eq("school_id", school_id)
         .execute()
         .data
         or []
     )
+    class_section_ids = list(
+        {str(row["section_id"]) for row in classes if row.get("section_id")}
+    )
+    school_sections = (
+        (
+            supabase.table("sections")
+            .select("id")
+            .eq("school_id", school_id)
+            .in_("id", class_section_ids)
+            .execute()
+            .data
+            or []
+        )
+        if class_section_ids
+        else []
+    )
+    section_ids = {str(row["id"]) for row in school_sections}
+    section_subject_rows = (
+        (
+            supabase.table("section_subjects")
+            .select("section_id, subject_id, is_enabled")
+            .in_("section_id", list(section_ids))
+            .execute()
+            .data
+            or []
+        )
+        if section_ids
+        else []
+    )
+    enabled_section_subjects = {
+        (str(row["section_id"]), str(row["subject_id"]))
+        for row in section_subject_rows
+        if row.get("is_enabled", True)
+    }
+    class_ids = [str(row["id"]) for row in classes if row.get("id")]
+    enrollments = (
+        (
+            supabase.table("class_enrollments")
+            .select("class_id, student_profile_id, student_id, status, is_active")
+            .in_("class_id", class_ids)
+            .execute()
+            .data
+            or []
+        )
+        if class_ids
+        else []
+    )
+    profile_ids = list(
+        {
+            str(row["student_profile_id"])
+            for row in enrollments
+            if row.get("student_profile_id")
+        }
+    )
+    profiles = (
+        (
+            supabase.table("student_profiles")
+            .select("id, membership_id")
+            .eq("school_id", school_id)
+            .in_("id", profile_ids)
+            .execute()
+            .data
+            or []
+        )
+        if profile_ids
+        else []
+    )
+    membership_ids = list(
+        {str(row["membership_id"]) for row in profiles if row.get("membership_id")}
+    )
+    memberships = (
+        (
+            supabase.table("memberships")
+            .select("id, user_id")
+            .eq("school_id", school_id)
+            .eq("status", "active")
+            .in_("id", membership_ids)
+            .execute()
+            .data
+            or []
+        )
+        if membership_ids
+        else []
+    )
+    user_by_membership = {
+        str(row["id"]): str(row["user_id"])
+        for row in memberships
+        if row.get("id") and row.get("user_id")
+    }
+    user_by_profile = {
+        str(row["id"]): user_by_membership[str(row["membership_id"])]
+        for row in profiles
+        if row.get("id") and str(row.get("membership_id")) in user_by_membership
+    }
     grade_items = (
         supabase.table("grade_items")
         .select("id, created_by_membership_id, section_id")
@@ -850,17 +946,76 @@ async def report_staff(
     by_staff: list[dict] = []
     for person in staff:
         membership_id = person.get("membership_id")
-        subjects = [
-            (row.get("subjects") or {}).get("name")
-            for row in subject_teachers
-            if str(row.get("staff_id")) == str(person["id"])
-        ]
-        their_classes = [
-            c
-            for c in classes
+        legacy_classes = [
+            row
+            for row in classes
             if membership_id
-            and str(c.get("teacher_membership_id")) == str(membership_id)
+            and str(row.get("teacher_membership_id")) == str(membership_id)
         ]
+        assigned_subject_ids = {
+            str(row["subject_id"])
+            for row in subject_teachers
+            if str(row.get("staff_id")) == str(person["id"]) and row.get("subject_id")
+        }
+        assigned_subject_ids.update(
+            str(row["subject_id"]) for row in legacy_classes if row.get("subject_id")
+        )
+        subjects = list(
+            dict.fromkeys(
+                [
+                    (row.get("subjects") or {}).get("name")
+                    for row in subject_teachers
+                    if str(row.get("staff_id")) == str(person["id"])
+                ]
+                + [row.get("subject") for row in legacy_classes]
+            )
+        )
+
+        legacy_class_ids = {str(row["id"]) for row in legacy_classes if row.get("id")}
+        their_classes = []
+        for classroom in classes:
+            if classroom.get("is_active", True) is False:
+                continue
+            section_id = classroom.get("section_id")
+            subject_id = classroom.get("subject_id")
+            legacy_assigned = str(classroom.get("id")) in legacy_class_ids
+            if legacy_assigned:
+                if not section_id or (
+                    str(section_id) in section_ids
+                    and (
+                        not subject_id
+                        or (str(section_id), str(subject_id))
+                        in enabled_section_subjects
+                    )
+                ):
+                    their_classes.append(classroom)
+                continue
+            if (
+                section_id
+                and str(section_id) in section_ids
+                and subject_id
+                and str(subject_id) in assigned_subject_ids
+                and (str(section_id), str(subject_id)) in enabled_section_subjects
+            ):
+                their_classes.append(classroom)
+        their_class_ids = {str(row["id"]) for row in their_classes if row.get("id")}
+        student_keys = set()
+        for enrollment in enrollments:
+            if (
+                str(enrollment.get("class_id")) not in their_class_ids
+                or enrollment.get("status", "active") != "active"
+                or enrollment.get("is_active", True) is False
+            ):
+                continue
+            profile_id = enrollment.get("student_profile_id")
+            student_id = enrollment.get("student_id")
+            student_key = (
+                (user_by_profile.get(str(profile_id)) if profile_id else None)
+                or profile_id
+                or student_id
+            )
+            if student_key:
+                student_keys.add(str(student_key))
         items_created = [
             g
             for g in grade_items
@@ -876,13 +1031,7 @@ async def report_staff(
                 "subjects": [s for s in subjects if s],
                 "classes": len(their_classes),
                 "grade_items": len(items_created),
-                "students": len(
-                    {
-                        str(c.get("section_id"))
-                        for c in their_classes
-                        if c.get("section_id")
-                    }
-                ),
+                "students": len(student_keys),
             }
         )
     rows = [
@@ -899,7 +1048,7 @@ async def report_staff(
     return _export_or_json(
         export,
         "battlegraf-docentes.csv",
-        ["Docente", "Rol", "Cursos", "Clases", "Evaluaciones", "Secciones"],
+        ["Docente", "Rol", "Cursos", "Clases", "Evaluaciones", "Alumnos"],
         rows,
         {"staff": by_staff, "count": len(by_staff), "assignments": len(assignments)},
     )
