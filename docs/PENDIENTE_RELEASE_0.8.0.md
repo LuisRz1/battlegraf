@@ -159,6 +159,7 @@ duplicados y cero perfiles de roster sin vincular.
 | Supabase      | `node scripts/migrate.mjs` + `node scripts/verify-db.mjs`                              | 11 migraciones, esquema mergeado y seguridad todo `true`                                                        |
 | Railway       | deployment `4e42ff80-21d8-4f44-abfa-af4487c5178e`                                      | `SUCCESS`; `/openapi.json` HTTP 200                                                                             |
 | GitHub        | Release `v0.8.0`                                                                       | Publicado, asset `battlegraf-android.apk` verificado                                                            |
+| Descarga APK  | URL directa de GitHub Release                                                          | HTTP 200, 60,896,578 bytes, MIME `application/vnd.android.package-archive` y filename correcto                  |
 | Vercel        | deployment `battlegraf-landing-n03gmf97h-luisrz1s-projects.vercel.app`                 | `Ready`; alias `battlegraf-landing-five.vercel.app` verificado                                                  |
 
 Nota: el lint global de Ruff (`ruff check src`) sigue mostrando **83 hallazgos
@@ -192,6 +193,11 @@ no estaba disponible; no se cambio el ajuste global del sistema.
 Verificado que el certificado debug coincide con el APK publicado `v0.7.1`
 (SHA-256 `2fba3282...2606`), por lo que la actualizacion directa por GitHub si
 mantiene continuidad. Resolver keystore real queda para cuando se suba a tiendas.
+
+La entrega HTTP del APK se comprobo completa con `curl -L`: cuerpo del tamaño
+esperado y `Content-Disposition` con `filename=battlegraf-android.apk`. El CTA de
+descarga aparece tambien en el viewport movil de la landing. No se hizo una
+instalacion fisica en un telefono.
 
 ### 6.3 Flaky test
 
@@ -285,8 +291,10 @@ la API con `?name=battlegraf-android.apk` si el archivo local tiene otro nombre.
 
 Deployment `4e42ff80-21d8-4f44-abfa-af4487c5178e` figura `SUCCESS`; se hizo
 `railway up` desde la raiz `landing-real` para que el `rootDirectory=backend` del
-servicio resuelva correctamente. El primer intento desde `backend/` fallo al
-buscar `backend/backend`; no cambio el deployment activo. OpenAPI HTTP 200.
+servicio resuelva correctamente. El correo de fallo corresponde al intento previo
+`659b1394-4352-4250-8e2d-41a9d14df947`: ejecutado desde `backend/`, el builder
+busco `backend/backend` y no encontro la ruta. Ese intento no reemplazo el servicio;
+el deployment correcto esta `SUCCESS`. OpenAPI HTTP 200.
 
 ### Paso 7 — Deploy Vercel + alias `five` (completado)
 
@@ -323,6 +331,12 @@ Proyecto `battlegraf-landing` (`prj_wN7HoAO7PbpQghxwYA02YbiN75Ui`).
 - Pruebas automatizadas Flutter/backend y verificadores de base pasan. Queda
   recomendada una prueba manual en dispositivo real de registro, vinculo, clase,
   campana y cosmetico.
+- Se recibio el reporte de que el telefono no inicia la descarga. Desde este
+  entorno el asset completo baja (HTTP 200, 60,896,578 bytes, MIME APK), la landing
+  expone el CTA Android en viewport movil y el `Content-Disposition` da el nombre
+  esperado. Si Android bloquea despues de bajar, revisar el permiso de instalar
+  apps desconocidas del navegador. Hace falta el error exacto del telefono para
+  distinguir descarga bloqueada de instalacion bloqueada.
 
 ---
 
